@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 #include <RuvmBlender.h>
+
 
 typedef struct HandleEntry {
 	struct HandleEntry *pNext;
@@ -117,7 +119,7 @@ void ruvmBlenderUpdateMesh(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 			(ruvmMesh->faceCount + 1));
 }
 
-void ruvmUpdateMeshUv(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
+void ruvmBlenderUpdateMeshUv(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 	memcpy(ruvmMesh->pUvs, workMesh->pUvs, sizeof(RuvmVec2) *
 			ruvmMesh->loopCount);
 }

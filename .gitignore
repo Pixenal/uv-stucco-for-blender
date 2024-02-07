@@ -1,0 +1,8 @@
+.ccls-cache/
+__pycache__/
+Build/
+*.ppm
+TestOutputDir/
+Documentation/
+Win64/
+compile_commands.json

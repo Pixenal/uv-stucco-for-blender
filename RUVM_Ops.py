@@ -41,6 +41,48 @@ class RuvmMesh(ctypes.Structure):
                 ("vertCount", ctypes.c_int),
                 ("pVerts", ctypes.POINTER(RuvmVec3))]
 
+class RUVM_OT_RUVMDumpMesh(bpy.types.Operator):
+    bl_idname = "ruvm.ruvm_dump_mesh"
+    bl_label = "RUVM Dump Mesh"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        obj = context.selected_objects[0]
+        depsgraph = context.evaluated_depsgraph_get()
+        objEval = obj.evaluated_get(depsgraph)
+        meshEval = objEval.data
+
+        bMeshEval = bmesh.new()
+        bMeshEval.from_mesh(meshEval)
+
+        mesh = RuvmMesh()
+        mesh.faceCount = len(meshEval.polygons)
+        mesh.loopCount = len(meshEval.loops)
+        mesh.vertCount = len(meshEval.vertices)
+
+        normals = numpy.zeros(mesh.loopCount * 3, dtype = numpy.float32)
+        meshEval.calc_normals_split()
+        meshEval.loops.foreach_get("normal", normals)
+
+        vertsPtr = meshEval.vertices[0].as_pointer()
+        mesh.pVerts = ctypes.cast(vertsPtr, ctypes.POINTER(RuvmVec3))
+        loopsPtr = meshEval.loops[0].as_pointer()
+        mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
+        facesPtr = meshEval.polygons[0].as_pointer()
+        mesh.pFaces = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
+        uvPtr = meshEval.uv_layers[0].data[0].as_pointer()
+        mesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(RuvmVec2))
+
+        ruvmLib.ruvmBlenderDumpMesh.argtypes = (ctypes.POINTER(RuvmMesh),
+            numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"),
+                                                ctypes.POINTER(ctypes.c_char))
+        filepath = "/run/media/calebdawson/Tuna/workshop_folders/RUVM_CallTest/TestOutputDir/MeshDump"
+        filePathUtf8 = filepath.encode('utf-8')
+        ruvmLib.ruvmBlenderDumpMesh(mesh, normals, filePathUtf8)
+
+        return {'FINISHED'}
+
+
 class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
     bl_idname = "ruvm.ruvm_export_ruvm_file"
     bl_label = "RUVM Export"
@@ -228,8 +270,9 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         uvPtr = meshRuvm.uv_layers[0].data[0].as_pointer()
         ruvmMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(RuvmVec2))
         ruvmLib.ruvmBlenderUpdateMeshUv(ctypes.pointer(ruvmMesh), ctypes.pointer(workMesh))
+        ruvmLib.ruvmBlenderMeshDestroy(ctypes.pointer(workMesh))
         print("FinishedUpdating")
-        objRuvm.data.update()
+        meshRuvm.update()
 
 @persistent
 def ruvmLoadPostHandler(dummy):
@@ -242,7 +285,8 @@ def ruvmLoadPreHandler(dummy):
 classes = [RUVM_OT_RuvmExportRuvmFile,
            RUVM_OT_RuvmAssign,
            RUVM_OT_RuvmRemove,
-           RUVM_OT_RuvmLoadRuvmFile]
+           RUVM_OT_RuvmLoadRuvmFile,
+           RUVM_OT_RUVMDumpMesh]
 
 #Register
 def register():

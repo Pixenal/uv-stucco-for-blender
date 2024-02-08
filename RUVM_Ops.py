@@ -36,8 +36,11 @@ class RuvmMesh(ctypes.Structure):
                 ("pFaces", ctypes.POINTER(ctypes.c_int)),
                 ("loopCount", ctypes.c_int),
                 ("pLoops", ctypes.POINTER(ctypes.c_int)),
+                ("pEdges", ctypes.POINTER(ctypes.c_int)),
                 ("pNormals", ctypes.POINTER(RuvmVec3)),
                 ("pUvs", ctypes.POINTER(RuvmVec2)),
+                ("edgeCount", ctypes.c_int),
+                ("pEdgePreserve", ctypes.POINTER(ctypes.c_char)),
                 ("vertCount", ctypes.c_int),
                 ("pVerts", ctypes.POINTER(RuvmVec3))]
 
@@ -203,9 +206,17 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         meshEval.calc_normals_split()
         meshEval.loops.foreach_get("normal", normals)
 
+        edges = numpy.zeros(mesh.loopCount, dtype = numpy.int32)
+        meshEval.loops.foreach_get("edge_index", edges)
+
         vertsPtr = meshEval.vertices[0].as_pointer()
         mesh.pVerts = ctypes.cast(vertsPtr, ctypes.POINTER(RuvmVec3))
         loopsPtr = meshEval.loops[0].as_pointer()
+        edgePreserve = meshEval.attributes.get("RuvmPreserve", None)
+        if (edgePreserve != None):
+            pEdgePreserve = edgePreserve.data[0].as_pointer();
+            mesh.pEdgePreserve = ctypes.cast(pEdgePreserve, ctypes.POINTER(ctypes.c_char))
+            mesh.pEdgeCount = len(edgePreserve.data)
         mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
         facesPtr = meshEval.polygons[0].as_pointer()
         mesh.pFaces = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int))
@@ -225,10 +236,11 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         ruvmLib.ruvmBlenderMapToMesh.argtypes = (
             ctypes.POINTER(ctypes.c_char),
             ctypes.POINTER(RuvmMesh),
+            numpy.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS"),
             numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"),
             ctypes.POINTER(RuvmMesh)
         )
-        ruvmLib.ruvmBlenderMapToMesh(filePathUtf8, ctypes.pointer(mesh), normals, ctypes.pointer(workMesh))
+        ruvmLib.ruvmBlenderMapToMesh(filePathUtf8, ctypes.pointer(mesh), edges, normals, ctypes.pointer(workMesh))
 
         nameRuvm = obj.name + ".Ruvm"
         print(nameRuvm)

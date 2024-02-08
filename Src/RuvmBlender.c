@@ -102,9 +102,10 @@ void ruvmBlenderUnloadRuvmFile(char *pFilePath) {
 	}
 }
 
-void ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, float *pNormals,
-                          RuvmMesh *pWorkMesh) {
+void ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, int32_t *pEdges,
+                          float *pNormals, RuvmMesh *pWorkMesh) {
 	pMesh->pNormals = (RuvmVec3 *)pNormals;
+	pMesh->pEdges = pEdges;
 	HandleEntry *pEntry, *pPrevEntry;
 	getHandle(&pEntry, &pPrevEntry, pFilePath);
 	ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh);

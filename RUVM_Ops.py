@@ -201,6 +201,11 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         mesh.faceCount = len(meshEval.polygons)
         mesh.loopCount = len(meshEval.loops)
         mesh.vertCount = len(meshEval.vertices)
+        mesh.edgeCount = len(meshEval.edges)
+
+        print("InMesh.vertCount ", mesh.vertCount)
+        print("InMesh.loopCount ", mesh.loopCount)
+        print("InMesh.faceCount ", mesh.faceCount)
 
         normals = numpy.zeros(mesh.loopCount * 3, dtype = numpy.float32)
         meshEval.calc_normals_split()
@@ -276,15 +281,24 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         facesRuvmPtr = meshRuvm.polygons[0].as_pointer()
         ruvmMesh.pFaces = ctypes.cast(facesRuvmPtr, ctypes.POINTER(ctypes.c_int))
 
-        ruvmLib.ruvmBlenderUpdateMesh(ctypes.pointer(ruvmMesh), ctypes.pointer(workMesh))
+        normalsOutType = ctypes.POINTER(ctypes.c_float)
+        normalsOut = normalsOutType()
+
+        ruvmLib.ruvmBlenderUpdateMesh(ctypes.pointer(ruvmMesh), ctypes.pointer(workMesh),
+                                      ctypes.pointer(normalsOut))
 
         meshRuvm.uv_layers.new(name="uvmap")
         uvPtr = meshRuvm.uv_layers[0].data[0].as_pointer()
         ruvmMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(RuvmVec2))
         ruvmLib.ruvmBlenderUpdateMeshUv(ctypes.pointer(ruvmMesh), ctypes.pointer(workMesh))
-        ruvmLib.ruvmBlenderMeshDestroy(ctypes.pointer(workMesh))
         print("FinishedUpdating")
+        print("setting   ", normalsOut[100])
+        normalsNumpy = numpy.ctypeslib.as_array(normalsOut, shape = [ruvmMesh.loopCount * 3])
+        print("setting   ", normalsNumpy[100])
         meshRuvm.update()
+        meshRuvm.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
+        meshRuvm.use_auto_smooth = True
+        ruvmLib.ruvmBlenderMeshDestroy(ctypes.pointer(workMesh))
 
 @persistent
 def ruvmLoadPostHandler(dummy):

@@ -19,7 +19,8 @@ RUVM_BLENDER_EXPORT void ruvmBlenderMapToMesh(char *pFilePath,
 											  float *pNormals,
                                               RuvmMesh *pWorkMesh);
 RUVM_BLENDER_EXPORT void ruvmBlenderUpdateMesh(RuvmMesh *ruvmMesh,
-                                               RuvmMesh *workMesh);
+                                               RuvmMesh *workMesh,
+                                               float **ppOutNormals);
 RUVM_BLENDER_EXPORT void ruvmBlenderUpdateMeshUv(RuvmMesh *ruvmMesh,
                                                  RuvmMesh *workMesh);
 RUVM_BLENDER_EXPORT void ruvmBlenderDestroy(RuvmMesh *pWorkMesh);

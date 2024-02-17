@@ -111,13 +111,14 @@ void ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, int32_t *pEdges,
 	ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh);
 }
 
-void ruvmBlenderUpdateMesh(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
+void ruvmBlenderUpdateMesh(RuvmMesh *ruvmMesh, RuvmMesh *workMesh, float **ppOutNormals) {
 	memcpy(ruvmMesh->pVerts, workMesh->pVerts, sizeof(RuvmVec3) *
 			ruvmMesh->vertCount);
 	memcpy(ruvmMesh->pLoops, workMesh->pLoops, sizeof(int32_t) *
 			ruvmMesh->loopCount);
 	memcpy(ruvmMesh->pFaces, workMesh->pFaces, sizeof(int32_t) *
 			(ruvmMesh->faceCount + 1));
+	*ppOutNormals = (float *)workMesh->pNormals;
 }
 
 void ruvmBlenderUpdateMeshUv(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {

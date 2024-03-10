@@ -102,13 +102,16 @@ void ruvmBlenderUnloadRuvmFile(char *pFilePath) {
 	}
 }
 
-void ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, int32_t *pEdges,
+int32_t ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, int32_t *pEdges,
                           float *pNormals, RuvmMesh *pWorkMesh) {
 	pMesh->pNormals = (RuvmVec3 *)pNormals;
 	pMesh->pEdges = pEdges;
 	HandleEntry *pEntry, *pPrevEntry;
-	getHandle(&pEntry, &pPrevEntry, pFilePath);
-	ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh);
+	if (getHandle(&pEntry, &pPrevEntry, pFilePath) != 4) {
+		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
+		return 1;
+	}
+	return ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh);
 }
 
 void ruvmBlenderUpdateMesh(RuvmMesh *ruvmMesh, RuvmMesh *workMesh, float **ppOutNormals) {

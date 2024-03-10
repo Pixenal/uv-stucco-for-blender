@@ -2,14 +2,16 @@ import bpy
 import ctypes
 import numpy
 import bmesh
+import sys
 from bpy.app.handlers import persistent
 from bpy_extras.io_utils import ImportHelper
 import os
 
-#ruvmLib = ctypes.cdll.LoadLibrary("T:/workshop_folders/RUVM/Win64/RUVM.dll")
-ruvmLibPath = "/run/media/calebdawson/Tuna/workshop_folders/RUVM_Blender/Build/Debug/libRUVMBlender.so"
+if sys.platform == "win32":
+    ruvmLibPath = "T:/workshop_folders/RUVM_Blender/Build/Win/Debug/RUVMBlender.dll"
+elif sys.platform == "linux" or "linux2":
+    ruvmLibPath = "/run/media/calebdawson/Tuna/workshop_folders/RUVM_Blender/Build/Debug/libRUVMBlender.so"
 ruvmLib = ctypes.cdll.LoadLibrary(ruvmLibPath)
-#ruvmLib = ctypes.cdll.LoadLibrary("T:\workshop_folders/RUVMWin/RUVM/x64/Debug/RUVM.dll")
 
 class RuvmVec2(ctypes.Structure):
     _fields_ = [("x", ctypes.c_float),
@@ -19,17 +21,6 @@ class RuvmVec3(ctypes.Structure):
     _fields_ = [("x", ctypes.c_float),
                 ("y", ctypes.c_float),
                 ("z", ctypes.c_float)]
-
-#class Vert(ctypes.Structure):
-#    _fields_ = [("pos", Vec3)] 
-#
-#class Loop(ctypes.Structure):
-#    _fields_ = [("vert", ctypes.c_int),
-#                ("normal", Vec3)]
-#
-#class Face(ctypes.Structure):
-#    _fields_ = [("loopSize", ctypes.c_int),
-#                ("loops", Loop * 4)]
 
 class RuvmMesh(ctypes.Structure):
     _fields_ = [("faceCount", ctypes.c_int),
@@ -160,7 +151,6 @@ class RUVM_OT_RuvmLoadRuvmFile(bpy.types.Operator, ImportHelper):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        #filePath = "/run/media/calebdawson/Tuna/workshop_folders/RUVM/TestOutputDir/File_Misc_F.ruvm"
         filepath = self.filepath
         filePathUtf8 = filepath.encode('utf-8')
         newMap = context.scene.ruvmMaps.add()
@@ -183,16 +173,23 @@ class RUVM_OT_RuvmRemove(bpy.types.Operator):
         scene.ruvmTargets.remove(scene.ruvmTargetsIndex)
         return {'FINISHED'}
 
+ruvmJustUpdated = 0
+
 @persistent
 def ruvmDepsgraphUpdatePostHandler(dummy):
+    global ruvmJustUpdated
     scene = bpy.context.scene
     depsgraph = bpy.context.evaluated_depsgraph_get()
+    if (ruvmJustUpdated != 0):
+        ruvmJustUpdated = 0
+        return
     for target in scene.ruvmTargets:
-        obj = target.obj;
+        obj = target.obj
         if not(obj in bpy.context.selected_objects):
             continue
         elif obj.mode != 'OBJECT':
             continue
+        ruvmJustUpdated = 1
         mesh = obj.data
         objEval = obj.evaluated_get(depsgraph)
         meshEval = objEval.data
@@ -219,7 +216,7 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         loopsPtr = meshEval.loops[0].as_pointer()
         edgePreserve = meshEval.attributes.get("RuvmPreserve", None)
         if (edgePreserve != None):
-            pEdgePreserve = edgePreserve.data[0].as_pointer();
+            pEdgePreserve = edgePreserve.data[0].as_pointer()
             mesh.pEdgePreserve = ctypes.cast(pEdgePreserve, ctypes.POINTER(ctypes.c_char))
             mesh.pEdgeCount = len(edgePreserve.data)
         mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int))
@@ -245,7 +242,10 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
             numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"),
             ctypes.POINTER(RuvmMesh)
         )
-        ruvmLib.ruvmBlenderMapToMesh(filePathUtf8, ctypes.pointer(mesh), edges, normals, ctypes.pointer(workMesh))
+        #ruvmLib.ruvmBlenderMapToMesh.restype = ctypes.c_int
+        if ruvmLib.ruvmBlenderMapToMesh(filePathUtf8, ctypes.pointer(mesh), edges, normals, ctypes.pointer(workMesh)) == 1:
+            print("Ruvm python map to mesh failed, map to mesh returned error")
+            return
 
         nameRuvm = obj.name + ".Ruvm"
         print(nameRuvm)

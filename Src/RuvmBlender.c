@@ -55,11 +55,11 @@ static int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry,
 }
 
 void ruvmBlenderInit() {
-	ruvmContextInit(&pRuvmContext, NULL, NULL, NULL);
+	RuvmTypeDefaultConfig typeDefaultConfig = {0};
+	ruvmContextInit(&pRuvmContext, NULL, NULL, NULL, &typeDefaultConfig);
 }
 
-void ruvmBlenderMapFileExport(RuvmMesh *pMesh, float *pNormals) {
-	pMesh->pNormals = (RuvmVec3 *)pNormals;
+void ruvmBlenderMapFileExport(RuvmMesh *pMesh) {
 	ruvmMapFileExport(pRuvmContext, pMesh);
 }
 
@@ -102,31 +102,70 @@ void ruvmBlenderUnloadRuvmFile(char *pFilePath) {
 	}
 }
 
-int32_t ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, int32_t *pEdges,
-                          float *pNormals, RuvmMesh *pWorkMesh) {
-	pMesh->pNormals = (RuvmVec3 *)pNormals;
-	pMesh->pEdges = pEdges;
+void ruvmBlenderQueryCommonAttribs(RuvmMesh *pMesh, char *pMap,
+								   RuvmCommonAttribList *pCommonAttribs) {
+	HandleEntry *pEntry, *pPrevEntry;
+	if (getHandle(&pEntry, &pPrevEntry, pMap) != 4) {
+		printf("Ruvm query common attribs failed, specified map not loaded\n");
+		return;
+	}
+	ruvmQueryCommonAttribs(pRuvmContext, pEntry->handle, pMesh, pCommonAttribs);
+}
+
+int32_t ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, RuvmMesh *pWorkMesh,
+                             RuvmCommonAttribList *pCommonAttribs) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pFilePath) != 4) {
 		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
 		return 1;
 	}
-	return ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh);
+	return ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh, pCommonAttribs);
 }
 
-void ruvmBlenderUpdateMesh(RuvmMesh *ruvmMesh, RuvmMesh *workMesh, float **ppOutNormals) {
-	memcpy(ruvmMesh->pVerts, workMesh->pVerts, sizeof(RuvmVec3) *
-			ruvmMesh->vertCount);
-	memcpy(ruvmMesh->pLoops, workMesh->pLoops, sizeof(int32_t) *
-			ruvmMesh->loopCount);
+void ruvmBlenderDestroyCommonAttribs(RuvmCommonAttribList *pCommonAttribs) {
+	ruvmDestroyCommonAttribs(pRuvmContext, pCommonAttribs);
+}
+
+void ruvmBlenderCopyMeshCore(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 	memcpy(ruvmMesh->pFaces, workMesh->pFaces, sizeof(int32_t) *
-			(ruvmMesh->faceCount + 1));
-	*ppOutNormals = (float *)workMesh->pNormals;
+	       (ruvmMesh->faceCount + 1));
+	memcpy(ruvmMesh->pLoops, workMesh->pLoops, sizeof(int32_t) *
+	       ruvmMesh->loopCount);
+	memcpy(ruvmMesh->pVertAttribs[0].pData, workMesh->pVertAttribs[0].pData, sizeof(RuvmVec3) *
+	       ruvmMesh->vertCount);
+	//memcpy(ruvmMesh->pEdges, workMesh->pEdges, sizeof(int32_t) *
+	//       ruvmMesh->loopCount);
 }
 
-void ruvmBlenderUpdateMeshUv(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
-	memcpy(ruvmMesh->pUvs, workMesh->pUvs, sizeof(RuvmVec2) *
-			ruvmMesh->loopCount);
+static void copyAttribs(RuvmAttrib *pA, RuvmAttrib *pB, int32_t attribCount,
+                        int32_t dataLen) {
+	if (!pA || !pB) {
+		return;
+	}
+	for (int32_t i = 0; i < attribCount; ++i) {
+		RuvmAttrib *pBEntry = ruvmGetAttrib(pA[i].name, pB, attribCount);
+		if (!pBEntry) {
+			printf("Mismatch in workmesh and ruvmmesh attribs\n");
+			abort();
+		}
+		int32_t attribSize;
+		ruvmGetAttribSize(pA + i, &attribSize);
+		printf("attrib Size == %d\n", attribSize);
+		memcpy(pBEntry->pData, pA[i].pData, attribSize * dataLen);
+	}
+}
+
+void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
+	//copyAttribs(workMesh->pMeshAttribs, ruvmMesh->pMeshAttribs,
+	//            workMesh->meshAttribCount, 1);
+	//copyAttribs(workMesh->pFaceAttribs, ruvmMesh->pFaceAttribs,
+	//            workMesh->faceAttribCount, workMesh->faceCount);
+	copyAttribs(workMesh->pLoopAttribs, ruvmMesh->pLoopAttribs,
+	            workMesh->loopAttribCount, workMesh->loopCount);
+	//copyAttribs(workMesh->pEdgeAttribs, ruvmMesh->pEdgeAttribs,
+	//            workMesh->edgeAttribCount, workMesh->edgeCount);
+	//copyAttribs(workMesh->pVertAttribs, ruvmMesh->pVertAttribs,
+	//            workMesh->vertAttribCount, workMesh->vertCount);
 }
 
 void ruvmBlenderMeshDestroy(RuvmMesh *pMesh) {

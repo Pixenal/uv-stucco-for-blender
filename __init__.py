@@ -19,16 +19,12 @@ else:
     from . import RUVM_Ops
     from . import RUVM_UI
 
-import bpy
-
-#Register
 def register():
     print("Registering RUVM")
     RUVM_Props.register()
     RUVM_Ops.register()
     RUVM_UI.register()
 
-#Unregister
 def unregister():
     print("Registering RUVM")
     RUVM_Props.unregister()

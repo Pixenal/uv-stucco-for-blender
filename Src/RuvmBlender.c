@@ -131,27 +131,27 @@ void ruvmBlenderCopyMeshCore(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 	       (ruvmMesh->faceCount + 1));
 	memcpy(ruvmMesh->pLoops, workMesh->pLoops, sizeof(int32_t) *
 	       ruvmMesh->loopCount);
-	memcpy(ruvmMesh->pVertAttribs[0].pData, workMesh->pVertAttribs[0].pData, sizeof(RuvmVec3) *
+	memcpy(ruvmMesh->vertAttribs.pArr[0].pData, workMesh->vertAttribs.pArr[0].pData, sizeof(RuvmVec3) *
 	       ruvmMesh->vertCount);
 	//memcpy(ruvmMesh->pEdges, workMesh->pEdges, sizeof(int32_t) *
 	//       ruvmMesh->loopCount);
 }
 
-static void copyAttribs(RuvmAttrib *pA, RuvmAttrib *pB, int32_t attribCount,
+static void copyAttribs(RuvmAttribArray *pA, RuvmAttribArray *pB,
                         int32_t dataLen) {
 	if (!pA || !pB) {
 		return;
 	}
-	for (int32_t i = 0; i < attribCount; ++i) {
-		RuvmAttrib *pBEntry = ruvmGetAttrib(pA[i].name, pB, attribCount);
+	for (int32_t i = 0; i < pA->count; ++i) {
+		RuvmAttrib *pBEntry = ruvmGetAttrib(pA->pArr[i].name, pB);
 		if (!pBEntry) {
 			printf("Mismatch in workmesh and ruvmmesh attribs\n");
 			abort();
 		}
 		int32_t attribSize;
-		ruvmGetAttribSize(pA + i, &attribSize);
+		ruvmGetAttribSize(pA->pArr + i, &attribSize);
 		printf("attrib Size == %d\n", attribSize);
-		memcpy(pBEntry->pData, pA[i].pData, attribSize * dataLen);
+		memcpy(pBEntry->pData, pA->pArr[i].pData, attribSize * dataLen);
 	}
 }
 
@@ -160,8 +160,8 @@ void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 	//            workMesh->meshAttribCount, 1);
 	//copyAttribs(workMesh->pFaceAttribs, ruvmMesh->pFaceAttribs,
 	//            workMesh->faceAttribCount, workMesh->faceCount);
-	copyAttribs(workMesh->pLoopAttribs, ruvmMesh->pLoopAttribs,
-	            workMesh->loopAttribCount, workMesh->loopCount);
+	copyAttribs(&workMesh->loopAttribs, &ruvmMesh->loopAttribs,
+	            workMesh->loopCount);
 	//copyAttribs(workMesh->pEdgeAttribs, ruvmMesh->pEdgeAttribs,
 	//            workMesh->edgeAttribCount, workMesh->edgeCount);
 	//copyAttribs(workMesh->pVertAttribs, ruvmMesh->pVertAttribs,

@@ -41,24 +41,23 @@ class RuvmAttrib(ctypes.Structure):
                 ("origin", ctypes.c_int32),
                 ("interpolate", ctypes.c_int32)]
 
+class RuvmAttribArray(ctypes.Structure):
+    _fields_ = [("pArr", ctypes.POINTER(RuvmAttrib)),
+                ("count", ctypes.c_int32)]
+
 class RuvmMesh(ctypes.Structure):
-    _fields_ = [("meshAttribCount", ctypes.c_int32),
-                ("pMeshAttribs", ctypes.POINTER(RuvmAttrib)),
+    _fields_ = [("meshAttribs", RuvmAttribArray),
                 ("faceCount", ctypes.c_int32),
                 ("pFaces", ctypes.POINTER(ctypes.c_int32)),
-                ("faceAttribCount", ctypes.c_int32),
-                ("pFaceAttribs", ctypes.POINTER(RuvmAttrib)),
+                ("faceAttribs", RuvmAttribArray),
                 ("loopCount", ctypes.c_int32),
                 ("pLoops", ctypes.POINTER(ctypes.c_int32)),
-                ("loopAttribCount", ctypes.c_int32),
-                ("pLoopAttribs", ctypes.POINTER(RuvmAttrib)),
+                ("loopAttribs", RuvmAttribArray),
                 ("edgeCount", ctypes.c_int32),
                 ("pEdges", ctypes.POINTER(ctypes.c_int32)),
-                ("edgeAttribCount", ctypes.c_int32),
-                ("pEdgeAttribs", ctypes.POINTER(RuvmAttrib)),
+                ("edgeAttribs", RuvmAttribArray),
                 ("vertCount", ctypes.c_int32),
-                ("vertAttribCount", ctypes.c_int32),
-                ("pVertAttribs", ctypes.POINTER(RuvmAttrib))]
+                ("vertAttribs", RuvmAttribArray)]
 
 class RuvmBlendConfig(ctypes.Structure):
     _fields_ = [("blend", ctypes.c_int32),
@@ -179,13 +178,13 @@ def copyAttribName(dest, src):
 
 def allocAttribs(mesh, attribCounts):
     FaceAttribsArray = RuvmAttrib * attribCounts["face"]
-    mesh.pFaceAttribs = FaceAttribsArray()
+    mesh.faceAttribs.pArr = FaceAttribsArray()
     LoopAttribsArray = RuvmAttrib * (attribCounts["loop"] + 1) # +1 is for normals
-    mesh.pLoopAttribs = LoopAttribsArray()
+    mesh.loopAttribs.pArr = LoopAttribsArray()
     EdgeAttribsArray = RuvmAttrib * attribCounts["edge"]
-    mesh.pEdgeAttribs = EdgeAttribsArray()
+    mesh.edgeAttribs.pArr = EdgeAttribsArray()
     VertAttribsArray = RuvmAttrib * attribCounts["vert"]
-    mesh.pVertAttribs = VertAttribsArray()
+    mesh.vertAttribs.pArr = VertAttribsArray()
 
 def initAttribEntry(attrib, attribEntry, dataLen, metaOnly, interpolate):
     copyAttribName(attribEntry.name, attrib.name)
@@ -202,21 +201,21 @@ def initAttribs(mesh, target, metaOnly):
             continue
         match attrib.domain:
             case 'FACE':
-                attribEntry = mesh.pFaceAttribs[mesh.faceAttribCount]
+                attribEntry = mesh.faceAttribs.pArr[mesh.faceAttribs.count]
                 initAttribEntry(attrib, attribEntry, mesh.faceCount, metaOnly, 0)
-                mesh.faceAttribCount += 1;
+                mesh.faceAttribs.count += 1;
             case 'CORNER':
-                attribEntry = mesh.pLoopAttribs[mesh.loopAttribCount]
+                attribEntry = mesh.loopAttribs.pArr[mesh.loopAttribs.count]
                 initAttribEntry(attrib, attribEntry, mesh.loopCount, metaOnly, 1)
-                mesh.loopAttribCount += 1;
+                mesh.loopAttribs.count += 1;
             case 'EDGE':
-                attribEntry = mesh.pEdgeAttribs[mesh.edgeAttribCount]
+                attribEntry = mesh.edgeAttribs.pArr[mesh.edgeAttribs.count]
                 initAttribEntry(attrib, attribEntry, mesh.edgeCount, metaOnly, 0)
-                mesh.edgeAttribCount += 1
+                mesh.edgeAttribs.count += 1
             case 'POINT':
-                attribEntry = mesh.pVertAttribs[mesh.vertAttribCount]
+                attribEntry = mesh.vertAttribs.pArr[mesh.vertAttribs.count]
                 initAttribEntry(attrib, attribEntry, mesh.vertCount, metaOnly, 0)
-                mesh.vertAttribCount += 1
+                mesh.vertAttribs.count += 1
 
 #returns a tuple containing the mesh, and the edges numpy array.
 #in order to prevent the reference tot he edge array from becoming invalid
@@ -251,12 +250,12 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
     normals = numpy.zeros(mesh.loopCount * 3, dtype = numpy.float32)
     target.calc_normals_split()
     target.loops.foreach_get("normal", normals)
-    attribEntry = mesh.pLoopAttribs[mesh.loopAttribCount]
+    attribEntry = mesh.loopAttribs.pArr[mesh.loopAttribs.count]
     name = "normal"
     copyAttribName(attribEntry.name, name)
     attribEntry.type = 16 #RUVM_V3_F32
     attribEntry.pData = normals.ctypes.data_as(ctypes.c_void_p)
-    mesh.loopAttribCount += 1
+    mesh.loopAttribs.count += 1
     return (mesh, edges, normals)
 
 class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
@@ -381,15 +380,15 @@ def createSingleAttrib(mesh, attrib, domain):
     name = ctypes.cast(attrib.name, ctypes.c_char_p).value
     mesh.attributes.new(name = name.decode("utf-8"), type = attribType, domain = domain)
 
-def createAttribs(mesh, attribs, attribCount, domain):
+def createAttribs(mesh, attribs, domain):
     i = 0
-    while (i < attribCount):
-        createSingleAttrib(mesh, attribs[i], domain)
+    while (i < attribs.count):
+        createSingleAttrib(mesh, attribs.pArr[i], domain)
         i += 1
 
 def createAllAttribs(mesh, ruvmMesh):
     #createAttribs(mesh, ruvmMesh.pFaceAttribs, ruvmMesh.faceAttribCount, "FACE")
-    createAttribs(mesh, ruvmMesh.pLoopAttribs, ruvmMesh.loopAttribCount, "CORNER")
+    createAttribs(mesh, ruvmMesh.loopAttribs, "CORNER")
     #createAttribs(mesh, ruvmMesh.pEdgeAttribs, ruvmMesh.edgeAttribCount, "EDGE")
     #createAttribs(mesh, ruvmMesh.pVertAttribs, ruvmMesh.vertAttribCount, "POINT")
 
@@ -460,10 +459,10 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         print("workMesh.vertCount ", workMesh.vertCount)
         print("workMesh.loopCount ", workMesh.loopCount)
         print("workMesh.faceCount ", workMesh.faceCount)
-        #pdb.set_trace()
         meshRuvm.vertices.add(workMesh.vertCount)
         meshRuvm.loops.add(workMesh.loopCount)
         meshRuvm.polygons.add(workMesh.faceCount)
+        #pdb.set_trace()
         createAllAttribs(meshRuvm, workMesh)
         meshRuvmFormat = formatAsRuvmMesh(meshRuvm, False, False)
 

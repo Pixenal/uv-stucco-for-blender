@@ -394,10 +394,10 @@ def createAllAttribs(mesh, ruvmMesh):
 
 def getNormalAttrib(mesh):
     i = 0
-    while (i < mesh.loopAttribCount):
-        name = ctypes.cast(mesh.pLoopAttribs[i].name, ctypes.c_char_p).value
+    while (i < mesh.loopAttribs.count):
+        name = ctypes.cast(mesh.loopAttribs.pArr[i].name, ctypes.c_char_p).value
         if (name.decode("utf-8") == "normal"):
-            return ctypes.pointer(mesh.pLoopAttribs[i])
+            return ctypes.pointer(mesh.loopAttribs.pArr[i])
         i += 1
     return None
 

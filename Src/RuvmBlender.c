@@ -171,3 +171,15 @@ void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 void ruvmBlenderMeshDestroy(RuvmMesh *pMesh) {
 	ruvmMeshDestroy(pRuvmContext, pMesh);
 }
+
+int32_t ruvmBlenderMapFileGenPreviewImage(char *pFilePath, int32_t res, float *pImage) {
+	HandleEntry *pEntry, *pPrevEntry;
+	if (getHandle(&pEntry, &pPrevEntry, pFilePath) != 4) {
+		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
+		return 1;
+	}
+	RuvmImage image = {.res = res, .type = RUVM_IMAGE_F32};
+	ruvmMapFileGenPreviewImage(pRuvmContext, pEntry->handle, &image);
+	memcpy(pImage, image.pData, res * res * 4 * sizeof(float));
+	return 0;
+}

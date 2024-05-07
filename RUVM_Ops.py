@@ -234,7 +234,7 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
     loopsPtr = target.loops[0].as_pointer()
     mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int32))
 
-    edges = numpy.zeros(mesh.loopCount, dtype = numpy.int32)
+    edges = numpy.empty(mesh.loopCount, dtype = numpy.int32)
     target.loops.foreach_get("edge_index", edges)
     mesh.pEdges = edges.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
 
@@ -247,7 +247,7 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
         return (mesh, edges)
     #afaik, normals are not accessable as an attribute.
     #atleast not at the time of writing.
-    normals = numpy.zeros(mesh.loopCount * 3, dtype = numpy.float32)
+    normals = numpy.empty(mesh.loopCount * 3, dtype = numpy.float32)
     target.calc_normals_split()
     target.loops.foreach_get("normal", normals)
     attribEntry = mesh.loopAttribs.pArr[mesh.loopAttribs.count]
@@ -321,6 +321,18 @@ class RUVM_OT_RuvmLoadRuvmFile(bpy.types.Operator, ImportHelper):
         newMap.filepath = filepath
         context.scene.ruvmMapsIndex = len(context.scene.ruvmMaps)
         ruvmLib.ruvmBlenderMapFileLoad(filePathUtf8)
+        #Generate preview image
+        previewRes = 2048
+        dataLen = previewRes * previewRes * 4;
+        preview = numpy.empty(dataLen, dtype = numpy.float32)
+        previewCtypes = preview.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+        ruvmLib.ruvmBlenderMapFileGenPreviewImage(filePathUtf8, previewRes,
+                                                  previewCtypes)
+        previewName = "Ruvm_" + newMap.name
+        image = bpy.data.images.get(previewName, None)
+        if not(image):
+            image = bpy.data.images.new(previewName, previewRes, previewRes)
+        image.pixels.foreach_set(preview)
         return {'FINISHED'}
 
 class RUVM_OT_RuvmRemove(bpy.types.Operator):

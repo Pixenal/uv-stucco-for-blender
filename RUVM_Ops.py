@@ -237,7 +237,7 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
                                               ctypes.pointer(workMesh),
                                               ctypes.pointer(commonAttribs))
         ruvmLib.ruvmBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs))
-        if result:
+        if result != 0:
             print("Ruvm python map to mesh failed, map to mesh returned error")
             return
         

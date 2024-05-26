@@ -1,0 +1,3 @@
+[submodule "Extern/Ruvm"]
+	path = Extern/Ruvm
+	url = https://github.com/Pixenal/reverse-uv-mapper

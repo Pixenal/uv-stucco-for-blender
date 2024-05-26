@@ -119,7 +119,8 @@ int32_t ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, RuvmMesh *pWorkMe
 		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
 		return 1;
 	}
-	return ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh, pCommonAttribs);
+	RuvmResult result = ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh, pCommonAttribs);
+	return result == RUVM_ERROR;
 }
 
 void ruvmBlenderDestroyCommonAttribs(RuvmCommonAttribList *pCommonAttribs) {
@@ -143,7 +144,8 @@ static void copyAttribs(RuvmAttribArray *pA, RuvmAttribArray *pB,
 		return;
 	}
 	for (int32_t i = 0; i < pA->count; ++i) {
-		RuvmAttrib *pBEntry = ruvmGetAttrib(pA->pArr[i].name, pB);
+		RuvmAttrib* pBEntry;
+		ruvmGetAttrib(pA->pArr[i].name, pB, &pBEntry);
 		if (!pBEntry) {
 			printf("Mismatch in workmesh and ruvmmesh attribs\n");
 			abort();

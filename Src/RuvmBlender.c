@@ -56,7 +56,7 @@ static int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry,
 
 void ruvmBlenderInit() {
 	RuvmTypeDefaultConfig typeDefaultConfig = {0};
-	ruvmContextInit(&pRuvmContext, NULL, NULL, NULL, &typeDefaultConfig);
+	ruvmContextInit(&pRuvmContext, NULL, NULL, NULL, &typeDefaultConfig, NULL);
 }
 
 void ruvmBlenderMapFileExport(RuvmMesh *pMesh) {

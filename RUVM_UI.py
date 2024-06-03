@@ -1,7 +1,7 @@
 import bpy
 
 def RuvmExport(self, context):
-    self.layout.operator("ruvm.ruvm_export_ruvm_file")
+    self.layout.operator("ruvm.export_ruvm_file")
 
 class RuvmParentPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'

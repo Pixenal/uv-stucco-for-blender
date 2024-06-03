@@ -59,8 +59,8 @@ void ruvmBlenderInit() {
 	ruvmContextInit(&pRuvmContext, NULL, NULL, NULL, &typeDefaultConfig, NULL);
 }
 
-void ruvmBlenderMapFileExport(RuvmMesh *pMesh) {
-	ruvmMapFileExport(pRuvmContext, pMesh);
+void ruvmBlenderMapFileExport(const char *pName, RuvmMesh *pMesh) {
+	ruvmMapFileExport(pRuvmContext, pName, pMesh);
 }
 
 void ruvmBlenderMapFileLoad(char *pFilePath) {

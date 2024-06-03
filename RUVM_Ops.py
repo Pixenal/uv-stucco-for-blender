@@ -19,8 +19,8 @@ import pdb
 #these seem to have been converted to attributes in 4.0 versions.
 #So probably only need to do it for pre 4.0 versions.
 
-class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
-    bl_idname = "ruvm.ruvm_export_ruvm_file"
+class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
+    bl_idname = "ruvm.export_ruvm_file"
     bl_label = "RUVM Export"
     bl_options = {'REGISTER'}
 
@@ -32,6 +32,10 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
         if (len(context.selected_objects) > 1):
             print("RUVM export failed, more than one object selected.")
             return {'CANCELLED'}
+        
+        filepath = self.filepath
+        filePathUtf8 = filepath.encode('utf-8')
+        
         obj = context.selected_objects[0]
         depsgraph = context.evaluated_depsgraph_get()
         objEval = obj.evaluated_get(depsgraph)
@@ -40,7 +44,7 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator):
 
         #ruvmLib.ruvmBlenderMapFileExport.argtypes = (ctypes.POINTER(RuvmMesh),
         #    numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
-        ruvmLib.ruvmBlenderMapFileExport(ctypes.pointer(meshTuple[0]))
+        ruvmLib.ruvmBlenderMapFileExport(filePathUtf8, ctypes.pointer(meshTuple[0]))
 
         return {'FINISHED'}
 

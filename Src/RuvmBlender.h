@@ -13,7 +13,7 @@
 RUVM_BLENDER_EXPORT
 void ruvmBlenderInit();
 RUVM_BLENDER_EXPORT
-void ruvmBlenderMapFileExport(RuvmMesh *pMesh);
+void ruvmBlenderMapFileExport(const char *pName, RuvmMesh *pMesh);
 RUVM_BLENDER_EXPORT
 void ruvmBlenderMapFileLoad(char *pFilePath);
 //RUVM_BLENDER_EXPORT void ruvmBlenderMapFileUnload(char *pFilePath);

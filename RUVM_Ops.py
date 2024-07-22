@@ -11,6 +11,31 @@ from . import Utils as utils
 import os
 import pdb
 
+def copyRuvmMeshToBlenderMesh(mesh, workMesh):
+    mesh.vertices.add(workMesh.vertCount)
+    mesh.loops.add(workMesh.loopCount)
+    mesh.polygons.add(workMesh.faceCount)
+    #pdb.set_trace()
+    createAllAttribs(mesh, workMesh)
+    meshRuvmFormat = utils.formatAsRuvmMesh(mesh, False, False)
+
+    ruvmLib.ruvmBlenderCopyMeshCore(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
+
+    #meshRuvm.uv_layers.new(name="uvmap")
+    #uvPtr = meshRuvm.uv_layers[0].data[0].as_pointer()
+    #ruvmMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(RuvmVec2))
+    mesh.update()
+    meshRuvmFormat = utils.formatAsRuvmMesh(mesh, False, False)
+    #pdb.set_trace()
+    ruvmLib.ruvmBlenderCopyMeshAttribs(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
+    normalsArraySize = workMesh.loopCount * 3
+    normalAttrib = getNormalAttrib(workMesh)
+    normalsNumpy = numpy.ctypeslib.as_array(ctypes.cast(normalAttrib.contents.pData, ctypes.POINTER(ctypes.c_float)),
+                                            shape = [normalsArraySize])
+    #this is necessary to set custom normals it seems
+    mesh.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
+    mesh.use_auto_smooth = True
+
 #TODO calc_normals_split has been removed in 4.1, so you'll need to handle that
 #TODO It seems that normals can be accessed as contiguous arrays now,
 #using the polygon_normals, or vertex_normals, properties, in a mesh.
@@ -18,6 +43,19 @@ import pdb
 #TODO You'll need to separetly handle seams and creases and such as well,
 #these seem to have been converted to attributes in 4.0 versions.
 #So probably only need to do it for pre 4.0 versions.
+
+class RUVM_OT_RuvmSetAsUsg(bpy.types.Operator):
+    bl_idname = "ruvm.set_as_usg"
+    bl_label = "Set As USG"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        for obj in context.selected_objects:
+            isUsg = obj.get("RuvmUsg", None)
+            if isUsg:
+                continue
+            obj["RuvmUsg"] = True
+        return {'FINISHED'}
 
 class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
     bl_idname = "ruvm.export_ruvm_file"
@@ -29,23 +67,53 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
         if (len(context.selected_objects) == 0):
             print("RUVM export failed, no objects selected.")
             return {'CANCELLED'}
-        if (len(context.selected_objects) > 1):
-            print("RUVM export failed, more than one object selected.")
-            return {'CANCELLED'}
         
         filepath = self.filepath
         filePathUtf8 = filepath.encode('utf-8')
         
-        obj = context.selected_objects[0]
         depsgraph = context.evaluated_depsgraph_get()
-        objEval = obj.evaluated_get(depsgraph)
-        meshEval = objEval.data
-        meshTuple = utils.formatAsRuvmMesh(meshEval, False, True)
+        ObjArr = utils.RuvmObject * len(context.selected_objects)
+        #pdb.set_trace()
+        objArr = ObjArr()
+        usgArr = ObjArr()
+        objCount = 0
+        usgCount = 0
+        for obj in context.selected_objects:
+            if obj.type != 'MESH':
+                continue
+            isUsg = obj.get("RuvmUsg", None)
+            if isUsg:
+                arr = usgArr
+                i = usgCount
+            else:
+                arr = objArr
+                i = objCount
+            objEval = obj.evaluated_get(depsgraph)
+            meshEval = objEval.data
+            meshTuple = utils.formatAsRuvmMesh(meshEval, False, True)
+            arr[i].pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(utils.RuvmObjectData))
+            matWorld = obj.matrix_world.copy()
+            matWorld.transpose()
+            j = 0
+            while j < 4:
+                k = 0
+                while k < 4:
+                    linearIndex = k + j * 4
+                    arr[i].transform[linearIndex] = matWorld[j][k]
+                    k += 1
+                j += 1
+            if isUsg:
+                usgCount += 1
+            else:
+                objCount += 1
 
         #ruvmLib.ruvmBlenderMapFileExport.argtypes = (ctypes.POINTER(RuvmMesh),
         #    numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
-        ruvmLib.ruvmBlenderMapFileExport(filePathUtf8, ctypes.pointer(meshTuple[0]))
-
+        err = ruvmLib.ruvmBlenderMapFileExport(filePathUtf8, objCount, objArr,
+                                               usgCount, usgArr)
+        if err != 1:
+            self.report({'ERROR'}, "Export failed")
+            return {'CANCELLED'}
         return {'FINISHED'}
 
 class RUVM_OT_RuvmAssign(bpy.types.Operator):
@@ -70,6 +138,66 @@ class RUVM_OT_RuvmAssign(bpy.types.Operator):
             newTarget.id = ruvm.nextTargetId
             obj.ruvmTargetId = ruvm.nextTargetId
             ruvm.nextTargetId += 1
+        return {'FINISHED'}
+    
+def setBlenderMatrix(blenderMatrix, ruvmMatrix):
+    j = 0
+    while j < 4:
+        k = 0
+        while k < 4:
+            linearIndex = k + j * 4
+            blenderMatrix[j][k] = ruvmMatrix[linearIndex]
+            k += 1
+        j += 1
+    blenderMatrix.transpose()
+    
+class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
+    bl_idname = "ruvm.load_ruvm_file_for_edit"
+    bl_label = "Load RUVM File For Edit"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        #pdb.set_trace()
+        filepath = self.filepath
+        filePathUtf8 = filepath.encode('utf-8')
+        name = os.path.basename(filepath)
+        print(filepath)
+        objCount = ctypes.c_int()
+        usgCount = ctypes.c_int()
+        objArr = ctypes.POINTER(utils.RuvmObject)()
+        usgArr = ctypes.POINTER(utils.RuvmObject)()
+        #pdb.set_trace()
+        ruvmLib.ruvmBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
+                                              ctypes.pointer(usgCount), ctypes.pointer(usgArr))
+        
+        col = bpy.data.collections.new(f"RuvmEdit_{name}")
+        context.collection.children.link(col)
+        i = 0
+        while (i < objCount.value):
+            mesh = bpy.data.meshes.new("RuvmMesh")
+            obj = bpy.data.objects.new("RuvmObj", mesh)
+            col.objects.link(obj)
+            meshRuvm = ctypes.cast(objArr[i].pData, ctypes.POINTER(utils.RuvmMesh))
+            copyRuvmMeshToBlenderMesh(mesh, meshRuvm.contents)
+            setBlenderMatrix(obj.matrix_world, objArr[i].transform)
+            i += 1
+        ruvmLib.ruvmBlenderObjArrDestroy(objCount, objArr)
+
+        usgCol = bpy.data.collections.new(f"{name}_Usg")
+        col.children.link(usgCol)
+        i = 0
+        while (i < usgCount.value):
+            mesh = bpy.data.meshes.new("RuvmUsgMesh")
+            obj = bpy.data.objects.new("RuvmUsg", mesh)
+            usgCol.objects.link(obj)
+            meshRuvm = ctypes.cast(usgArr[i].pData, ctypes.POINTER(utils.RuvmMesh))
+            copyRuvmMeshToBlenderMesh(mesh, meshRuvm.contents)
+            setBlenderMatrix(obj.matrix_world, usgArr[i].transform)
+            obj.display_type = 'WIRE'
+            obj['RuvmUsg'] = True
+            i += 1
+        ruvmLib.ruvmBlenderObjArrDestroy(usgCount, usgArr)
+        
         return {'FINISHED'}
 
 class RUVM_OT_RuvmLoadRuvmFile(bpy.types.Operator, ImportHelper):
@@ -258,32 +386,7 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
             objRuvm.data = meshRuvm
             bpy.data.meshes.remove(meshRuvmOld)
         
-        print("workMesh.vertCount ", workMesh.vertCount)
-        print("workMesh.loopCount ", workMesh.loopCount)
-        print("workMesh.faceCount ", workMesh.faceCount)
-        meshRuvm.vertices.add(workMesh.vertCount)
-        meshRuvm.loops.add(workMesh.loopCount)
-        meshRuvm.polygons.add(workMesh.faceCount)
-        #pdb.set_trace()
-        createAllAttribs(meshRuvm, workMesh)
-        meshRuvmFormat = utils.formatAsRuvmMesh(meshRuvm, False, False)
-
-        ruvmLib.ruvmBlenderCopyMeshCore(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
-
-        #meshRuvm.uv_layers.new(name="uvmap")
-        #uvPtr = meshRuvm.uv_layers[0].data[0].as_pointer()
-        #ruvmMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(RuvmVec2))
-        meshRuvm.update()
-        meshRuvmFormat = utils.formatAsRuvmMesh(meshRuvm, False, False)
-        #pdb.set_trace()
-        ruvmLib.ruvmBlenderCopyMeshAttribs(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
-        normalsArraySize = workMesh.loopCount * 3
-        normalAttrib = getNormalAttrib(workMesh)
-        normalsNumpy = numpy.ctypeslib.as_array(ctypes.cast(normalAttrib.contents.pData, ctypes.POINTER(ctypes.c_float)),
-                                                shape = [normalsArraySize])
-        #this is necessary to set custom normals it seems
-        meshRuvm.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
-        meshRuvm.use_auto_smooth = True
+        copyRuvmMeshToBlenderMesh(meshRuvm, workMesh)
         ruvmLib.ruvmBlenderMeshDestroy(ctypes.pointer(workMesh))
         print("FinishedUpdating")
         
@@ -297,9 +400,11 @@ def ruvmLoadPostHandler(dummy):
 def ruvmLoadPreHandler(dummy):
     ruvmLib.ruvmBlenderDestroy()
 
-classes = [RUVM_OT_RuvmExportRuvmFile,
+classes = [RUVM_OT_RuvmSetAsUsg,
+           RUVM_OT_RuvmExportRuvmFile,
            RUVM_OT_RuvmAssign,
            RUVM_OT_RuvmRemove,
+           RUVM_OT_RuvmLoadRuvmFileForEdit,
            RUVM_OT_RuvmLoadRuvmFile,
            RUVM_OT_RuvmPreviewImage]
 

@@ -10,6 +10,8 @@ class RuvmVec3(ctypes.Structure):
     _fields_ = [("x", ctypes.c_float),
                 ("y", ctypes.c_float),
                 ("z", ctypes.c_float)]
+    
+Ruvm_M4x4_F32 = ctypes.c_float * 16
 
 class RuvmAttrib(ctypes.Structure):
     _fields_ = [("pData", ctypes.c_void_p),
@@ -22,9 +24,13 @@ class RuvmAttrib(ctypes.Structure):
 class RuvmAttribArray(ctypes.Structure):
     _fields_ = [("pArr", ctypes.POINTER(RuvmAttrib)),
                 ("count", ctypes.c_int32)]
+    
+class RuvmObjectData(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_int32)]
 
 class RuvmMesh(ctypes.Structure):
-    _fields_ = [("meshAttribs", RuvmAttribArray),
+    _fields_ = [("type", RuvmObjectData),
+                ("meshAttribs", RuvmAttribArray),
                 ("faceCount", ctypes.c_int32),
                 ("pFaces", ctypes.POINTER(ctypes.c_int32)),
                 ("faceAttribs", RuvmAttribArray),
@@ -36,6 +42,10 @@ class RuvmMesh(ctypes.Structure):
                 ("edgeAttribs", RuvmAttribArray),
                 ("vertCount", ctypes.c_int32),
                 ("vertAttribs", RuvmAttribArray)]
+    
+class RuvmObject(ctypes.Structure):
+    _fields_ = [("pData", ctypes.POINTER(RuvmObjectData)),
+                ("transform", Ruvm_M4x4_F32)]
 
 class RuvmBlendConfig(ctypes.Structure):
     _fields_ = [("blend", ctypes.c_int32),
@@ -200,6 +210,7 @@ def initAttribs(mesh, target, metaOnly):
 #after the function returns
 def formatAsRuvmMesh(target, metaOnly, getNormals):
     mesh = RuvmMesh()
+    mesh.type.type = 1
 
     mesh.faceCount = len(target.polygons)
     mesh.loopCount = len(target.loops)
@@ -235,4 +246,3 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
     attribEntry.pData = normals.ctypes.data_as(ctypes.c_void_p)
     mesh.loopAttribs.count += 1
     return (mesh, edges, normals)
-

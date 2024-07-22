@@ -59,8 +59,16 @@ void ruvmBlenderInit() {
 	ruvmContextInit(&pRuvmContext, NULL, NULL, NULL, &typeDefaultConfig, NULL);
 }
 
-void ruvmBlenderMapFileExport(const char *pName, RuvmMesh *pMesh) {
-	ruvmMapFileExport(pRuvmContext, pName, pMesh);
+RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
+                                    RuvmObject* pObjArr, int32_t usgCount,
+                                    RuvmObject* pUsgArr) {
+	return ruvmMapFileExport(pRuvmContext, pName, objCount, pObjArr, usgCount, pUsgArr);
+}
+void ruvmBlenderMapFileLoadForEdit(char *pFilePath,
+                                  int32_t *pObjCount, RuvmObject **ppObjArr,
+                                  int32_t *pUsgCount, RuvmObject **ppUsgArr) {
+	ruvmMapFileLoadForEdit(pRuvmContext, pFilePath, pObjCount, ppObjArr,
+	                       pUsgCount, ppUsgArr);
 }
 
 void ruvmBlenderMapFileLoad(char *pFilePath) {
@@ -168,6 +176,10 @@ void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 	//            workMesh->edgeAttribCount, workMesh->edgeCount);
 	//copyAttribs(workMesh->pVertAttribs, ruvmMesh->pVertAttribs,
 	//            workMesh->vertAttribCount, workMesh->vertCount);
+}
+
+RuvmResult ruvmBlenderObjArrDestroy(int32_t objCount, RuvmObject *pObjArr) {
+	ruvmObjArrDestroy(pRuvmContext, objCount, pObjArr);
 }
 
 void ruvmBlenderMeshDestroy(RuvmMesh *pMesh) {

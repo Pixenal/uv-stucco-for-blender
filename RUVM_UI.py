@@ -3,6 +3,9 @@ import bpy
 def RuvmExport(self, context):
     self.layout.operator("ruvm.export_ruvm_file")
 
+def RuvmLoadForEdit(self, context):
+    self.layout.operator("ruvm.load_ruvm_file_for_edit")
+
 class RuvmParentPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = "UI"
@@ -77,6 +80,8 @@ class RUVM_PT_Ruvm(RuvmParentPanel, bpy.types.Panel):
                             currentTarget.commonVertAttribs[ruvm.commonAttribIndex]
                 col0.prop(commonAttribEntry, "blend")
                 col0.prop(commonAttribEntry, "order")
+        col0.label(text = "")
+        col0.operator("ruvm.set_as_usg", icon = "NORMALS_FACE")
         #print("currentTarget.map: ", currentTarget.map)
         #targetsMap = context.scene.ruvmMaps.get(currentTarget.map, None)
         #col0.prop(targetsMap, "filepath", text = "", emboss = False);
@@ -91,10 +96,12 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_file_export.append(RuvmExport)
+    bpy.types.TOPBAR_MT_file_import.append(RuvmLoadForEdit)
 
 #Unregister
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
     bpy.types.TOPBAR_MT_file_export.remove(RuvmExport)
+    bpy.types.TOPBAR_MT_file_import.remove(RuvmLoadForEdit)
 

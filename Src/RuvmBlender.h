@@ -17,11 +17,11 @@ RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
                                     RuvmObject* pObjArr, int32_t usgCount,
                                     RuvmObject* pUsgArr);
 RUVM_BLENDER_EXPORT
-void ruvmBlenderMapFileLoadForEdit(char *pFilePath,
-                                  int32_t *pObjCount, RuvmObject **ppObjArr,
-                                  int32_t *pUsgCount, RuvmObject **ppUsgArr);
+RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
+                                         int32_t *pObjCount, RuvmObject **ppObjArr,
+                                         int32_t *pUsgCount, RuvmObject **ppUsgArr);
 RUVM_BLENDER_EXPORT
-void ruvmBlenderMapFileLoad(char *pFilePath);
+RuvmResult ruvmBlenderMapFileLoad(char *pFilePath);
 //RUVM_BLENDER_EXPORT void ruvmBlenderMapFileUnload(char *pFilePath);
 RUVM_BLENDER_EXPORT
 int32_t ruvmBlenderMapToMesh(char *pFilePath,

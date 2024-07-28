@@ -64,14 +64,14 @@ RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
                                     RuvmObject* pUsgArr) {
 	return ruvmMapFileExport(pRuvmContext, pName, objCount, pObjArr, usgCount, pUsgArr);
 }
-void ruvmBlenderMapFileLoadForEdit(char *pFilePath,
-                                  int32_t *pObjCount, RuvmObject **ppObjArr,
-                                  int32_t *pUsgCount, RuvmObject **ppUsgArr) {
-	ruvmMapFileLoadForEdit(pRuvmContext, pFilePath, pObjCount, ppObjArr,
-	                       pUsgCount, ppUsgArr);
+RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
+                                         int32_t *pObjCount, RuvmObject **ppObjArr,
+                                         int32_t *pUsgCount, RuvmObject **ppUsgArr) {
+	return ruvmMapFileLoadForEdit(pRuvmContext, pFilePath, pObjCount, ppObjArr,
+	                              pUsgCount, ppUsgArr);
 }
 
-void ruvmBlenderMapFileLoad(char *pFilePath) {
+RuvmResult ruvmBlenderMapFileLoad(char *pFilePath) {
 	HandleEntry *pEntry, *pPrevEntry;
 	int32_t result = getHandle(&pEntry, &pPrevEntry, pFilePath);
 	switch (result) {
@@ -91,7 +91,7 @@ void ruvmBlenderMapFileLoad(char *pFilePath) {
 	int32_t pathLength = strlen(pFilePath) + 1;
 	pEntry->pFilePath = malloc(pathLength);
 	memcpy(pEntry->pFilePath, pFilePath, pathLength);
-	ruvmMapFileLoad(pRuvmContext, &pEntry->handle, pFilePath);
+	return ruvmMapFileLoad(pRuvmContext, &pEntry->handle, pFilePath);
 }
 
 void ruvmBlenderUnloadRuvmFile(char *pFilePath) {

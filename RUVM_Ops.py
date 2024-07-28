@@ -167,8 +167,11 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         objArr = ctypes.POINTER(utils.RuvmObject)()
         usgArr = ctypes.POINTER(utils.RuvmObject)()
         #pdb.set_trace()
-        ruvmLib.ruvmBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
-                                              ctypes.pointer(usgCount), ctypes.pointer(usgArr))
+        err = ruvmLib.ruvmBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
+                                                    ctypes.pointer(usgCount), ctypes.pointer(usgArr))
+        if err != 1:
+            self.report({'ERROR'}, "Load failed")
+            return {'CANCELLED'}
         
         col = bpy.data.collections.new(f"RuvmEdit_{name}")
         context.collection.children.link(col)
@@ -217,7 +220,10 @@ class RUVM_OT_RuvmLoadRuvmFile(bpy.types.Operator, ImportHelper):
         print(filepath)
         newMap.filepath = filepath
         context.scene.ruvmMapsIndex = len(context.scene.ruvmMaps)
-        ruvmLib.ruvmBlenderMapFileLoad(filePathUtf8)
+        err = ruvmLib.ruvmBlenderMapFileLoad(filePathUtf8)
+        if err != 1:
+            self.report({'ERROR'}, "Load failed")
+            return {'CANCELLED'}
         return {'FINISHED'}
 
 

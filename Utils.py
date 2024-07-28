@@ -138,9 +138,9 @@ def getAttribBlenderType(attrib):
 
 
 
-def getAttribCounts(attribCount, target):
+def getAttribCounts(attribCount, target, getNormals):
     for attrib in target.attributes:
-        if '.' in attrib.name:
+        if '.' in attrib.name or (getNormals and attrib.name == "normal"):
             continue
         match attrib.domain:
             case 'FACE':
@@ -183,19 +183,19 @@ def initAttribEntry(attrib, attribEntry, dataLen, metaOnly, interpolate):
         attribData = attrib.data[0].as_pointer()
         attribEntry.pData = ctypes.cast(attribData, ctypes.c_void_p)
 
-def initAttribs(mesh, target, metaOnly):
+def initAttribs(mesh, target, metaOnly, getNormals):
     for attrib in target.attributes:
-        if '.' in attrib.name:
+        if '.' in attrib.name or (getNormals and attrib.name == "normal"):
             continue
         match attrib.domain:
             case 'FACE':
                 attribEntry = mesh.faceAttribs.pArr[mesh.faceAttribs.count]
                 initAttribEntry(attrib, attribEntry, mesh.faceCount, metaOnly, 0)
-                mesh.faceAttribs.count += 1;
+                mesh.faceAttribs.count += 1
             case 'CORNER':
                 attribEntry = mesh.loopAttribs.pArr[mesh.loopAttribs.count]
                 initAttribEntry(attrib, attribEntry, mesh.loopCount, metaOnly, 1)
-                mesh.loopAttribs.count += 1;
+                mesh.loopAttribs.count += 1
             case 'EDGE':
                 attribEntry = mesh.edgeAttribs.pArr[mesh.edgeAttribs.count]
                 initAttribEntry(attrib, attribEntry, mesh.edgeCount, metaOnly, 0)
@@ -228,9 +228,9 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
     mesh.pEdges = edges.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
 
     attribCount = {"face" : 0, "loop" : 0, "edge" : 0, "vert" : 0}
-    getAttribCounts(attribCount, target)
+    getAttribCounts(attribCount, target, getNormals)
     allocAttribs(mesh, attribCount)
-    initAttribs(mesh, target, metaOnly)
+    initAttribs(mesh, target, metaOnly, getNormals)
 
     if not getNormals:
         return (mesh, edges)

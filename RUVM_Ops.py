@@ -136,11 +136,12 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
         depsgraph = context.evaluated_depsgraph_get()
         ObjArr = utils.RuvmObject * len(context.selected_objects)
         UsgArr = utils.RuvmUsg * len(context.selected_objects)
-        pdb.set_trace()
         objArr = ObjArr()
         usgArr = UsgArr()
         objCount = 0
         usgCount = 0
+        cutoffs = {}
+        #pdb.set_trace()
         for obj in context.selected_objects:
             if obj.type != 'MESH':
                 continue
@@ -151,8 +152,12 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
                 flatCutoff = obj.get("ruvmUsgFlatCutoff", None)
                 if (flatCutoff):
                     if flatCutoff.type == 'MESH':
-                        cutoffObjTuple = utils.formatAsRuvmObj(flatCutoff, depsgraph)
-                        usgArr[usgCount].pFlatCutoff = ctypes.pointer(cutoffObjTuple[0])
+                        cutoffPtr = cutoffs.get(flatCutoff.name, None)
+                        if not cutoffPtr:
+                            cutoffObjTuple = utils.formatAsRuvmObj(flatCutoff, depsgraph)
+                            cutoffPtr = ctypes.pointer(cutoffObjTuple[0])
+                            cutoffs.update({flatCutoff.name : cutoffPtr})
+                        usgArr[usgCount].pFlatCutoff = cutoffPtr
                 usgCount += 1
             else:
                 objTuple = utils.formatAsRuvmObj(obj, depsgraph)
@@ -205,11 +210,13 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         print(filepath)
         objCount = ctypes.c_int()
         usgCount = ctypes.c_int()
+        flatCutoffCount = ctypes.c_int()
         objArr = ctypes.POINTER(utils.RuvmObject)()
         usgArr = ctypes.POINTER(utils.RuvmUsg)()
-        #pdb.set_trace()
+        flatCutoffArr = ctypes.POINTER(utils.RuvmObject)()
         err = ruvmLib.ruvmBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
-                                                    ctypes.pointer(usgCount), ctypes.pointer(usgArr))
+                                                    ctypes.pointer(usgCount), ctypes.pointer(usgArr),
+                                                    ctypes.pointer(flatCutoffCount), ctypes.pointer(flatCutoffArr))
         if err != 1:
             self.report({'ERROR'}, "Load failed")
             return {'CANCELLED'}
@@ -226,14 +233,26 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         col.children.link(usgCol)
         cutoffCol = bpy.data.collections.new(f"{name}_FlatCutoff")
         col.children.link(cutoffCol)
+        cutoffBlend = []
+        i = 0
+        while (i < flatCutoffCount.value):
+            cutoff = blendObjFromRuvm(flatCutoffArr[i], cutoffCol,  "FlatCutoff", 'WIRE', False)
+            cutoffBlend.append(cutoff)
+            i += 1
         i = 0
         while (i < usgCount.value):
             usg = blendObjFromRuvm(usgArr[i].obj, usgCol, "Usg", 'WIRE', True)
             if (usgArr[i].pFlatCutoff):
-                cutoff = blendObjFromRuvm(usgArr[i].pFlatCutoff.contents, cutoffCol,  "FlatCutoff", 'WIRE', False)
-                usg["ruvmUsgFlatCutoff"] = cutoff
+                j = 0
+                while (j < flatCutoffCount.value):
+                    cutoffPtr = ctypes.cast(ctypes.pointer(flatCutoffArr[j]), ctypes.c_void_p)
+                    usgCutoffPtr = ctypes.cast(usgArr[i].pFlatCutoff, ctypes.c_void_p)
+                    if cutoffPtr.value == usgCutoffPtr.value:
+                        usg["ruvmUsgFlatCutoff"] = cutoffBlend[j]
+                    j += 1
             i += 1
         ruvmLib.ruvmBlenderUsgArrDestroy(usgCount.value, usgArr)
+        ruvmLib.ruvmBlenderObjArrDestroy(flatCutoffCount.value, flatCutoffArr)
         
         return {'FINISHED'}
 

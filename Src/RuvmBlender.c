@@ -66,9 +66,10 @@ RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
 }
 RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
                                          int32_t *pObjCount, RuvmObject **ppObjArr,
-                                         int32_t *pUsgCount, RuvmUsg **ppUsgArr) {
+                                         int32_t *pUsgCount, RuvmUsg **ppUsgArr,
+                                         int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr) {
 	return ruvmMapFileLoadForEdit(pRuvmContext, pFilePath, pObjCount, ppObjArr,
-	                              pUsgCount, ppUsgArr);
+	                              pUsgCount, ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr);
 }
 
 RuvmResult ruvmBlenderMapFileLoad(char *pFilePath) {

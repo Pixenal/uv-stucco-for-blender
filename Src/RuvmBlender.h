@@ -19,7 +19,8 @@ RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
 RUVM_BLENDER_EXPORT
 RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
                                          int32_t *pObjCount, RuvmObject **ppObjArr,
-                                         int32_t *pUsgCount, RuvmUsg **ppUsgArr);
+                                         int32_t *pUsgCount, RuvmUsg **ppUsgArr,
+                                         int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr);
 RUVM_BLENDER_EXPORT
 RuvmResult ruvmBlenderMapFileLoad(char *pFilePath);
 //RUVM_BLENDER_EXPORT void ruvmBlenderMapFileUnload(char *pFilePath);

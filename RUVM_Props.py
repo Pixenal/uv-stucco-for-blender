@@ -37,6 +37,9 @@ def targetMapUpdate(self, context):
 def targetObjUpdate(self, context):
     self.name = self.obj.name
 
+def usgFlatCutoffPoll(self, obj):
+    return self != obj and not obj.get("RuvmUsg", None)
+
 class RuvmMap(bpy.types.PropertyGroup):
     name : bpy.props.StringProperty()
     #id : bpy.props.IntProperty(default = -1)
@@ -45,7 +48,6 @@ class RuvmMap(bpy.types.PropertyGroup):
 class RuvmTarget(bpy.types.PropertyGroup):
     name : bpy.props.StringProperty()
     id : bpy.props.IntProperty(default = -1)
-    #ruvmFilePath : bpy.props.StringProperty(name = "RUVM File")
     map : bpy.props.StringProperty(update = targetMapUpdate)
     obj : bpy.props.PointerProperty(type = bpy.types.Object,
                                     update = targetObjUpdate)
@@ -85,6 +87,7 @@ class RuvmProperties(bpy.types.PropertyGroup):
         ('POINT', "Vertex", "")
     ])
     commonAttribIndex : bpy.props.IntProperty(default = 0)
+    wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)
 
 classes = [RuvmProperties,
            RuvmTarget,
@@ -96,6 +99,9 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Object.ruvmTargetId = bpy.props.IntProperty(name = "RUVM Target ID", default = -1)
+    bpy.types.Object.ruvmUsgFlatCutoff = bpy.props.PointerProperty(type = bpy.types.Object,
+                                                                   name = "Ruvm USG Flatten Cut-Off",
+                                                                   poll = usgFlatCutoffPoll)
     bpy.types.Scene.ruvm = bpy.props.PointerProperty(type = RuvmProperties)
     bpy.types.Scene.ruvmTargets = bpy.props.CollectionProperty(name = "Targets", type = RuvmTarget)
     bpy.types.Scene.ruvmTargetsIndex = bpy.props.IntProperty(name = "Targets Index")

@@ -67,6 +67,10 @@ class RuvmCommonAttribList(ctypes.Structure):
                 ("pEdge", ctypes.POINTER(RuvmCommonAttrib)),
                 ("vertCount", ctypes.c_int32),
                 ("pVert", ctypes.POINTER(RuvmCommonAttrib))]
+    
+class RuvmUsg(ctypes.Structure):
+    _fields_ = [("obj", RuvmObject),
+                ("pFlatCutoff", ctypes.POINTER(RuvmObject))]
 
 def getTargetMapAsUtf8(target):
     map = bpy.context.scene.ruvmMaps.get(target.map, None)
@@ -205,6 +209,29 @@ def initAttribs(mesh, target, metaOnly, getNormals):
                 initAttribEntry(attrib, attribEntry, mesh.vertCount, metaOnly, 0)
                 mesh.vertAttribs.count += 1
 
+def setRuvmMatrix(dest, src):
+    matWorld = src.copy()
+    matWorld.transpose()
+    j = 0
+    while j < 4:
+        k = 0
+        while k < 4:
+            linearIndex = k + j * 4
+            dest[linearIndex] = matWorld[j][k]
+            k += 1
+        j += 1
+
+def setBlenderMatrix(blenderMatrix, ruvmMatrix):
+    j = 0
+    while j < 4:
+        k = 0
+        while k < 4:
+            linearIndex = k + j * 4
+            blenderMatrix[j][k] = ruvmMatrix[linearIndex]
+            k += 1
+        j += 1
+    blenderMatrix.transpose()
+
 #returns a tuple containing the mesh, and the edges numpy array.
 #in order to prevent the reference tot he edge array from becoming invalid
 #after the function returns
@@ -245,4 +272,15 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
     attribEntry.type = 16 #RUVM_V3_F32
     attribEntry.pData = normals.ctypes.data_as(ctypes.c_void_p)
     mesh.loopAttribs.count += 1
+    #to avoid garbage collection, edges and normals are returned as well
     return (mesh, edges, normals)
+
+def formatAsRuvmObj(obj, depsgraph):
+    ruvmObj = RuvmObject()
+    objEval = obj.evaluated_get(depsgraph)
+    meshEval = objEval.data
+    meshTuple = formatAsRuvmMesh(meshEval, False, True)
+    ruvmObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(RuvmObjectData))
+    setRuvmMatrix(ruvmObj.transform, obj.matrix_world)
+    #the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
+    return (ruvmObj, meshTuple)

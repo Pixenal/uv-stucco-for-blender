@@ -36,6 +36,18 @@ def copyRuvmMeshToBlenderMesh(mesh, workMesh):
     mesh.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
     mesh.use_auto_smooth = True
 
+def blendObjFromRuvm(ruvmObj, col, name, displayType, isUsg):
+    mesh = bpy.data.meshes.new(f"{name}Mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    col.objects.link(obj)
+    meshRuvm = ctypes.cast(ruvmObj.pData, ctypes.POINTER(utils.RuvmMesh))
+    copyRuvmMeshToBlenderMesh(mesh, meshRuvm.contents)
+    utils.setBlenderMatrix(obj.matrix_world, ruvmObj.transform)
+    obj.display_type = displayType
+    if (isUsg):
+        obj['RuvmUsg'] = isUsg
+    return obj
+
 #TODO calc_normals_split has been removed in 4.1, so you'll need to handle that
 #TODO It seems that normals can be accessed as contiguous arrays now,
 #using the polygon_normals, or vertex_normals, properties, in a mesh.
@@ -44,10 +56,22 @@ def copyRuvmMeshToBlenderMesh(mesh, workMesh):
 #these seem to have been converted to attributes in 4.0 versions.
 #So probably only need to do it for pre 4.0 versions.
 
+def getUsgCountInSelObjs(context):
+    count = 0
+    for obj in context.selected_objects:
+        isUsg = obj.get("RuvmUsg", None)
+        if isUsg:
+            count += 1
+    return count
+
 class RUVM_OT_RuvmSetAsUsg(bpy.types.Operator):
     bl_idname = "ruvm.set_as_usg"
     bl_label = "Set As USG"
     bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        return getUsgCountInSelObjs(context) < len(context.selected_objects)
 
     def execute(self, context):
         for obj in context.selected_objects:
@@ -55,6 +79,44 @@ class RUVM_OT_RuvmSetAsUsg(bpy.types.Operator):
             if isUsg:
                 continue
             obj["RuvmUsg"] = True
+            obj.display_type = 'WIRE'
+        return {'FINISHED'}
+    
+class RUVM_OT_RuvmUnsetUsg(bpy.types.Operator):
+    bl_idname = "ruvm.unset_usg"
+    bl_label = "Unset USG"
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        return getUsgCountInSelObjs(context) > 0
+
+    def execute(self, context):
+        for obj in context.selected_objects:
+            isUsg = obj.get("RuvmUsg", None)
+            if isUsg:
+                del obj["RuvmUsg"]
+                obj["ruvmUsgFlatCutoff"] = None
+                obj.display_type = 'TEXTURED'
+        return {'FINISHED'}
+    
+class RUVM_OT_RuvmSetFlatCutoff(bpy.types.Operator):
+    bl_idname = "ruvm.set_flat_cutoff"
+    bl_label = "Set Flatten Cut-Off"
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        return getUsgCountInSelObjs(context) > 0
+
+    def execute(self, context):
+        activeObj = context.view_layer.objects.active
+        for obj in context.selected_objects:
+            if obj == activeObj:
+                continue
+            isUsg = obj.get("RuvmUsg", None)
+            if isUsg:
+                obj["ruvmUsgFlatCutoff"] = activeObj
         return {'FINISHED'}
 
 class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
@@ -73,9 +135,10 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
         
         depsgraph = context.evaluated_depsgraph_get()
         ObjArr = utils.RuvmObject * len(context.selected_objects)
-        #pdb.set_trace()
+        UsgArr = utils.RuvmUsg * len(context.selected_objects)
+        pdb.set_trace()
         objArr = ObjArr()
-        usgArr = ObjArr()
+        usgArr = UsgArr()
         objCount = 0
         usgCount = 0
         for obj in context.selected_objects:
@@ -83,29 +146,18 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
                 continue
             isUsg = obj.get("RuvmUsg", None)
             if isUsg:
-                arr = usgArr
-                i = usgCount
-            else:
-                arr = objArr
-                i = objCount
-            objEval = obj.evaluated_get(depsgraph)
-            meshEval = objEval.data
-            meshTuple = utils.formatAsRuvmMesh(meshEval, False, True)
-            arr[i].pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(utils.RuvmObjectData))
-            matWorld = obj.matrix_world.copy()
-            matWorld.transpose()
-            j = 0
-            while j < 4:
-                k = 0
-                while k < 4:
-                    linearIndex = k + j * 4
-                    arr[i].transform[linearIndex] = matWorld[j][k]
-                    k += 1
-                j += 1
-            if isUsg:
+                objTuple = utils.formatAsRuvmObj(obj, depsgraph)
+                usgArr[usgCount].obj = objTuple[0]
+                flatCutoff = obj.get("ruvmUsgFlatCutoff", None)
+                if (flatCutoff):
+                    if flatCutoff.type == 'MESH':
+                        cutoffObjTuple = utils.formatAsRuvmObj(flatCutoff, depsgraph)
+                        usgArr[usgCount].pFlatCutoff = ctypes.pointer(cutoffObjTuple[0])
                 usgCount += 1
             else:
-                objCount += 1
+                objTuple = utils.formatAsRuvmObj(obj, depsgraph)
+                objArr[objCount] = objTuple[0]
+                objCount += 1  
 
         #ruvmLib.ruvmBlenderMapFileExport.argtypes = (ctypes.POINTER(RuvmMesh),
         #    numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
@@ -140,17 +192,6 @@ class RUVM_OT_RuvmAssign(bpy.types.Operator):
             ruvm.nextTargetId += 1
         return {'FINISHED'}
     
-def setBlenderMatrix(blenderMatrix, ruvmMatrix):
-    j = 0
-    while j < 4:
-        k = 0
-        while k < 4:
-            linearIndex = k + j * 4
-            blenderMatrix[j][k] = ruvmMatrix[linearIndex]
-            k += 1
-        j += 1
-    blenderMatrix.transpose()
-    
 class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
     bl_idname = "ruvm.load_ruvm_file_for_edit"
     bl_label = "Load RUVM File For Edit"
@@ -165,7 +206,7 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         objCount = ctypes.c_int()
         usgCount = ctypes.c_int()
         objArr = ctypes.POINTER(utils.RuvmObject)()
-        usgArr = ctypes.POINTER(utils.RuvmObject)()
+        usgArr = ctypes.POINTER(utils.RuvmUsg)()
         #pdb.set_trace()
         err = ruvmLib.ruvmBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
                                                     ctypes.pointer(usgCount), ctypes.pointer(usgArr))
@@ -177,29 +218,22 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         context.collection.children.link(col)
         i = 0
         while (i < objCount.value):
-            mesh = bpy.data.meshes.new("RuvmMesh")
-            obj = bpy.data.objects.new("RuvmObj", mesh)
-            col.objects.link(obj)
-            meshRuvm = ctypes.cast(objArr[i].pData, ctypes.POINTER(utils.RuvmMesh))
-            copyRuvmMeshToBlenderMesh(mesh, meshRuvm.contents)
-            setBlenderMatrix(obj.matrix_world, objArr[i].transform)
+            blendObjFromRuvm(objArr[i], col, "Ruvm", 'TEXTURED', False)
             i += 1
         ruvmLib.ruvmBlenderObjArrDestroy(objCount, objArr)
 
         usgCol = bpy.data.collections.new(f"{name}_Usg")
         col.children.link(usgCol)
+        cutoffCol = bpy.data.collections.new(f"{name}_FlatCutoff")
+        col.children.link(cutoffCol)
         i = 0
         while (i < usgCount.value):
-            mesh = bpy.data.meshes.new("RuvmUsgMesh")
-            obj = bpy.data.objects.new("RuvmUsg", mesh)
-            usgCol.objects.link(obj)
-            meshRuvm = ctypes.cast(usgArr[i].pData, ctypes.POINTER(utils.RuvmMesh))
-            copyRuvmMeshToBlenderMesh(mesh, meshRuvm.contents)
-            setBlenderMatrix(obj.matrix_world, usgArr[i].transform)
-            obj.display_type = 'WIRE'
-            obj['RuvmUsg'] = True
+            usg = blendObjFromRuvm(usgArr[i].obj, usgCol, "Usg", 'WIRE', True)
+            if (usgArr[i].pFlatCutoff):
+                cutoff = blendObjFromRuvm(usgArr[i].pFlatCutoff.contents, cutoffCol,  "FlatCutoff", 'WIRE', False)
+                usg["ruvmUsgFlatCutoff"] = cutoff
             i += 1
-        ruvmLib.ruvmBlenderObjArrDestroy(usgCount, usgArr)
+        ruvmLib.ruvmBlenderUsgArrDestroy(usgCount.value, usgArr)
         
         return {'FINISHED'}
 
@@ -361,19 +395,20 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
             continue
         print("Mapping to mesh with map ", mapUtf8)
 
-        #ruvmLib.ruvmBlenderMapToMesh.argtypes = (
-        #    ctypes.POINTER(ctypes.c_char),
-        #    ctypes.POINTER(RuvmMesh),
-        #    numpy.ctypeslib.ndpointer(ctypes.c_int32, flags="C_CONTIGUOUS"),
-        #    numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"),
-        #    ctypes.POINTER(RuvmMesh)
-        #)
+        ruvmLib.ruvmBlenderMapToMesh.argtypes = (
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.POINTER(utils.RuvmMesh),
+            ctypes.POINTER(utils.RuvmMesh),
+            ctypes.POINTER(utils.RuvmCommonAttribList),
+            ctypes.c_float
+        )
         commonAttribs = utils.RuvmCommonAttribList()
         ruvmLib.ruvmBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
                                               ctypes.pointer(commonAttribs))
         result = ruvmLib.ruvmBlenderMapToMesh(mapUtf8, ctypes.pointer(meshTuple[0]),
                                               ctypes.pointer(workMesh),
-                                              ctypes.pointer(commonAttribs))
+                                              ctypes.pointer(commonAttribs),
+                                              scene.ruvm.wScale)
         ruvmLib.ruvmBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs))
         if result != 0:
             print("Ruvm python map to mesh failed, map to mesh returned error")
@@ -407,6 +442,8 @@ def ruvmLoadPreHandler(dummy):
     ruvmLib.ruvmBlenderDestroy()
 
 classes = [RUVM_OT_RuvmSetAsUsg,
+           RUVM_OT_RuvmUnsetUsg,
+           RUVM_OT_RuvmSetFlatCutoff,
            RUVM_OT_RuvmExportRuvmFile,
            RUVM_OT_RuvmAssign,
            RUVM_OT_RuvmRemove,

@@ -31,6 +31,8 @@ class RUVM_PT_Ruvm(RuvmParentPanel, bpy.types.Panel):
         ruvm = context.scene.ruvm
         layout = self.layout
         col0 = layout.column()
+        col0.prop(context.scene.ruvm, "wScale")
+        col0.label(text = "")
         col0.label(text = "Targets")
         row0 = col0.row()
         row0.template_list("RUVM_UL_RuvmTargets", "", context.scene, "ruvmTargets",
@@ -81,7 +83,13 @@ class RUVM_PT_Ruvm(RuvmParentPanel, bpy.types.Panel):
                 col0.prop(commonAttribEntry, "blend")
                 col0.prop(commonAttribEntry, "order")
         col0.label(text = "")
+        col0.label(text = "Export Options")
         col0.operator("ruvm.set_as_usg", icon = "NORMALS_FACE")
+        col0.operator("ruvm.unset_usg", icon = "X")
+        col0.label(text = "Flatten Cut-Off")
+        if (context.view_layer.objects.active.get("RuvmUsg")):
+            col0.prop_search(context.view_layer.objects.active, "ruvmUsgFlatCutoff", context.view_layer, "objects", text = "")
+        col0.operator("ruvm.set_flat_cutoff", text = "Set Sel To Active")
         #print("currentTarget.map: ", currentTarget.map)
         #targetsMap = context.scene.ruvmMaps.get(currentTarget.map, None)
         #col0.prop(targetsMap, "filepath", text = "", emboss = False);

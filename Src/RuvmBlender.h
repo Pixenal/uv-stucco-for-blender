@@ -15,11 +15,11 @@ void ruvmBlenderInit();
 RUVM_BLENDER_EXPORT
 RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
                                     RuvmObject* pObjArr, int32_t usgCount,
-                                    RuvmObject* pUsgArr);
+                                    RuvmUsg* pUsgArr);
 RUVM_BLENDER_EXPORT
 RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
                                          int32_t *pObjCount, RuvmObject **ppObjArr,
-                                         int32_t *pUsgCount, RuvmObject **ppUsgArr);
+                                         int32_t *pUsgCount, RuvmUsg **ppUsgArr);
 RUVM_BLENDER_EXPORT
 RuvmResult ruvmBlenderMapFileLoad(char *pFilePath);
 //RUVM_BLENDER_EXPORT void ruvmBlenderMapFileUnload(char *pFilePath);
@@ -27,7 +27,7 @@ RUVM_BLENDER_EXPORT
 int32_t ruvmBlenderMapToMesh(char *pFilePath,
                              RuvmMesh *pMesh,
                              RuvmMesh *pWorkMesh,
-							 RuvmCommonAttribList *pCommonAttribs);
+							 RuvmCommonAttribList *pCommonAttribs, float wScale);
 RUVM_BLENDER_EXPORT
 void ruvmBlenderQueryCommonAttribs(RuvmMesh *pMesh,
 								   char *pMapName,
@@ -42,6 +42,8 @@ void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh,
                                 RuvmMesh *workMesh);
 RUVM_BLENDER_EXPORT
 RuvmResult ruvmBlenderObjArrDestroy(int32_t objCount, RuvmObject *pObjArr);
+RUVM_BLENDER_EXPORT
+RuvmResult ruvmBlenderUsgArrDestroy(int32_t count, RuvmUsg *pUsgArr);
 RUVM_BLENDER_EXPORT 
 void ruvmBlenderMeshDestroy(RuvmMesh *pWorkMesh);
 RUVM_BLENDER_EXPORT

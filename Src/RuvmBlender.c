@@ -61,12 +61,12 @@ void ruvmBlenderInit() {
 
 RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
                                     RuvmObject* pObjArr, int32_t usgCount,
-                                    RuvmObject* pUsgArr) {
+                                    RuvmUsg* pUsgArr) {
 	return ruvmMapFileExport(pRuvmContext, pName, objCount, pObjArr, usgCount, pUsgArr);
 }
 RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
                                          int32_t *pObjCount, RuvmObject **ppObjArr,
-                                         int32_t *pUsgCount, RuvmObject **ppUsgArr) {
+                                         int32_t *pUsgCount, RuvmUsg **ppUsgArr) {
 	return ruvmMapFileLoadForEdit(pRuvmContext, pFilePath, pObjCount, ppObjArr,
 	                              pUsgCount, ppUsgArr);
 }
@@ -121,13 +121,13 @@ void ruvmBlenderQueryCommonAttribs(RuvmMesh *pMesh, char *pMap,
 }
 
 int32_t ruvmBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, RuvmMesh *pWorkMesh,
-                             RuvmCommonAttribList *pCommonAttribs) {
+                             RuvmCommonAttribList *pCommonAttribs, float wScale) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pFilePath) != 4) {
 		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
 		return 1;
 	}
-	RuvmResult result = ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh, pCommonAttribs);
+	RuvmResult result = ruvmMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh, pCommonAttribs, wScale);
 	return result == RUVM_ERROR;
 }
 
@@ -180,6 +180,10 @@ void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 
 RuvmResult ruvmBlenderObjArrDestroy(int32_t objCount, RuvmObject *pObjArr) {
 	ruvmObjArrDestroy(pRuvmContext, objCount, pObjArr);
+}
+
+RuvmResult ruvmBlenderUsgArrDestroy(int32_t count, RuvmUsg *pUsgArr) {
+	ruvmUsgArrDestroy(pRuvmContext, count, pUsgArr);
 }
 
 void ruvmBlenderMeshDestroy(RuvmMesh *pMesh) {

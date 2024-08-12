@@ -171,7 +171,7 @@ def copyAttribName(dest, src):
 def allocAttribs(mesh, attribCounts):
     FaceAttribsArray = RuvmAttrib * attribCounts["face"]
     mesh.faceAttribs.pArr = FaceAttribsArray()
-    LoopAttribsArray = RuvmAttrib * (attribCounts["loop"] + 1) # +1 is for normals
+    LoopAttribsArray = RuvmAttrib * (attribCounts["loop"] + 3) # +3 for normals, tangents, & tsign
     mesh.loopAttribs.pArr = LoopAttribsArray()
     EdgeAttribsArray = RuvmAttrib * attribCounts["edge"]
     mesh.edgeAttribs.pArr = EdgeAttribsArray()
@@ -232,6 +232,13 @@ def setBlenderMatrix(blenderMatrix, ruvmMatrix):
         j += 1
     blenderMatrix.transpose()
 
+def appendAttrib(attribs, name, type, data):
+    attribEntry = attribs.pArr[attribs.count]
+    copyAttribName(attribEntry.name, name)
+    attribEntry.type = type
+    attribEntry.pData = data
+    attribs.count += 1
+
 #returns a tuple containing the mesh, and the edges numpy array.
 #in order to prevent the reference tot he edge array from becoming invalid
 #after the function returns
@@ -266,12 +273,14 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
     normals = numpy.empty(mesh.loopCount * 3, dtype = numpy.float32)
     target.calc_normals_split()
     target.loops.foreach_get("normal", normals)
-    attribEntry = mesh.loopAttribs.pArr[mesh.loopAttribs.count]
-    name = "normal"
-    copyAttribName(attribEntry.name, name)
-    attribEntry.type = 16 #RUVM_V3_F32
-    attribEntry.pData = normals.ctypes.data_as(ctypes.c_void_p)
-    mesh.loopAttribs.count += 1
+    appendAttrib(mesh.loopAttribs, "normal", 16, #16 is V3_F32
+                 normals.ctypes.data_as(ctypes.c_void_p))
+    Tangents = RuvmVec3 * mesh.loopCount
+    tangents = Tangents()
+    appendAttrib(mesh.loopAttribs, "RuvmTangent", 16, ctypes.cast(tangents, ctypes.c_void_p))
+    TSigns = ctypes.c_float * mesh.loopCount
+    tSigns = TSigns()
+    appendAttrib(mesh.loopAttribs, "RuvmTSign", 4, ctypes.cast(tSigns, ctypes.c_void_p)) #4 is F32
     #to avoid garbage collection, edges and normals are returned as well
     return (mesh, edges, normals)
 

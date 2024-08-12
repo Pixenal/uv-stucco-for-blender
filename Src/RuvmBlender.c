@@ -180,11 +180,11 @@ void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 }
 
 RuvmResult ruvmBlenderObjArrDestroy(int32_t objCount, RuvmObject *pObjArr) {
-	ruvmObjArrDestroy(pRuvmContext, objCount, pObjArr);
+	return ruvmObjArrDestroy(pRuvmContext, objCount, pObjArr);
 }
 
 RuvmResult ruvmBlenderUsgArrDestroy(int32_t count, RuvmUsg *pUsgArr) {
-	ruvmUsgArrDestroy(pRuvmContext, count, pUsgArr);
+	return ruvmUsgArrDestroy(pRuvmContext, count, pUsgArr);
 }
 
 void ruvmBlenderMeshDestroy(RuvmMesh *pMesh) {

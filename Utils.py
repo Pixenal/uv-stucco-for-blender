@@ -20,10 +20,22 @@ class RuvmAttrib(ctypes.Structure):
                 ("type", ctypes.c_int32),
                 ("origin", ctypes.c_int32),
                 ("interpolate", ctypes.c_int32)]
+    
+class RuvmAttribIndexed(ctypes.Structure):
+    _fields_ = [("pData", ctypes.c_void_p),
+                ("name", ctypes.c_byte * 96),
+                ("type", ctypes.c_int32),
+                ("count", ctypes.c_int32)]
 
 class RuvmAttribArray(ctypes.Structure):
     _fields_ = [("pArr", ctypes.POINTER(RuvmAttrib)),
-                ("count", ctypes.c_int32)]
+                ("count", ctypes.c_int32),
+                ("size", ctypes.c_int32)]
+    
+class RuvmAttribIndexedArr(ctypes.Structure):
+    _fields_ = [("pArr", ctypes.POINTER(RuvmAttribIndexed)),
+                ("count", ctypes.c_int32),
+                ("size", ctypes.c_int32)]
     
 class RuvmObjectData(ctypes.Structure):
     _fields_ = [("type", ctypes.c_int32)]
@@ -242,7 +254,7 @@ def appendAttrib(attribs, name, type, data):
 #returns a tuple containing the mesh, and the edges numpy array.
 #in order to prevent the reference tot he edge array from becoming invalid
 #after the function returns
-def formatAsRuvmMesh(target, metaOnly, getNormals):
+def formatAsRuvmMesh(target, metaOnly, getMatIndices, getNormals):
     mesh = RuvmMesh()
     mesh.type.type = 1
 
@@ -263,8 +275,15 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
 
     attribCount = {"face" : 0, "loop" : 0, "edge" : 0, "vert" : 0}
     getAttribCounts(attribCount, target, getNormals)
+    if (getMatIndices):
+        attribCount["face"] += 1 #for material indices
     allocAttribs(mesh, attribCount)
     initAttribs(mesh, target, metaOnly, getNormals)
+
+    if getMatIndices:
+        matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int32)
+        target.polygons.foreach_get("material_index", matIndices)
+        appendAttrib(mesh.faceAttribs, "RuvmMaterialIndices", 2, matIndices.ctypes.data_as(ctypes.c_void_p))
 
     if not getNormals:
         return (mesh, edges)
@@ -284,11 +303,11 @@ def formatAsRuvmMesh(target, metaOnly, getNormals):
     #to avoid garbage collection, edges and normals are returned as well
     return (mesh, edges, normals)
 
-def formatAsRuvmObj(obj, depsgraph):
+def formatAsRuvmObj(obj, depsgraph, getMatIndices):
     ruvmObj = RuvmObject()
     objEval = obj.evaluated_get(depsgraph)
     meshEval = objEval.data
-    meshTuple = formatAsRuvmMesh(meshEval, False, True)
+    meshTuple = formatAsRuvmMesh(meshEval, False, getMatIndices, True)
     ruvmObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(RuvmObjectData))
     setRuvmMatrix(ruvmObj.transform, obj.matrix_world)
     #the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected

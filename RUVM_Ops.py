@@ -11,21 +11,47 @@ from . import Utils as utils
 import os
 import pdb
 
-def copyRuvmMeshToBlenderMesh(mesh, workMesh):
+def copyRuvmMeshToBlenderMesh(mesh, workMesh, mats):
+    if (mats):
+        i = 0
+        while i < mats.contents.count:
+            RuvmString = ctypes.c_byte * 64
+            matsCast = ctypes.cast(mats.contents.pData, ctypes.POINTER(RuvmString))
+            matName = ctypes.cast(matsCast[i], ctypes.c_char_p).value.decode()
+            mat = bpy.data.materials.get(matName, None)
+            if not mat:
+                mat = bpy.data.materials.new(name = matName)
+            mesh.materials.append(mat)
+            i += 1
+
     mesh.vertices.add(workMesh.vertCount)
     mesh.loops.add(workMesh.loopCount)
     mesh.polygons.add(workMesh.faceCount)
     #pdb.set_trace()
     createAllAttribs(mesh, workMesh)
-    meshRuvmFormat = utils.formatAsRuvmMesh(mesh, False, False)
+    meshRuvmFormat = utils.formatAsRuvmMesh(mesh, False, False, False)
 
     ruvmLib.ruvmBlenderCopyMeshCore(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
+
+    """
+    matIndices = None
+    i = 0
+    while i < workMesh.faceAttribs.count:
+        if ctypes.cast(workMesh.faceAttribs.pArr[i].name, ctypes.c_char_p).value == b"material_index":
+            matIndices = workMesh.faceAttribs.pArr[i]
+            break
+        i += 1
+    if matIndices:
+        matIndicesNumpy = numpy.ctypeslib.as_array(ctypes.cast(matIndices.pData, ctypes.POINTER(ctypes.c_int32)),
+                                                   shape = [workMesh.faceCount])
+        mesh.polygons.foreach_set("material_index", matIndicesNumpy)
+    """
 
     #meshRuvm.uv_layers.new(name="uvmap")
     #uvPtr = meshRuvm.uv_layers[0].data[0].as_pointer()
     #ruvmMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(RuvmVec2))
     mesh.update()
-    meshRuvmFormat = utils.formatAsRuvmMesh(mesh, False, False)
+    meshRuvmFormat = utils.formatAsRuvmMesh(mesh, False, False, False)
     #pdb.set_trace()
     ruvmLib.ruvmBlenderCopyMeshAttribs(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
     normalsArraySize = workMesh.loopCount * 3
@@ -36,12 +62,12 @@ def copyRuvmMeshToBlenderMesh(mesh, workMesh):
     mesh.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
     mesh.use_auto_smooth = True
 
-def blendObjFromRuvm(ruvmObj, col, name, displayType, isUsg):
+def blendObjFromRuvm(ruvmObj, col, name, displayType, isUsg, mats):
     mesh = bpy.data.meshes.new(f"{name}Mesh")
     obj = bpy.data.objects.new(name, mesh)
     col.objects.link(obj)
     meshRuvm = ctypes.cast(ruvmObj.pData, ctypes.POINTER(utils.RuvmMesh))
-    copyRuvmMeshToBlenderMesh(mesh, meshRuvm.contents)
+    copyRuvmMeshToBlenderMesh(mesh, meshRuvm.contents, mats)
     utils.setBlenderMatrix(obj.matrix_world, ruvmObj.transform)
     obj.display_type = displayType
     if (isUsg):
@@ -141,33 +167,60 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
         objCount = 0
         usgCount = 0
         cutoffs = {}
-        #pdb.set_trace()
+        pdb.set_trace()
+        mats = {}
         for obj in context.selected_objects:
             if obj.type != 'MESH':
                 continue
             isUsg = obj.get("RuvmUsg", None)
             if isUsg:
-                objTuple = utils.formatAsRuvmObj(obj, depsgraph)
+                objTuple = utils.formatAsRuvmObj(obj, depsgraph, False)
                 usgArr[usgCount].obj = objTuple[0]
                 flatCutoff = obj.get("ruvmUsgFlatCutoff", None)
                 if (flatCutoff):
                     if flatCutoff.type == 'MESH':
                         cutoffPtr = cutoffs.get(flatCutoff.name, None)
                         if not cutoffPtr:
-                            cutoffObjTuple = utils.formatAsRuvmObj(flatCutoff, depsgraph)
+                            cutoffObjTuple = utils.formatAsRuvmObj(flatCutoff, depsgraph, False)
                             cutoffPtr = ctypes.pointer(cutoffObjTuple[0])
                             cutoffs.update({flatCutoff.name : cutoffPtr})
                         usgArr[usgCount].pFlatCutoff = cutoffPtr
                 usgCount += 1
             else:
-                objTuple = utils.formatAsRuvmObj(obj, depsgraph)
+                for slot in obj.material_slots:
+                    entry = mats.get(slot.name, None)
+                    if not entry:
+                        if len(slot.name) > 64:
+                            self.report({'ERROR'}, "Export failed, mat name is over 64 characters")
+                            return {'CANCELLED'}
+                        mats[slot.name] = True
+                objTuple = utils.formatAsRuvmObj(obj, depsgraph, True)
                 objArr[objCount] = objTuple[0]
                 objCount += 1  
+        
+        #pdb.set_trace()
+        matCount = len(mats)
+        MatArr = ctypes.c_char * 64 * matCount
+        matArr = MatArr()
+        i = 0
+        for matName in mats.keys():
+            utils.copyAttribName(matArr[i], matName)
+            i += 1
+        matAttrib = utils.RuvmAttribIndexed()
+        matAttrib.pData =  ctypes.cast(matArr, ctypes.c_void_p)
+        utils.copyAttribName(matAttrib.name, "RuvmMaterials")
+        matAttrib.type = 24 #string
+        matAttrib.count = matCount
+        matAttrib.size = matCount
+        indexedAttribs = utils.RuvmAttribIndexedArr()
+        indexedAttribs.pArr = ctypes.pointer(matAttrib)
+        indexedAttribs.count = 1
+        indexedAttribs.size = 1
 
         #ruvmLib.ruvmBlenderMapFileExport.argtypes = (ctypes.POINTER(RuvmMesh),
         #    numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
         err = ruvmLib.ruvmBlenderMapFileExport(filePathUtf8, objCount, objArr,
-                                               usgCount, usgArr)
+                                               usgCount, usgArr, indexedAttribs)
         if err != 1:
             self.report({'ERROR'}, "Export failed")
             return {'CANCELLED'}
@@ -214,18 +267,28 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         objArr = ctypes.POINTER(utils.RuvmObject)()
         usgArr = ctypes.POINTER(utils.RuvmUsg)()
         flatCutoffArr = ctypes.POINTER(utils.RuvmObject)()
+        indexedAttribs = utils.RuvmAttribIndexedArr()
         err = ruvmLib.ruvmBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
                                                     ctypes.pointer(usgCount), ctypes.pointer(usgArr),
-                                                    ctypes.pointer(flatCutoffCount), ctypes.pointer(flatCutoffArr))
+                                                    ctypes.pointer(flatCutoffCount), ctypes.pointer(flatCutoffArr),
+                                                    ctypes.pointer(indexedAttribs))
         if err != 1:
             self.report({'ERROR'}, "Load failed")
             return {'CANCELLED'}
-        
+        pdb.set_trace()
+        mats = None
+        i = 0
+        while i < indexedAttribs.count:
+            if ctypes.cast(indexedAttribs.pArr[i].name, ctypes.c_char_p).value == b"RuvmMaterials":
+                mats = ctypes.pointer(indexedAttribs.pArr[i])
+                break
+            i += 1
+
         col = bpy.data.collections.new(f"RuvmEdit_{name}")
         context.collection.children.link(col)
         i = 0
         while (i < objCount.value):
-            blendObjFromRuvm(objArr[i], col, "Ruvm", 'TEXTURED', False)
+            blendObjFromRuvm(objArr[i], col, "Ruvm", 'TEXTURED', False, mats)
             i += 1
         ruvmLib.ruvmBlenderObjArrDestroy(objCount, objArr)
 
@@ -236,12 +299,12 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         cutoffBlend = []
         i = 0
         while (i < flatCutoffCount.value):
-            cutoff = blendObjFromRuvm(flatCutoffArr[i], cutoffCol,  "FlatCutoff", 'WIRE', False)
+            cutoff = blendObjFromRuvm(flatCutoffArr[i], cutoffCol,  "FlatCutoff", 'WIRE', False, None)
             cutoffBlend.append(cutoff)
             i += 1
         i = 0
         while (i < usgCount.value):
-            usg = blendObjFromRuvm(usgArr[i].obj, usgCol, "Usg", 'WIRE', True)
+            usg = blendObjFromRuvm(usgArr[i].obj, usgCol, "Usg", 'WIRE', True, None)
             if (usgArr[i].pFlatCutoff):
                 j = 0
                 while (j < flatCutoffCount.value):
@@ -344,7 +407,7 @@ class RUVM_OT_RuvmQueryCommonAttribs(bpy.types.Operator):
         depsgraph = context.evaluated_depsgraph_get()
         objEval = target.obj.evaluated_get(depsgraph)
         meshEval = objEval.mesh
-        meshTuple = utils.formatAsRuvmMesh(meshEval, True, False)
+        meshTuple = utils.formatAsRuvmMesh(meshEval, True, False, False)
         mapUtf8 = utils.getTargetMapAsUtf8(target)
         if not(mapUtf8):
             return
@@ -371,7 +434,7 @@ def createAttribs(mesh, attribs, domain):
         i += 1
 
 def createAllAttribs(mesh, ruvmMesh):
-    #createAttribs(mesh, ruvmMesh.pFaceAttribs, ruvmMesh.faceAttribCount, "FACE")
+    createAttribs(mesh, ruvmMesh.faceAttribs, "FACE")
     createAttribs(mesh, ruvmMesh.loopAttribs, "CORNER")
     #createAttribs(mesh, ruvmMesh.pEdgeAttribs, ruvmMesh.edgeAttribCount, "EDGE")
     #createAttribs(mesh, ruvmMesh.pVertAttribs, ruvmMesh.vertAttribCount, "POINT")
@@ -392,7 +455,7 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
     active = bpy.context.active_object
     if (active):
         if active.name in scene.ruvmTargets:
-            target = scene.ruvmTargets[active.name];
+            target = scene.ruvmTargets[active.name]
             if scene.ruvmTargetsIndex != target.id:
                 scene.ruvmTargetsIndex = target.id
     depsgraph = bpy.context.evaluated_depsgraph_get()
@@ -403,10 +466,9 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         elif obj.mode != 'OBJECT':
             continue
         
-        mesh = obj.data
         objEval = obj.evaluated_get(depsgraph)
         meshEval = objEval.data
-        meshTuple = utils.formatAsRuvmMesh(meshEval, False, True)
+        meshTuple = utils.formatAsRuvmMesh(meshEval, False, False, True)
 
         workMesh = utils.RuvmMesh()
         mapUtf8 = utils.getTargetMapAsUtf8(target)
@@ -445,8 +507,12 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
             meshRuvm = bpy.data.meshes.new(nameRuvm)
             objRuvm.data = meshRuvm
             bpy.data.meshes.remove(meshRuvmOld)
+
+        mats = ctypes.POINTER(utils.RuvmAttribIndexed)()
+        ruvmLib.ruvmBlenderMapMatsGet(mapUtf8, ctypes.pointer(mats))
         
-        copyRuvmMeshToBlenderMesh(meshRuvm, workMesh)
+        #pdb.set_trace()
+        copyRuvmMeshToBlenderMesh(meshRuvm, workMesh, mats)
         ruvmLib.ruvmBlenderMeshDestroy(ctypes.pointer(workMesh))
         print("FinishedUpdating")
         

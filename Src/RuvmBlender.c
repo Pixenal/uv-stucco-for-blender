@@ -61,15 +61,19 @@ void ruvmBlenderInit() {
 
 RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
                                     RuvmObject* pObjArr, int32_t usgCount,
-                                    RuvmUsg* pUsgArr) {
-	return ruvmMapFileExport(pRuvmContext, pName, objCount, pObjArr, usgCount, pUsgArr);
+                                    RuvmUsg* pUsgArr,
+                                    RuvmAttribIndexedArr indexedAttribs) {
+	return ruvmMapFileExport(pRuvmContext, pName, objCount, pObjArr, usgCount,
+	                         pUsgArr, indexedAttribs);
 }
 RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
                                          int32_t *pObjCount, RuvmObject **ppObjArr,
                                          int32_t *pUsgCount, RuvmUsg **ppUsgArr,
-                                         int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr) {
+                                         int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
+                                         RuvmAttribIndexedArr *pIndexedAttribs) {
 	return ruvmMapFileLoadForEdit(pRuvmContext, pFilePath, pObjCount, ppObjArr,
-	                              pUsgCount, ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr);
+	                              pUsgCount, ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr,
+	                              pIndexedAttribs);
 }
 
 RuvmResult ruvmBlenderMapFileLoad(char *pFilePath) {
@@ -169,8 +173,8 @@ static void copyAttribs(RuvmAttribArray *pA, RuvmAttribArray *pB,
 void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh, RuvmMesh *workMesh) {
 	//copyAttribs(workMesh->pMeshAttribs, ruvmMesh->pMeshAttribs,
 	//            workMesh->meshAttribCount, 1);
-	//copyAttribs(workMesh->pFaceAttribs, ruvmMesh->pFaceAttribs,
-	//            workMesh->faceAttribCount, workMesh->faceCount);
+	copyAttribs(&workMesh->faceAttribs, &ruvmMesh->faceAttribs,
+	            workMesh->faceCount);
 	copyAttribs(&workMesh->loopAttribs, &ruvmMesh->loopAttribs,
 	            workMesh->loopCount);
 	//copyAttribs(workMesh->pEdgeAttribs, ruvmMesh->pEdgeAttribs,
@@ -201,4 +205,22 @@ int32_t ruvmBlenderMapFileGenPreviewImage(char *pFilePath, int32_t res, float *p
 	ruvmMapFileGenPreviewImage(pRuvmContext, pEntry->handle, &image);
 	memcpy(pImage, image.pData, res * res * 4 * sizeof(float));
 	return 0;
+}
+
+void ruvmBlenderMapMatsGet(char *pFilePath,
+                           RuvmAttribIndexed **ppMats) {
+	HandleEntry *pEntry, *pPrevEntry;
+	if (getHandle(&pEntry, &pPrevEntry, pFilePath) != 4) {
+		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
+		return;
+	}
+	RuvmAttribIndexedArr indexedAttribs = {0};
+	ruvmMapIndexedAttribsGet(pRuvmContext, pEntry->handle, &indexedAttribs);
+	for (int32_t i = 0; i < indexedAttribs.count; ++i) {
+		RuvmAttribIndexed *pAttrib = indexedAttribs.pArr + i;
+		if (!strncmp("RuvmMaterials", pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN)) {
+			*ppMats = pAttrib;
+			return;
+		}
+	}
 }

@@ -167,8 +167,9 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
         objCount = 0
         usgCount = 0
         cutoffs = {}
-        pdb.set_trace()
+        #pdb.set_trace()
         mats = {}
+        tuples = []
         for obj in context.selected_objects:
             if obj.type != 'MESH':
                 continue
@@ -176,6 +177,7 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
             if isUsg:
                 objTuple = utils.formatAsRuvmObj(obj, depsgraph, False)
                 usgArr[usgCount].obj = objTuple[0]
+                tuples.append(objTuple)
                 flatCutoff = obj.get("ruvmUsgFlatCutoff", None)
                 if (flatCutoff):
                     if flatCutoff.type == 'MESH':
@@ -184,6 +186,7 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
                             cutoffObjTuple = utils.formatAsRuvmObj(flatCutoff, depsgraph, False)
                             cutoffPtr = ctypes.pointer(cutoffObjTuple[0])
                             cutoffs.update({flatCutoff.name : cutoffPtr})
+                            tuples.append(cutoffObjTuple)
                         usgArr[usgCount].pFlatCutoff = cutoffPtr
                 usgCount += 1
             else:
@@ -196,6 +199,7 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
                         mats[slot.name] = True
                 objTuple = utils.formatAsRuvmObj(obj, depsgraph, True)
                 objArr[objCount] = objTuple[0]
+                tuples.append(objTuple)
                 objCount += 1  
         
         #pdb.set_trace()

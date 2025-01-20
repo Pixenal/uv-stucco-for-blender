@@ -505,8 +505,9 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         
         wScale = obj.get("ruvmWScale", None)
         if not wScale:
-            print("Target obj has no w scale. Skipping")
-            continue
+            print("Target obj has no w scale. Setting to default")
+            wScale = scene.ruvm.wScale
+            obj["ruvmWScale"] = wScale
         
         objEval = obj.evaluated_get(depsgraph)
         meshEval = objEval.data

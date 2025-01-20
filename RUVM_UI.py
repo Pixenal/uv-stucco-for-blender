@@ -31,8 +31,6 @@ class RUVM_PT_Ruvm(RuvmParentPanel, bpy.types.Panel):
         ruvm = context.scene.ruvm
         layout = self.layout
         col0 = layout.column()
-        col0.prop(context.scene.ruvm, "wScale")
-        col0.label(text = "")
         col0.label(text = "Targets")
         row0 = col0.row()
         row0.template_list("RUVM_UL_RuvmTargets", "", context.scene, "ruvmTargets",
@@ -47,6 +45,7 @@ class RUVM_PT_Ruvm(RuvmParentPanel, bpy.types.Panel):
             currentTarget = context.scene.ruvmTargets[context.scene.ruvmTargetsIndex]
             col0.prop_search(currentTarget, "map", context.scene, "ruvmMaps",
                              text = "", icon = 'MESH_PLANE')
+            col0.operator("ruvm.reload_ruvm_file", text = "Reload Map")
             col0.operator("ruvm.ruvm_preview_image", text = "Preview Map")
             col0.label(text = "")
             col0.label(text = "Common Attribs")
@@ -90,6 +89,8 @@ class RUVM_PT_Ruvm(RuvmParentPanel, bpy.types.Panel):
         if (context.view_layer.objects.active.get("RuvmUsg")):
             col0.prop_search(context.view_layer.objects.active, "ruvmUsgFlatCutoff", context.view_layer, "objects", text = "")
         col0.operator("ruvm.set_flat_cutoff", text = "Set Sel To Active")
+        col0.label(text = "")
+        col0.prop(context.scene.ruvm, "wScale", text = "Default W Scale")
         #print("currentTarget.map: ", currentTarget.map)
         #targetsMap = context.scene.ruvmMaps.get(currentTarget.map, None)
         #col0.prop(targetsMap, "filepath", text = "", emboss = False);
@@ -98,7 +99,6 @@ classes = [RUVM_PT_Ruvm,
            RUVM_UL_RuvmTargets,
            RUVM_UL_RuvmCommonAttribs]
 
-#Register
 def register():
     print("Registering RUVM_UI")
     for cls in classes:
@@ -106,7 +106,6 @@ def register():
     bpy.types.TOPBAR_MT_file_export.append(RuvmExport)
     bpy.types.TOPBAR_MT_file_import.append(RuvmLoadForEdit)
 
-#Unregister
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)

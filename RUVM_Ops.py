@@ -247,11 +247,12 @@ class RUVM_OT_RuvmAssign(bpy.types.Operator):
                     break
             if exists:
                 continue
+            id = len(context.scene.ruvmTargets)
             newTarget = context.scene.ruvmTargets.add()
             newTarget.obj = obj.id_data
-            newTarget.id = ruvm.nextTargetId
-            obj.ruvmTargetId = ruvm.nextTargetId
-            ruvm.nextTargetId += 1
+            newTarget.id = id
+            obj["ruvmWScale"] = context.scene.ruvm.wScale
+            obj.ruvmTargetId = id
         return {'FINISHED'}
     
 class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
@@ -346,6 +347,37 @@ class RUVM_OT_RuvmLoadRuvmFile(bpy.types.Operator, ImportHelper):
             return {'CANCELLED'}
         return {'FINISHED'}
 
+class RUVM_OT_RuvmReloadRuvmFile(bpy.types.Operator):
+    bl_idname = "ruvm.reload_ruvm_file"
+    bl_label = "Reload RUVM File"
+    bl_options = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context):
+        currentTarget = context.scene.ruvmTargets[context.scene.ruvmTargetsIndex]
+        return currentTarget.map != ""
+
+    def execute(self, context):
+        pdb.set_trace()
+        currentTarget = context.scene.ruvmTargets[context.scene.ruvmTargetsIndex]
+        mapUtf8 = utils.getTargetMapAsUtf8(currentTarget)
+        err = ruvmLib.ruvmBlenderMapFileUnload(mapUtf8)
+        if err != 1:
+            self.report({'ERROR'}, "Map reload failed. Couldn't unload existing map")
+        mapStr = mapUtf8.decode()
+        exists = False
+        for map in context.scene.ruvmMaps:
+            if (mapStr == map.filepath):
+                exists = True
+                break
+        if not exists:
+            self.report({'ERROR'}, "Cannot reload map which is not loaded. How did this get called?")
+            return {'CANCELLED'}
+        err = ruvmLib.ruvmBlenderMapFileLoad(mapUtf8)
+        if err != 1:
+            self.report({'ERROR'}, "Load failed")
+            return {'CANCELLED'}
+        return {'FINISHED'}
 
 class RUVM_OT_RuvmPreviewImage(bpy.types.Operator):
     bl_idname = "ruvm.ruvm_preview_image"
@@ -384,6 +416,7 @@ class RUVM_OT_RuvmRemove(bpy.types.Operator):
         if scene.ruvmTargetsIndex >= len(scene.ruvmTargets):
             return {'CANCELLED'}
         del scene.ruvmTargets[scene.ruvmTargetsIndex].obj["ruvmTargetId"]
+        del scene.ruvmTargets[scene.ruvmTargetsIndex].obj["ruvmWScale"]
         scene.ruvmTargets.remove(scene.ruvmTargetsIndex)
         return {'FINISHED'}
 
@@ -470,6 +503,11 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         elif obj.mode != 'OBJECT':
             continue
         
+        wScale = obj.get("ruvmWScale", None)
+        if not wScale:
+            print("Target obj has no w scale. Skipping")
+            continue
+        
         objEval = obj.evaluated_get(depsgraph)
         meshEval = objEval.data
         meshTuple = utils.formatAsRuvmMesh(meshEval, False, False, True)
@@ -493,7 +531,7 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
         result = ruvmLib.ruvmBlenderMapToMesh(mapUtf8, ctypes.pointer(meshTuple[0]),
                                               ctypes.pointer(workMesh),
                                               ctypes.pointer(commonAttribs),
-                                              scene.ruvm.wScale)
+                                              wScale)
         ruvmLib.ruvmBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs))
         if result != 0:
             print("Ruvm python map to mesh failed, map to mesh returned error")
@@ -538,9 +576,9 @@ classes = [RUVM_OT_RuvmSetAsUsg,
            RUVM_OT_RuvmRemove,
            RUVM_OT_RuvmLoadRuvmFileForEdit,
            RUVM_OT_RuvmLoadRuvmFile,
+           RUVM_OT_RuvmReloadRuvmFile,
            RUVM_OT_RuvmPreviewImage]
 
-#Register
 def register():
     
     for cls in classes:
@@ -549,7 +587,6 @@ def register():
     bpy.app.handlers.load_post.append(ruvmLoadPostHandler)
     bpy.app.handlers.load_pre.append(ruvmLoadPreHandler)
 
-#Unregister
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)

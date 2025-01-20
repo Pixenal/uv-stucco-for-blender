@@ -94,7 +94,6 @@ classes = [RuvmProperties,
            RuvmCommonAttrib,
            RuvmMap]
 
-#Register
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -113,7 +112,7 @@ def register():
     RuvmTarget.commonEdgeAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
     RuvmTarget.commonVertAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
 
-#Unregister
+#TODO don't you need to delete the other props as well?
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)

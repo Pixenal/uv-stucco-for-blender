@@ -99,20 +99,28 @@ RuvmResult ruvmBlenderMapFileLoad(char *pFilePath) {
 	return ruvmMapFileLoad(pRuvmContext, &pEntry->handle, pFilePath);
 }
 
-void ruvmBlenderUnloadRuvmFile(char *pFilePath) {
+RuvmResult ruvmBlenderMapFileUnload(char *pFilePath) {
 	HandleEntry *pEntry, *pPrevEntry;
 	getHandle(&pEntry, &pPrevEntry, pFilePath);
 	ruvmMapFileUnload(pRuvmContext, pEntry->handle);
-	if (!pPrevEntry && pEntry->pNext) {
-		HandleEntry *pNext = pEntry->pNext;
-		*pEntry = *pEntry->pNext;
-		free(pNext);
+	if (!pPrevEntry) {
+		free(pEntry->pFilePath);
+		if (pEntry->pNext) {
+			HandleEntry *pNext = pEntry->pNext;
+			*pEntry = *pNext;
+			free(pNext);
+		}
+		else {
+			HandleEntry empty = {0};
+			*pEntry = empty;
+		}
 	}
 	else {
 		pPrevEntry->pNext = pEntry->pNext;
 		free(pEntry->pFilePath);
 		free(pEntry);
 	}
+	return RUVM_SUCCESS;
 }
 
 void ruvmBlenderQueryCommonAttribs(RuvmMesh *pMesh, char *pMap,

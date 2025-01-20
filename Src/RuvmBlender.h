@@ -25,7 +25,8 @@ RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
                                          RuvmAttribIndexedArr *pIndexedAttribs);
 RUVM_BLENDER_EXPORT
 RuvmResult ruvmBlenderMapFileLoad(char *pFilePath);
-//RUVM_BLENDER_EXPORT void ruvmBlenderMapFileUnload(char *pFilePath);
+RUVM_BLENDER_EXPORT
+RuvmResult ruvmBlenderMapFileUnload(char *pFilePath);
 RUVM_BLENDER_EXPORT
 int32_t ruvmBlenderMapToMesh(char *pFilePath,
                              RuvmMesh *pMesh,

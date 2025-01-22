@@ -2,7 +2,7 @@ import bpy
 import ctypes
 import sys
 from . import RUVM_CLib
-ruvmLib = RUVM_CLib.ruvmLib
+uvsLib = RUVM_CLib.uvsLib
 import numpy
 import bmesh
 from bpy.app.handlers import persistent
@@ -31,7 +31,7 @@ def copyRuvmMeshToBlenderMesh(mesh, workMesh, mats):
     createAllAttribs(mesh, workMesh)
     meshRuvmFormat = utils.formatAsRuvmMesh(mesh, False, False, False)
 
-    ruvmLib.ruvmBlenderCopyMeshCore(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
+    uvsLib.uvsBlenderCopyMeshCore(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
 
     """
     matIndices = None
@@ -49,11 +49,11 @@ def copyRuvmMeshToBlenderMesh(mesh, workMesh, mats):
 
     #meshRuvm.uv_layers.new(name="uvmap")
     #uvPtr = meshRuvm.uv_layers[0].data[0].as_pointer()
-    #ruvmMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(RuvmVec2))
+    #uvsMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(RuvmVec2))
     mesh.update()
     meshRuvmFormat = utils.formatAsRuvmMesh(mesh, False, False, False)
     #pdb.set_trace()
-    ruvmLib.ruvmBlenderCopyMeshAttribs(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
+    uvsLib.uvsBlenderCopyMeshAttribs(ctypes.pointer(meshRuvmFormat[0]), ctypes.pointer(workMesh))
     normalsArraySize = workMesh.loopCount * 3
     normalAttrib = getNormalAttrib(workMesh)
     normalsNumpy = numpy.ctypeslib.as_array(ctypes.cast(normalAttrib.contents.pData, ctypes.POINTER(ctypes.c_float)),
@@ -62,13 +62,13 @@ def copyRuvmMeshToBlenderMesh(mesh, workMesh, mats):
     mesh.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
     mesh.use_auto_smooth = True
 
-def blendObjFromRuvm(ruvmObj, col, name, displayType, isUsg, mats):
+def blendObjFromRuvm(uvsObj, col, name, displayType, isUsg, mats):
     mesh = bpy.data.meshes.new(f"{name}Mesh")
     obj = bpy.data.objects.new(name, mesh)
     col.objects.link(obj)
-    meshRuvm = ctypes.cast(ruvmObj.pData, ctypes.POINTER(utils.RuvmMesh))
+    meshRuvm = ctypes.cast(uvsObj.pData, ctypes.POINTER(utils.RuvmMesh))
     copyRuvmMeshToBlenderMesh(mesh, meshRuvm.contents, mats)
-    utils.setBlenderMatrix(obj.matrix_world, ruvmObj.transform)
+    utils.setBlenderMatrix(obj.matrix_world, uvsObj.transform)
     obj.display_type = displayType
     if (isUsg):
         obj['RuvmUsg'] = isUsg
@@ -90,8 +90,8 @@ def getUsgCountInSelObjs(context):
             count += 1
     return count
 
-class RUVM_OT_RuvmSetAsUsg(bpy.types.Operator):
-    bl_idname = "ruvm.set_as_usg"
+class UVS_OT_RuvmSetAsUsg(bpy.types.Operator):
+    bl_idname = "uvs.set_as_usg"
     bl_label = "Set As USG"
     bl_options = {'REGISTER'}
 
@@ -108,8 +108,8 @@ class RUVM_OT_RuvmSetAsUsg(bpy.types.Operator):
             obj.display_type = 'WIRE'
         return {'FINISHED'}
     
-class RUVM_OT_RuvmUnsetUsg(bpy.types.Operator):
-    bl_idname = "ruvm.unset_usg"
+class UVS_OT_RuvmUnsetUsg(bpy.types.Operator):
+    bl_idname = "uvs.unset_usg"
     bl_label = "Unset USG"
     bl_options = {'REGISTER'}
 
@@ -122,12 +122,12 @@ class RUVM_OT_RuvmUnsetUsg(bpy.types.Operator):
             isUsg = obj.get("RuvmUsg", None)
             if isUsg:
                 del obj["RuvmUsg"]
-                obj["ruvmUsgFlatCutoff"] = None
+                obj["uvsUsgFlatCutoff"] = None
                 obj.display_type = 'TEXTURED'
         return {'FINISHED'}
     
-class RUVM_OT_RuvmSetFlatCutoff(bpy.types.Operator):
-    bl_idname = "ruvm.set_flat_cutoff"
+class UVS_OT_RuvmSetFlatCutoff(bpy.types.Operator):
+    bl_idname = "uvs.set_flat_cutoff"
     bl_label = "Set Flatten Cut-Off"
     bl_options = {'REGISTER'}
 
@@ -142,18 +142,18 @@ class RUVM_OT_RuvmSetFlatCutoff(bpy.types.Operator):
                 continue
             isUsg = obj.get("RuvmUsg", None)
             if isUsg:
-                obj["ruvmUsgFlatCutoff"] = activeObj
+                obj["uvsUsgFlatCutoff"] = activeObj
         return {'FINISHED'}
 
-class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
-    bl_idname = "ruvm.export_ruvm_file"
-    bl_label = "RUVM Export"
+class UVS_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
+    bl_idname = "uvs.export_uvs_file"
+    bl_label = "UVS Export"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
         #pdb.set_trace()
         if (len(context.selected_objects) == 0):
-            print("RUVM export failed, no objects selected.")
+            print("UVS export failed, no objects selected.")
             return {'CANCELLED'}
         
         filepath = self.filepath
@@ -178,7 +178,7 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
                 objTuple = utils.formatAsRuvmObj(obj, depsgraph, False)
                 usgArr[usgCount].obj = objTuple[0]
                 tuples.append(objTuple)
-                flatCutoff = obj.get("ruvmUsgFlatCutoff", None)
+                flatCutoff = obj.get("uvsUsgFlatCutoff", None)
                 if (flatCutoff):
                     if flatCutoff.type == 'MESH':
                         cutoffPtr = cutoffs.get(flatCutoff.name, None)
@@ -221,43 +221,43 @@ class RUVM_OT_RuvmExportRuvmFile(bpy.types.Operator, ImportHelper):
         indexedAttribs.count = 1
         indexedAttribs.size = 1
 
-        #ruvmLib.ruvmBlenderMapFileExport.argtypes = (ctypes.POINTER(RuvmMesh),
+        #uvsLib.uvsBlenderMapFileExport.argtypes = (ctypes.POINTER(RuvmMesh),
         #    numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
-        err = ruvmLib.ruvmBlenderMapFileExport(filePathUtf8, objCount, objArr,
+        err = uvsLib.uvsBlenderMapFileExport(filePathUtf8, objCount, objArr,
                                                usgCount, usgArr, indexedAttribs)
         if err != 1:
             self.report({'ERROR'}, "Export failed")
             return {'CANCELLED'}
         return {'FINISHED'}
 
-class RUVM_OT_RuvmAssign(bpy.types.Operator):
-    bl_idname = "ruvm.ruvm_assign"
-    bl_label = "RUVM Assign"
+class UVS_OT_RuvmAssign(bpy.types.Operator):
+    bl_idname = "uvs.uvs_assign"
+    bl_label = "UVS Assign"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        ruvm = context.scene.ruvm
+        uvs = context.scene.uvs
         if len(context.selected_objects) == 0:
             return {'CANCELLED'}
         for obj in context.selected_objects:
             exists = False
-            for target in context.scene.ruvmTargets:
+            for target in context.scene.uvsTargets:
                 if target.obj == obj:
                     exists = True
                     break
             if exists:
                 continue
-            id = len(context.scene.ruvmTargets)
-            newTarget = context.scene.ruvmTargets.add()
+            id = len(context.scene.uvsTargets)
+            newTarget = context.scene.uvsTargets.add()
             newTarget.obj = obj.id_data
             newTarget.id = id
-            obj["ruvmWScale"] = context.scene.ruvm.wScale
-            obj.ruvmTargetId = id
+            obj["uvsWScale"] = context.scene.uvs.wScale
+            obj.uvsTargetId = id
         return {'FINISHED'}
     
-class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
-    bl_idname = "ruvm.load_ruvm_file_for_edit"
-    bl_label = "Load RUVM File For Edit"
+class UVS_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
+    bl_idname = "uvs.load_uvs_file_for_edit"
+    bl_label = "Load UVS File For Edit"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -273,7 +273,7 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         usgArr = ctypes.POINTER(utils.RuvmUsg)()
         flatCutoffArr = ctypes.POINTER(utils.RuvmObject)()
         indexedAttribs = utils.RuvmAttribIndexedArr()
-        err = ruvmLib.ruvmBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
+        err = uvsLib.uvsBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
                                                     ctypes.pointer(usgCount), ctypes.pointer(usgArr),
                                                     ctypes.pointer(flatCutoffCount), ctypes.pointer(flatCutoffArr),
                                                     ctypes.pointer(indexedAttribs))
@@ -295,7 +295,7 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
         while (i < objCount.value):
             blendObjFromRuvm(objArr[i], col, "Ruvm", 'TEXTURED', False, mats)
             i += 1
-        ruvmLib.ruvmBlenderObjArrDestroy(objCount, objArr)
+        uvsLib.uvsBlenderObjArrDestroy(objCount, objArr)
 
         usgCol = bpy.data.collections.new(f"{name}_Usg")
         col.children.link(usgCol)
@@ -316,87 +316,87 @@ class RUVM_OT_RuvmLoadRuvmFileForEdit(bpy.types.Operator, ImportHelper):
                     cutoffPtr = ctypes.cast(ctypes.pointer(flatCutoffArr[j]), ctypes.c_void_p)
                     usgCutoffPtr = ctypes.cast(usgArr[i].pFlatCutoff, ctypes.c_void_p)
                     if cutoffPtr.value == usgCutoffPtr.value:
-                        usg["ruvmUsgFlatCutoff"] = cutoffBlend[j]
+                        usg["uvsUsgFlatCutoff"] = cutoffBlend[j]
                     j += 1
             i += 1
-        ruvmLib.ruvmBlenderUsgArrDestroy(usgCount.value, usgArr)
-        ruvmLib.ruvmBlenderObjArrDestroy(flatCutoffCount.value, flatCutoffArr)
+        uvsLib.uvsBlenderUsgArrDestroy(usgCount.value, usgArr)
+        uvsLib.uvsBlenderObjArrDestroy(flatCutoffCount.value, flatCutoffArr)
         
         return {'FINISHED'}
 
-class RUVM_OT_RuvmLoadRuvmFile(bpy.types.Operator, ImportHelper):
-    bl_idname = "ruvm.load_ruvm_file"
-    bl_label = "Load RUVM File"
+class UVS_OT_RuvmLoadRuvmFile(bpy.types.Operator, ImportHelper):
+    bl_idname = "uvs.load_uvs_file"
+    bl_label = "Load UVS File"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
         #pdb.set_trace()
         filepath = self.filepath
-        for map in context.scene.ruvmMaps:
+        for map in context.scene.uvsMaps:
             if (filepath == map.filepath):
                 return {'CANCELLED'}
         filePathUtf8 = filepath.encode('utf-8')
-        newMap = context.scene.ruvmMaps.add()
+        newMap = context.scene.uvsMaps.add()
         newMap.name = os.path.basename(filepath)
         print(filepath)
         newMap.filepath = filepath
-        context.scene.ruvmMapsIndex = len(context.scene.ruvmMaps)
-        err = ruvmLib.ruvmBlenderMapFileLoad(filePathUtf8)
+        context.scene.uvsMapsIndex = len(context.scene.uvsMaps)
+        err = uvsLib.uvsBlenderMapFileLoad(filePathUtf8)
         if err != 1:
             self.report({'ERROR'}, "Load failed")
             return {'CANCELLED'}
         return {'FINISHED'}
 
-class RUVM_OT_RuvmReloadRuvmFile(bpy.types.Operator):
-    bl_idname = "ruvm.reload_ruvm_file"
-    bl_label = "Reload RUVM File"
+class UVS_OT_RuvmReloadRuvmFile(bpy.types.Operator):
+    bl_idname = "uvs.reload_uvs_file"
+    bl_label = "Reload UVS File"
     bl_options = {"REGISTER"}
 
     @classmethod
     def poll(cls, context):
-        currentTarget = context.scene.ruvmTargets[context.scene.ruvmTargetsIndex]
+        currentTarget = context.scene.uvsTargets[context.scene.uvsTargetsIndex]
         return currentTarget.map != ""
 
     def execute(self, context):
         pdb.set_trace()
-        currentTarget = context.scene.ruvmTargets[context.scene.ruvmTargetsIndex]
+        currentTarget = context.scene.uvsTargets[context.scene.uvsTargetsIndex]
         mapUtf8 = utils.getTargetMapAsUtf8(currentTarget)
-        err = ruvmLib.ruvmBlenderMapFileUnload(mapUtf8)
+        err = uvsLib.uvsBlenderMapFileUnload(mapUtf8)
         if err != 1:
             self.report({'ERROR'}, "Map reload failed. Couldn't unload existing map")
         mapStr = mapUtf8.decode()
         exists = False
-        for map in context.scene.ruvmMaps:
+        for map in context.scene.uvsMaps:
             if (mapStr == map.filepath):
                 exists = True
                 break
         if not exists:
             self.report({'ERROR'}, "Cannot reload map which is not loaded. How did this get called?")
             return {'CANCELLED'}
-        err = ruvmLib.ruvmBlenderMapFileLoad(mapUtf8)
+        err = uvsLib.uvsBlenderMapFileLoad(mapUtf8)
         if err != 1:
             self.report({'ERROR'}, "Load failed")
             return {'CANCELLED'}
         return {'FINISHED'}
 
-class RUVM_OT_RuvmPreviewImage(bpy.types.Operator):
-    bl_idname = "ruvm.ruvm_preview_image"
+class UVS_OT_RuvmPreviewImage(bpy.types.Operator):
+    bl_idname = "uvs.uvs_preview_image"
     bl_label = "Preview Image"
     bl_options = {"REGISTER"}
 
     @classmethod
     def poll(cls, context):
-        currentTarget = context.scene.ruvmTargets[context.scene.ruvmTargetsIndex]
+        currentTarget = context.scene.uvsTargets[context.scene.uvsTargetsIndex]
         return currentTarget.map != ""
 
     def execute(self, context):
-        currentTarget = context.scene.ruvmTargets[context.scene.ruvmTargetsIndex]
+        currentTarget = context.scene.uvsTargets[context.scene.uvsTargetsIndex]
         mapUtf8 = utils.getTargetMapAsUtf8(currentTarget)
         previewRes = 512
         dataLen = previewRes * previewRes * 4
         preview = numpy.empty(dataLen, dtype = numpy.float32)
         previewCtypes = preview.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-        ruvmLib.ruvmBlenderMapFileGenPreviewImage(mapUtf8, previewRes,
+        uvsLib.uvsBlenderMapFileGenPreviewImage(mapUtf8, previewRes,
                                                   previewCtypes)
         previewName = "Ruvm_" + currentTarget.map
         image = bpy.data.images.get(previewName, None)
@@ -406,18 +406,18 @@ class RUVM_OT_RuvmPreviewImage(bpy.types.Operator):
         image.pixels.foreach_set(preview)
         return {'FINISHED'}
 
-class RUVM_OT_RuvmRemove(bpy.types.Operator):
-    bl_idname = "ruvm.ruvm_remove"
-    bl_label = "RUVM Remove"
+class UVS_OT_RuvmRemove(bpy.types.Operator):
+    bl_idname = "uvs.uvs_remove"
+    bl_label = "UVS Remove"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
         scene = context.scene
-        if scene.ruvmTargetsIndex >= len(scene.ruvmTargets):
+        if scene.uvsTargetsIndex >= len(scene.uvsTargets):
             return {'CANCELLED'}
-        del scene.ruvmTargets[scene.ruvmTargetsIndex].obj["ruvmTargetId"]
-        del scene.ruvmTargets[scene.ruvmTargetsIndex].obj["ruvmWScale"]
-        scene.ruvmTargets.remove(scene.ruvmTargetsIndex)
+        del scene.uvsTargets[scene.uvsTargetsIndex].obj["uvsTargetId"]
+        del scene.uvsTargets[scene.uvsTargetsIndex].obj["uvsWScale"]
+        scene.uvsTargets.remove(scene.uvsTargetsIndex)
         return {'FINISHED'}
 
 def setTargetCommonAttribs(target, commonAttribs, commonAttribsCount, domain):
@@ -432,15 +432,15 @@ def setTargetCommonAttribs(target, commonAttribs, commonAttribsCount, domain):
         targetAttrib.order = commonAttribs[i].order
         i += 1
 
-class RUVM_OT_RuvmQueryCommonAttribs(bpy.types.Operator):
-    bl_idname = "ruvm.ruvm_query_common_attribs"
-    bl_label = "RUVM Query Common Attributes"
+class UVS_OT_RuvmQueryCommonAttribs(bpy.types.Operator):
+    bl_idname = "uvs.uvs_query_common_attribs"
+    bl_label = "UVS Query Common Attributes"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
         pdb.set_trace()
         scene = context.scene
-        target = scene.ruvmTargets[scene.ruvmTargetsIndex].obj
+        target = scene.uvsTargets[scene.uvsTargetsIndex].obj
         depsgraph = context.evaluated_depsgraph_get()
         objEval = target.obj.evaluated_get(depsgraph)
         meshEval = objEval.mesh
@@ -449,7 +449,7 @@ class RUVM_OT_RuvmQueryCommonAttribs(bpy.types.Operator):
         if not(mapUtf8):
             return
         commonAttribList = utils.RuvmCommonAttribList()
-        ruvmLib.ruvmBlenderQueryCommonAttribs(meshTuple[0], mapUtf8, ctypes.pointer(commonAttribList))
+        uvsLib.uvsBlenderQueryCommonAttribs(meshTuple[0], mapUtf8, ctypes.pointer(commonAttribList))
         utils.setTargetCommonAttribs(target, commonAttribList.face,
                                commonAttribList.faceCount, "FACE")
         utils.setTargetCommonAttribs(target, commonAttribList.face,
@@ -470,11 +470,11 @@ def createAttribs(mesh, attribs, domain):
         createSingleAttrib(mesh, attribs.pArr[i], domain)
         i += 1
 
-def createAllAttribs(mesh, ruvmMesh):
-    createAttribs(mesh, ruvmMesh.faceAttribs, "FACE")
-    createAttribs(mesh, ruvmMesh.loopAttribs, "CORNER")
-    #createAttribs(mesh, ruvmMesh.pEdgeAttribs, ruvmMesh.edgeAttribCount, "EDGE")
-    #createAttribs(mesh, ruvmMesh.pVertAttribs, ruvmMesh.vertAttribCount, "POINT")
+def createAllAttribs(mesh, uvsMesh):
+    createAttribs(mesh, uvsMesh.faceAttribs, "FACE")
+    createAttribs(mesh, uvsMesh.loopAttribs, "CORNER")
+    #createAttribs(mesh, uvsMesh.pEdgeAttribs, uvsMesh.edgeAttribCount, "EDGE")
+    #createAttribs(mesh, uvsMesh.pVertAttribs, uvsMesh.vertAttribCount, "POINT")
 
 def getNormalAttrib(mesh):
     i = 0
@@ -486,28 +486,28 @@ def getNormalAttrib(mesh):
     return None
 
 @persistent
-def ruvmDepsgraphUpdatePostHandler(dummy):
+def uvsDepsgraphUpdatePostHandler(dummy):
     
     scene = bpy.context.scene
     active = bpy.context.active_object
     if (active):
-        if active.name in scene.ruvmTargets:
-            target = scene.ruvmTargets[active.name]
-            if scene.ruvmTargetsIndex != target.id:
-                scene.ruvmTargetsIndex = target.id
+        if active.name in scene.uvsTargets:
+            target = scene.uvsTargets[active.name]
+            if scene.uvsTargetsIndex != target.id:
+                scene.uvsTargetsIndex = target.id
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    for target in scene.ruvmTargets:
+    for target in scene.uvsTargets:
         obj = target.obj
         if not(obj in bpy.context.selected_objects):
             continue
         elif obj.mode != 'OBJECT':
             continue
         
-        wScale = obj.get("ruvmWScale", None)
+        wScale = obj.get("uvsWScale", None)
         if not wScale:
             print("Target obj has no w scale. Setting to default")
-            wScale = scene.ruvm.wScale
-            obj["ruvmWScale"] = wScale
+            wScale = scene.uvs.wScale
+            obj["uvsWScale"] = wScale
         
         objEval = obj.evaluated_get(depsgraph)
         meshEval = objEval.data
@@ -519,7 +519,7 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
             continue
         print("Mapping to mesh with map ", mapUtf8)
 
-        ruvmLib.ruvmBlenderMapToMesh.argtypes = (
+        uvsLib.uvsBlenderMapToMesh.argtypes = (
             ctypes.POINTER(ctypes.c_char),
             ctypes.POINTER(utils.RuvmMesh),
             ctypes.POINTER(utils.RuvmMesh),
@@ -527,13 +527,13 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
             ctypes.c_float
         )
         commonAttribs = utils.RuvmCommonAttribList()
-        ruvmLib.ruvmBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
+        uvsLib.uvsBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
                                               ctypes.pointer(commonAttribs))
-        result = ruvmLib.ruvmBlenderMapToMesh(mapUtf8, ctypes.pointer(meshTuple[0]),
+        result = uvsLib.uvsBlenderMapToMesh(mapUtf8, ctypes.pointer(meshTuple[0]),
                                               ctypes.pointer(workMesh),
                                               ctypes.pointer(commonAttribs),
                                               wScale)
-        ruvmLib.ruvmBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs))
+        uvsLib.uvsBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs))
         if result != 0:
             print("Ruvm python map to mesh failed, map to mesh returned error")
             return
@@ -552,45 +552,45 @@ def ruvmDepsgraphUpdatePostHandler(dummy):
             bpy.data.meshes.remove(meshRuvmOld)
 
         mats = ctypes.POINTER(utils.RuvmAttribIndexed)()
-        ruvmLib.ruvmBlenderMapMatsGet(mapUtf8, ctypes.pointer(mats))
+        uvsLib.uvsBlenderMapMatsGet(mapUtf8, ctypes.pointer(mats))
         
         #pdb.set_trace()
         copyRuvmMeshToBlenderMesh(meshRuvm, workMesh, mats)
-        ruvmLib.ruvmBlenderMeshDestroy(ctypes.pointer(workMesh))
+        uvsLib.uvsBlenderMeshDestroy(ctypes.pointer(workMesh))
         print("FinishedUpdating")
         
 
 @persistent
-def ruvmLoadPostHandler(dummy):
-    ruvmLib.ruvmBlenderInit()
-    bpy.context.scene.ruvmMaps.clear()
+def uvsLoadPostHandler(dummy):
+    uvsLib.uvsBlenderInit()
+    bpy.context.scene.uvsMaps.clear()
 
 @persistent
-def ruvmLoadPreHandler(dummy):
-    ruvmLib.ruvmBlenderDestroy()
+def uvsLoadPreHandler(dummy):
+    uvsLib.uvsBlenderDestroy()
 
-classes = [RUVM_OT_RuvmSetAsUsg,
-           RUVM_OT_RuvmUnsetUsg,
-           RUVM_OT_RuvmSetFlatCutoff,
-           RUVM_OT_RuvmExportRuvmFile,
-           RUVM_OT_RuvmAssign,
-           RUVM_OT_RuvmRemove,
-           RUVM_OT_RuvmLoadRuvmFileForEdit,
-           RUVM_OT_RuvmLoadRuvmFile,
-           RUVM_OT_RuvmReloadRuvmFile,
-           RUVM_OT_RuvmPreviewImage]
+classes = [UVS_OT_RuvmSetAsUsg,
+           UVS_OT_RuvmUnsetUsg,
+           UVS_OT_RuvmSetFlatCutoff,
+           UVS_OT_RuvmExportRuvmFile,
+           UVS_OT_RuvmAssign,
+           UVS_OT_RuvmRemove,
+           UVS_OT_RuvmLoadRuvmFileForEdit,
+           UVS_OT_RuvmLoadRuvmFile,
+           UVS_OT_RuvmReloadRuvmFile,
+           UVS_OT_RuvmPreviewImage]
 
 def register():
     
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.app.handlers.depsgraph_update_post.append(ruvmDepsgraphUpdatePostHandler)
-    bpy.app.handlers.load_post.append(ruvmLoadPostHandler)
-    bpy.app.handlers.load_pre.append(ruvmLoadPreHandler)
+    bpy.app.handlers.depsgraph_update_post.append(uvsDepsgraphUpdatePostHandler)
+    bpy.app.handlers.load_post.append(uvsLoadPostHandler)
+    bpy.app.handlers.load_pre.append(uvsLoadPreHandler)
 
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
-    bpy.app.handlers.depsgraph_update_post.remove(ruvmDepsgraphUpdatePostHandler)
-    bpy.app.handlers.load_post.remove(ruvmLoadPostHandler)
-    bpy.app.handlers.load_pre.remove(ruvmLoadPreHandler)
+    bpy.app.handlers.depsgraph_update_post.remove(uvsDepsgraphUpdatePostHandler)
+    bpy.app.handlers.load_post.remove(uvsLoadPostHandler)
+    bpy.app.handlers.load_pre.remove(uvsLoadPreHandler)

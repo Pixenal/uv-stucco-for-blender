@@ -85,7 +85,7 @@ class RuvmUsg(ctypes.Structure):
                 ("pFlatCutoff", ctypes.POINTER(RuvmObject))]
 
 def getTargetMapAsUtf8(target):
-    map = bpy.context.scene.ruvmMaps.get(target.map, None)
+    map = bpy.context.scene.uvsMaps.get(target.map, None)
     if map == None:
         print("Target has no map")
         return None
@@ -233,13 +233,13 @@ def setRuvmMatrix(dest, src):
             k += 1
         j += 1
 
-def setBlenderMatrix(blenderMatrix, ruvmMatrix):
+def setBlenderMatrix(blenderMatrix, uvsMatrix):
     j = 0
     while j < 4:
         k = 0
         while k < 4:
             linearIndex = k + j * 4
-            blenderMatrix[j][k] = ruvmMatrix[linearIndex]
+            blenderMatrix[j][k] = uvsMatrix[linearIndex]
             k += 1
         j += 1
     blenderMatrix.transpose()
@@ -304,11 +304,11 @@ def formatAsRuvmMesh(target, metaOnly, getMatIndices, getNormals):
     return (mesh, edges, normals)
 
 def formatAsRuvmObj(obj, depsgraph, getMatIndices):
-    ruvmObj = RuvmObject()
+    uvsObj = RuvmObject()
     objEval = obj.evaluated_get(depsgraph)
     meshEval = objEval.data
     meshTuple = formatAsRuvmMesh(meshEval, False, getMatIndices, True)
-    ruvmObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(RuvmObjectData))
-    setRuvmMatrix(ruvmObj.transform, obj.matrix_world)
+    uvsObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(RuvmObjectData))
+    setRuvmMatrix(uvsObj.transform, obj.matrix_world)
     #the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
-    return (ruvmObj, meshTuple)
+    return (uvsObj, meshTuple)

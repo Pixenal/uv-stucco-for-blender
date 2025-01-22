@@ -11,48 +11,50 @@
 #endif
 
 RUVM_BLENDER_EXPORT
-void ruvmBlenderInit();
+void uvsBlenderInit();
 RUVM_BLENDER_EXPORT
-RuvmResult ruvmBlenderMapFileExport(const char *pName, int32_t objCount,
+RuvmResult uvsBlenderMapFileExport(const char *pName, int32_t objCount,
                                     RuvmObject* pObjArr, int32_t usgCount,
                                     RuvmUsg* pUsgArr,
                                     RuvmAttribIndexedArr indexedAttribs);
 RUVM_BLENDER_EXPORT
-RuvmResult ruvmBlenderMapFileLoadForEdit(char *pFilePath,
+RuvmResult uvsBlenderMapFileLoadForEdit(char *pFilePath,
                                          int32_t *pObjCount, RuvmObject **ppObjArr,
                                          int32_t *pUsgCount, RuvmUsg **ppUsgArr,
                                          int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
                                          RuvmAttribIndexedArr *pIndexedAttribs);
 RUVM_BLENDER_EXPORT
-RuvmResult ruvmBlenderMapFileLoad(char *pFilePath);
+RuvmResult uvsBlenderMapFileLoad(char *pFilePath);
 RUVM_BLENDER_EXPORT
-RuvmResult ruvmBlenderMapFileUnload(char *pFilePath);
+RuvmResult uvsBlenderMapFileUnload(char *pFilePath);
 RUVM_BLENDER_EXPORT
-int32_t ruvmBlenderMapToMesh(char *pFilePath,
+int32_t uvsBlenderMapToMesh(char *pFilePath,
                              RuvmMesh *pMesh,
                              RuvmMesh *pWorkMesh,
 							 RuvmCommonAttribList *pCommonAttribs, float wScale);
 RUVM_BLENDER_EXPORT
-void ruvmBlenderQueryCommonAttribs(RuvmMesh *pMesh,
+void uvsBlenderQueryCommonAttribs(RuvmMesh *pMesh,
 								   char *pMapName,
 								   RuvmCommonAttribList *pCommonAttribs);
 RUVM_BLENDER_EXPORT
-void ruvmBlenderDestroyCommonAttribs(RuvmCommonAttribList *pCommonAttribs);
+void uvsBlenderDestroyCommonAttribs(RuvmCommonAttribList *pCommonAttribs);
 RUVM_BLENDER_EXPORT
-void ruvmBlenderCopyMeshCore(RuvmMesh *ruvmMesh,
+void uvsBlenderCopyMeshCore(RuvmMesh *uvsMesh,
                              RuvmMesh *workMesh);
 RUVM_BLENDER_EXPORT
-void ruvmBlenderCopyMeshAttribs(RuvmMesh *ruvmMesh,
+void uvsBlenderCopyMeshAttribs(RuvmMesh *uvsMesh,
                                 RuvmMesh *workMesh);
 RUVM_BLENDER_EXPORT
-RuvmResult ruvmBlenderObjArrDestroy(int32_t objCount, RuvmObject *pObjArr);
+RuvmResult uvsBlenderObjArrDestroy(int32_t objCount, RuvmObject *pObjArr);
 RUVM_BLENDER_EXPORT
-RuvmResult ruvmBlenderUsgArrDestroy(int32_t count, RuvmUsg *pUsgArr);
+RuvmResult uvsBlenderUsgArrDestroy(int32_t count, RuvmUsg *pUsgArr);
 RUVM_BLENDER_EXPORT 
-void ruvmBlenderMeshDestroy(RuvmMesh *pWorkMesh);
+void uvsBlenderMeshDestroy(RuvmMesh *pWorkMesh);
 RUVM_BLENDER_EXPORT
-int32_t ruvmBlenderMapFileGenPreviewImage(char *pFilePath, int32_t res,
+int32_t uvsBlenderMapFileGenPreviewImage(char *pFilePath, int32_t res,
                                           float *pImage);
 RUVM_BLENDER_EXPORT
-void ruvmBlenderMapMatsGet(char *pFilePath,
+void uvsBlenderMapMatsGet(char *pFilePath,
                            RuvmAttribIndexed **ppMats);
+RUVM_BLENDER_EXPORT
+void uvsBlenderDestroy();

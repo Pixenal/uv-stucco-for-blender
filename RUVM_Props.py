@@ -1,7 +1,7 @@
 import bpy
 import ctypes
 from . import RUVM_CLib
-ruvmLib = RUVM_CLib.ruvmLib
+uvsLib = RUVM_CLib.uvsLib
 from . import Utils as utils
 
 def addCommonAttribs(count, attribs, selfAttribs):
@@ -23,7 +23,7 @@ def targetMapUpdate(self, context):
     meshTuple = utils.formatAsRuvmMesh(meshEval, False, True)
     mapUtf8 = utils.getTargetMapAsUtf8(self)
     commonAttribs = utils.RuvmCommonAttribList()
-    ruvmLib.ruvmBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
+    uvsLib.uvsBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
                                           ctypes.pointer(commonAttribs))
     addCommonAttribs(commonAttribs.faceCount, commonAttribs.pFace,
                      self.commonFaceAttribs)
@@ -97,15 +97,15 @@ classes = [RuvmProperties,
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Object.ruvmTargetId = bpy.props.IntProperty(name = "RUVM Target ID", default = -1)
-    bpy.types.Object.ruvmUsgFlatCutoff = bpy.props.PointerProperty(type = bpy.types.Object,
+    bpy.types.Object.uvsTargetId = bpy.props.IntProperty(name = "UVS Target ID", default = -1)
+    bpy.types.Object.uvsUsgFlatCutoff = bpy.props.PointerProperty(type = bpy.types.Object,
                                                                    name = "Ruvm USG Flatten Cut-Off",
                                                                    poll = usgFlatCutoffPoll)
-    bpy.types.Scene.ruvm = bpy.props.PointerProperty(type = RuvmProperties)
-    bpy.types.Scene.ruvmTargets = bpy.props.CollectionProperty(name = "Targets", type = RuvmTarget)
-    bpy.types.Scene.ruvmTargetsIndex = bpy.props.IntProperty(name = "Targets Index")
-    bpy.types.Scene.ruvmMaps = bpy.props.CollectionProperty(name = "Maps", type = RuvmMap)
-    bpy.types.Scene.ruvmMapsIndex = bpy.props.IntProperty(name = "Maps Index")
+    bpy.types.Scene.uvs = bpy.props.PointerProperty(type = RuvmProperties)
+    bpy.types.Scene.uvsTargets = bpy.props.CollectionProperty(name = "Targets", type = RuvmTarget)
+    bpy.types.Scene.uvsTargetsIndex = bpy.props.IntProperty(name = "Targets Index")
+    bpy.types.Scene.uvsMaps = bpy.props.CollectionProperty(name = "Maps", type = RuvmMap)
+    bpy.types.Scene.uvsMapsIndex = bpy.props.IntProperty(name = "Maps Index")
     RuvmTarget.commonMeshAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
     RuvmTarget.commonFaceAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
     RuvmTarget.commonCornerAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)

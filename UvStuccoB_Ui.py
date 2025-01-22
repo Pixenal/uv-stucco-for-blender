@@ -1,56 +1,56 @@
 import bpy
 
-def RuvmExport(self, context):
-    self.layout.operator("uvs.export_uvs_file")
+def StucExport(self, context):
+    self.layout.operator("stuc.export_stuc_file")
 
-def RuvmLoadForEdit(self, context):
-    self.layout.operator("uvs.load_uvs_file_for_edit")
+def StucLoadForEdit(self, context):
+    self.layout.operator("stuc.load_stuc_file_for_edit")
 
-class RuvmParentPanel(bpy.types.Panel):
+class StucParentPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = "UI"
-    bl_category = "RUVM"
+    bl_category = "UV Stucco"
 
-class RUVM_UL_RuvmTargets(bpy.types.UIList):
+class STUC_UL_StucTargets(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row0 = layout.row(align = True)
             row0.prop(item, "obj", text = "", emboss = False, icon = 'MESH_CUBE')
 
-class RUVM_UL_RuvmCommonAttribs(bpy.types.UIList):
+class STUC_UL_StucCommonAttribs(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row0 = layout.row(align = True)
             row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_CUBE')
 
-class RUVM_PT_Ruvm(RuvmParentPanel, bpy.types.Panel):
-    bl_idname = "RUVM_PT_Ruvm"
-    bl_label = "RUVM"
+class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
+    bl_idname = "STUC_PT_Stuc"
+    bl_label = "STUC"
 
     def draw(self, context):
-        uvs = context.scene.uvs
+        stuc = context.scene.stuc
         layout = self.layout
         col0 = layout.column()
         col0.label(text = "Targets")
         row0 = col0.row()
-        row0.template_list("RUVM_UL_RuvmTargets", "", context.scene, "uvsTargets",
-                           context.scene, "uvsTargetsIndex")
+        row0.template_list("STUC_UL_StucTargets", "", context.scene, "stucTargets",
+                           context.scene, "stucTargetsIndex")
         col1 = row0.column(align = True)
         col1.scale_x = .35
-        col1.operator("uvs.uvs_assign", icon = "ADD")
-        col1.operator("uvs.uvs_remove", icon = "REMOVE")
+        col1.operator("stuc.stuc_assign", icon = "ADD")
+        col1.operator("stuc.stuc_remove", icon = "REMOVE")
         row1 = col0.row()
-        row1.operator("uvs.load_uvs_file", text = "Open Map")
-        if (len(context.scene.uvsTargets)):
-            currentTarget = context.scene.uvsTargets[context.scene.uvsTargetsIndex]
-            col0.prop_search(currentTarget, "map", context.scene, "uvsMaps",
+        row1.operator("stuc.load_stuc_file", text = "Open Map")
+        if (len(context.scene.stucTargets)):
+            currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
+            col0.prop_search(currentTarget, "map", context.scene, "stucMaps",
                              text = "", icon = 'MESH_PLANE')
-            col0.operator("uvs.reload_uvs_file", text = "Reload Map")
-            col0.operator("uvs.uvs_preview_image", text = "Preview Map")
+            col0.operator("stuc.reload_stuc_file", text = "Reload Map")
+            col0.operator("stuc.stuc_preview_image", text = "Preview Map")
             col0.label(text = "")
             col0.label(text = "Common Attribs")
-            col0.prop(uvs, "commonAttribDomain", text = "")
-            match (uvs.commonAttribDomain):
+            col0.prop(stuc, "commonAttribDomain", text = "")
+            match (stuc.commonAttribDomain):
                 case "FACE":
                     domain = "commonFaceAttribs"
                     commonAttrib = currentTarget.commonFaceAttribs
@@ -63,52 +63,52 @@ class RUVM_PT_Ruvm(RuvmParentPanel, bpy.types.Panel):
                 case "POINT":
                     domain = "commonVertAttribs"
                     commonAttrib = currentTarget.commonVertAttribs
-            col0.template_list("RUVM_UL_RuvmCommonAttribs", "", currentTarget, domain,
-                               uvs, "commonAttribIndex")
+            col0.template_list("STUC_UL_StucCommonAttribs", "", currentTarget, domain,
+                               stuc, "commonAttribIndex")
             if len(commonAttrib):
-                match (uvs.commonAttribDomain):
+                match (stuc.commonAttribDomain):
                     case "FACE":
                         commonAttribEntry =\
-                            currentTarget.commonFaceAttribs[uvs.commonAttribIndex]
+                            currentTarget.commonFaceAttribs[stuc.commonAttribIndex]
                     case "CORNER":
                         commonAttribEntry =\
-                            currentTarget.commonCornerAttribs[uvs.commonAttribIndex]
+                            currentTarget.commonCornerAttribs[stuc.commonAttribIndex]
                     case "EDGE":
                         commonAttribEntry =\
-                            currentTarget.commonEdgeAttribs[uvs.commonAttribIndex]
+                            currentTarget.commonEdgeAttribs[stuc.commonAttribIndex]
                     case "POINT":
                         commonAttribEntry =\
-                            currentTarget.commonVertAttribs[uvs.commonAttribIndex]
+                            currentTarget.commonVertAttribs[stuc.commonAttribIndex]
                 col0.prop(commonAttribEntry, "blend")
                 col0.prop(commonAttribEntry, "order")
         col0.label(text = "")
         col0.label(text = "Export Options")
-        col0.operator("uvs.set_as_usg", icon = "NORMALS_FACE")
-        col0.operator("uvs.unset_usg", icon = "X")
+        col0.operator("stuc.set_as_usg", icon = "NORMALS_FACE")
+        col0.operator("stuc.unset_usg", icon = "X")
         col0.label(text = "Flatten Cut-Off")
-        if (context.view_layer.objects.active.get("RuvmUsg")):
-            col0.prop_search(context.view_layer.objects.active, "uvsUsgFlatCutoff", context.view_layer, "objects", text = "")
-        col0.operator("uvs.set_flat_cutoff", text = "Set Sel To Active")
+        if (context.view_layer.objects.active.get("StucUsg")):
+            col0.prop_search(context.view_layer.objects.active, "stucUsgFlatCutoff", context.view_layer, "objects", text = "")
+        col0.operator("stuc.set_flat_cutoff", text = "Set Sel To Active")
         col0.label(text = "")
-        col0.prop(context.scene.uvs, "wScale", text = "Default W Scale")
+        col0.prop(context.scene.stuc, "wScale", text = "Default W Scale")
         #print("currentTarget.map: ", currentTarget.map)
-        #targetsMap = context.scene.uvsMaps.get(currentTarget.map, None)
+        #targetsMap = context.scene.stucMaps.get(currentTarget.map, None)
         #col0.prop(targetsMap, "filepath", text = "", emboss = False);
 
-classes = [RUVM_PT_Ruvm,
-           RUVM_UL_RuvmTargets,
-           RUVM_UL_RuvmCommonAttribs]
+classes = [STUC_PT_Stuc,
+           STUC_UL_StucTargets,
+           STUC_UL_StucCommonAttribs]
 
 def register():
-    print("Registering RUVM_UI")
+    print("Registering STUC_UI")
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.TOPBAR_MT_file_export.append(RuvmExport)
-    bpy.types.TOPBAR_MT_file_import.append(RuvmLoadForEdit)
+    bpy.types.TOPBAR_MT_file_export.append(StucExport)
+    bpy.types.TOPBAR_MT_file_import.append(StucLoadForEdit)
 
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
-    bpy.types.TOPBAR_MT_file_export.remove(RuvmExport)
-    bpy.types.TOPBAR_MT_file_import.remove(RuvmLoadForEdit)
+    bpy.types.TOPBAR_MT_file_export.remove(StucExport)
+    bpy.types.TOPBAR_MT_file_import.remove(StucLoadForEdit)
 

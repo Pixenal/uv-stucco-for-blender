@@ -11,23 +11,23 @@ bl_info = {
 import importlib
 
 if ("bpy" in locals()):
-    importlib.reload(RUVM_Props)
-    importlib.reload(RUVM_Ops)
-    importlib.reload(RUVM_UI)
+    importlib.reload(UvStuccoB_Props)
+    importlib.reload(UvStuccoB_Ops)
+    importlib.reload(UvStuccoB_Ui)
 else:
-    from . import RUVM_Props
-    from . import RUVM_Ops
-    from . import RUVM_UI
+    from . import UvStuccoB_Props
+    from . import UvStuccoB_Ops
+    from . import UvStuccoB_Ui
 
 def register():
-    print("Registering RUVM")
-    RUVM_Props.register()
-    RUVM_Ops.register()
-    RUVM_UI.register()
+    print("Registering UvStuccoB")
+    UvStuccoB_Props.register()
+    UvStuccoB_Ops.register()
+    UvStuccoB_Ui.register()
 
 def unregister():
-    print("Registering RUVM")
-    RUVM_Props.unregister()
-    RUVM_Ops.unregister()
-    RUVM_UI.unregister()
+    print("Registering UvStuccoB")
+    UvStuccoB_Props.unregister()
+    UvStuccoB_Ops.unregister()
+    UvStuccoB_Ui.unregister()
 

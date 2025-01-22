@@ -4,17 +4,17 @@
 #include <string.h>
 #include <limits.h>
 
-#include <RuvmBlender.h>
+#include <UvStuccoBlender.h>
 
 
 typedef struct HandleEntry {
 	struct HandleEntry *pNext;
-	RuvmMap handle;
+	StucMap handle;
 	char *pFilePath;
 } HandleEntry;
 static HandleEntry handleTable[HANDLE_TABLE_SIZE];
 
-RuvmContext pRuvmContext;
+StucContext pStucContext;
 
 uint32_t fnvHash(unsigned char *value, int32_t valueSize, uint32_t size) {
 	uint32_t hash = 2166136261;
@@ -54,29 +54,29 @@ static int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry,
 	return 3;
 }
 
-void uvsBlenderInit() {
-	RuvmTypeDefaultConfig typeDefaultConfig = {0};
-	uvsContextInit(&pRuvmContext, NULL, NULL, NULL, &typeDefaultConfig, NULL);
+void stucBlenderInit() {
+	StucTypeDefaultConfig typeDefaultConfig = {0};
+	stucContextInit(&pStucContext, NULL, NULL, NULL, &typeDefaultConfig, NULL);
 }
 
-RuvmResult uvsBlenderMapFileExport(const char *pName, int32_t objCount,
-                                    RuvmObject* pObjArr, int32_t usgCount,
-                                    RuvmUsg* pUsgArr,
-                                    RuvmAttribIndexedArr indexedAttribs) {
-	return uvsMapFileExport(pRuvmContext, pName, objCount, pObjArr, usgCount,
+StucResult stucBlenderMapFileExport(const char *pName, int32_t objCount,
+                                    StucObject* pObjArr, int32_t usgCount,
+                                    StucUsg* pUsgArr,
+                                    StucAttribIndexedArr indexedAttribs) {
+	return stucMapFileExport(pStucContext, pName, objCount, pObjArr, usgCount,
 	                         pUsgArr, indexedAttribs);
 }
-RuvmResult uvsBlenderMapFileLoadForEdit(char *pFilePath,
-                                         int32_t *pObjCount, RuvmObject **ppObjArr,
-                                         int32_t *pUsgCount, RuvmUsg **ppUsgArr,
-                                         int32_t *pFlatCutoffCount, RuvmObject **ppFlatCutoffArr,
-                                         RuvmAttribIndexedArr *pIndexedAttribs) {
-	return uvsMapFileLoadForEdit(pRuvmContext, pFilePath, pObjCount, ppObjArr,
+StucResult stucBlenderMapFileLoadForEdit(char *pFilePath,
+                                         int32_t *pObjCount, StucObject **ppObjArr,
+                                         int32_t *pUsgCount, StucUsg **ppUsgArr,
+                                         int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
+                                         StucAttribIndexedArr *pIndexedAttribs) {
+	return stucMapFileLoadForEdit(pStucContext, pFilePath, pObjCount, ppObjArr,
 	                              pUsgCount, ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr,
 	                              pIndexedAttribs);
 }
 
-RuvmResult uvsBlenderMapFileLoad(char *pFilePath) {
+StucResult stucBlenderMapFileLoad(char *pFilePath) {
 	HandleEntry *pEntry, *pPrevEntry;
 	int32_t result = getHandle(&pEntry, &pPrevEntry, pFilePath);
 	switch (result) {
@@ -96,13 +96,13 @@ RuvmResult uvsBlenderMapFileLoad(char *pFilePath) {
 	int32_t pathLength = strlen(pFilePath) + 1;
 	pEntry->pFilePath = malloc(pathLength);
 	memcpy(pEntry->pFilePath, pFilePath, pathLength);
-	return uvsMapFileLoad(pRuvmContext, &pEntry->handle, pFilePath);
+	return stucMapFileLoad(pStucContext, &pEntry->handle, pFilePath);
 }
 
-RuvmResult uvsBlenderMapFileUnload(char *pFilePath) {
+StucResult stucBlenderMapFileUnload(char *pFilePath) {
 	HandleEntry *pEntry, *pPrevEntry;
 	getHandle(&pEntry, &pPrevEntry, pFilePath);
-	uvsMapFileUnload(pRuvmContext, pEntry->handle);
+	stucMapFileUnload(pStucContext, pEntry->handle);
 	if (!pPrevEntry) {
 		free(pEntry->pFilePath);
 		if (pEntry->pNext) {
@@ -120,120 +120,120 @@ RuvmResult uvsBlenderMapFileUnload(char *pFilePath) {
 		free(pEntry->pFilePath);
 		free(pEntry);
 	}
-	return RUVM_SUCCESS;
+	return STUC_SUCCESS;
 }
 
-void uvsBlenderQueryCommonAttribs(RuvmMesh *pMesh, char *pMap,
-								   RuvmCommonAttribList *pCommonAttribs) {
+void stucBlenderQueryCommonAttribs(StucMesh *pMesh, char *pMap,
+								   StucCommonAttribList *pCommonAttribs) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pMap) != 4) {
-		printf("Ruvm query common attribs failed, specified map not loaded\n");
+		printf("Stuc query common attribs failed, specified map not loaded\n");
 		return;
 	}
-	uvsQueryCommonAttribs(pRuvmContext, pEntry->handle, pMesh, pCommonAttribs);
+	stucQueryCommonAttribs(pStucContext, pEntry->handle, pMesh, pCommonAttribs);
 }
 
-int32_t uvsBlenderMapToMesh(char *pFilePath, RuvmMesh *pMesh, RuvmMesh *pWorkMesh,
-                             RuvmCommonAttribList *pCommonAttribs, float wScale) {
+int32_t stucBlenderMapToMesh(char *pFilePath, StucMesh *pMesh, StucMesh *pWorkMesh,
+                             StucCommonAttribList *pCommonAttribs, float wScale) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pFilePath) != 4) {
-		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
+		printf("Stuc blender map to mesh failed, specified map not loaded\n");
 		return 1;
 	}
-	RuvmResult result = uvsMapToMesh(pRuvmContext, pEntry->handle, pMesh, pWorkMesh, pCommonAttribs, wScale);
-	return result == RUVM_ERROR;
+	StucResult result = stucMapToMesh(pStucContext, pEntry->handle, pMesh, pWorkMesh, pCommonAttribs, wScale);
+	return result == STUC_ERROR;
 }
 
-void uvsBlenderDestroyCommonAttribs(RuvmCommonAttribList *pCommonAttribs) {
-	uvsDestroyCommonAttribs(pRuvmContext, pCommonAttribs);
+void stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs) {
+	stucDestroyCommonAttribs(pStucContext, pCommonAttribs);
 }
 
-void uvsBlenderCopyMeshCore(RuvmMesh *uvsMesh, RuvmMesh *workMesh) {
-	memcpy(uvsMesh->pFaces, workMesh->pFaces, sizeof(int32_t) *
-	       (uvsMesh->faceCount + 1));
-	memcpy(uvsMesh->pCorners, workMesh->pCorners, sizeof(int32_t) *
-	       uvsMesh->cornerCount);
-	memcpy(uvsMesh->vertAttribs.pArr[0].pData, workMesh->vertAttribs.pArr[0].pData, sizeof(RuvmVec3) *
-	       uvsMesh->vertCount);
-	//memcpy(uvsMesh->pEdges, workMesh->pEdges, sizeof(int32_t) *
-	//       uvsMesh->cornerCount);
+void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
+	memcpy(stucMesh->pFaces, workMesh->pFaces, sizeof(int32_t) *
+	       (stucMesh->faceCount + 1));
+	memcpy(stucMesh->pCorners, workMesh->pCorners, sizeof(int32_t) *
+	       stucMesh->cornerCount);
+	memcpy(stucMesh->vertAttribs.pArr[0].pData, workMesh->vertAttribs.pArr[0].pData, sizeof(StucVec3) *
+	       stucMesh->vertCount);
+	//memcpy(stucMesh->pEdges, workMesh->pEdges, sizeof(int32_t) *
+	//       stucMesh->cornerCount);
 }
 
-static void copyAttribs(RuvmAttribArray *pA, RuvmAttribArray *pB,
+static void copyAttribs(StucAttribArray *pA, StucAttribArray *pB,
                         int32_t dataLen) {
 	if (!pA || !pB) {
 		return;
 	}
 	for (int32_t i = 0; i < pA->count; ++i) {
-		RuvmAttrib* pBEntry;
-		uvsGetAttrib(pA->pArr[i].name, pB, &pBEntry);
+		StucAttrib* pBEntry;
+		stucGetAttrib(pA->pArr[i].name, pB, &pBEntry);
 		if (!pBEntry) {
-			printf("Mismatch in workmesh and uvsmesh attribs\n");
+			printf("Mismatch in workmesh and stucmesh attribs\n");
 			abort();
 		}
 		int32_t attribSize;
-		uvsGetAttribSize(pA->pArr + i, &attribSize);
+		stucGetAttribSize(pA->pArr + i, &attribSize);
 		printf("attrib Size == %d\n", attribSize);
 		memcpy(pBEntry->pData, pA->pArr[i].pData, attribSize * dataLen);
 	}
 }
 
-void uvsBlenderCopyMeshAttribs(RuvmMesh *uvsMesh, RuvmMesh *workMesh) {
-	//copyAttribs(workMesh->pMeshAttribs, uvsMesh->pMeshAttribs,
+void stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh) {
+	//copyAttribs(workMesh->pMeshAttribs, stucMesh->pMeshAttribs,
 	//            workMesh->meshAttribCount, 1);
-	copyAttribs(&workMesh->faceAttribs, &uvsMesh->faceAttribs,
+	copyAttribs(&workMesh->faceAttribs, &stucMesh->faceAttribs,
 	            workMesh->faceCount);
-	copyAttribs(&workMesh->cornerAttribs, &uvsMesh->cornerAttribs,
+	copyAttribs(&workMesh->cornerAttribs, &stucMesh->cornerAttribs,
 	            workMesh->cornerCount);
-	//copyAttribs(workMesh->pEdgeAttribs, uvsMesh->pEdgeAttribs,
+	//copyAttribs(workMesh->pEdgeAttribs, stucMesh->pEdgeAttribs,
 	//            workMesh->edgeAttribCount, workMesh->edgeCount);
-	//copyAttribs(workMesh->pVertAttribs, uvsMesh->pVertAttribs,
+	//copyAttribs(workMesh->pVertAttribs, stucMesh->pVertAttribs,
 	//            workMesh->vertAttribCount, workMesh->vertCount);
 }
 
-RuvmResult uvsBlenderObjArrDestroy(int32_t objCount, RuvmObject *pObjArr) {
-	return uvsObjArrDestroy(pRuvmContext, objCount, pObjArr);
+StucResult stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr) {
+	return stucObjArrDestroy(pStucContext, objCount, pObjArr);
 }
 
-RuvmResult uvsBlenderUsgArrDestroy(int32_t count, RuvmUsg *pUsgArr) {
-	return uvsUsgArrDestroy(pRuvmContext, count, pUsgArr);
+StucResult stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr) {
+	return stucUsgArrDestroy(pStucContext, count, pUsgArr);
 }
 
-void uvsBlenderMeshDestroy(RuvmMesh *pMesh) {
-	uvsMeshDestroy(pRuvmContext, pMesh);
+void stucBlenderMeshDestroy(StucMesh *pMesh) {
+	stucMeshDestroy(pStucContext, pMesh);
 }
 
-int32_t uvsBlenderMapFileGenPreviewImage(char *pFilePath, int32_t res, float *pImage) {
+int32_t stucBlenderMapFileGenPreviewImage(char *pFilePath, int32_t res, float *pImage) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pFilePath) != 4) {
-		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
+		printf("Stuc blender map to mesh failed, specified map not loaded\n");
 		return 1;
 	}
-	RuvmImage image = {.res = res, .type = RUVM_IMAGE_F32};
-	uvsMapFileGenPreviewImage(pRuvmContext, pEntry->handle, &image);
+	StucImage image = {.res = res, .type = STUC_IMAGE_F32};
+	stucMapFileGenPreviewImage(pStucContext, pEntry->handle, &image);
 	memcpy(pImage, image.pData, res * res * 4 * sizeof(float));
 	return 0;
 }
 
-void uvsBlenderMapMatsGet(char *pFilePath,
-                           RuvmAttribIndexed **ppMats) {
+void stucBlenderMapMatsGet(char *pFilePath,
+                           StucAttribIndexed **ppMats) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pFilePath) != 4) {
-		printf("Ruvm blender map to mesh failed, specified map not loaded\n");
+		printf("Stuc blender map to mesh failed, specified map not loaded\n");
 		return;
 	}
-	RuvmAttribIndexedArr indexedAttribs = {0};
-	uvsMapIndexedAttribsGet(pRuvmContext, pEntry->handle, &indexedAttribs);
+	StucAttribIndexedArr indexedAttribs = {0};
+	stucMapIndexedAttribsGet(pStucContext, pEntry->handle, &indexedAttribs);
 	for (int32_t i = 0; i < indexedAttribs.count; ++i) {
-		RuvmAttribIndexed *pAttrib = indexedAttribs.pArr + i;
-		if (!strncmp("RuvmMaterials", pAttrib->name, RUVM_ATTRIB_NAME_MAX_LEN)) {
+		StucAttribIndexed *pAttrib = indexedAttribs.pArr + i;
+		if (!strncmp("StucMaterials", pAttrib->name, STUC_ATTRIB_NAME_MAX_LEN)) {
 			*ppMats = pAttrib;
 			return;
 		}
 	}
 }
 
-void uvsBlenderDestroy() {
+void stucBlenderDestroy() {
 	//TODO implement this
 	return;
 }

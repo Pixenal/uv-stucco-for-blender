@@ -1,7 +1,7 @@
 import bpy
 import ctypes
-from . import RUVM_CLib
-uvsLib = RUVM_CLib.uvsLib
+from . import UvStuccoB_CLib
+stucLib = UvStuccoB_CLib.stucLib
 from . import Utils as utils
 
 def addCommonAttribs(count, attribs, selfAttribs):
@@ -20,10 +20,10 @@ def targetMapUpdate(self, context):
     depsgraph = context.evaluated_depsgraph_get()
     objEval = self.obj.evaluated_get(depsgraph)
     meshEval = objEval.data
-    meshTuple = utils.formatAsRuvmMesh(meshEval, False, True)
+    meshTuple = utils.formatAsStucMesh(meshEval, False, True)
     mapUtf8 = utils.getTargetMapAsUtf8(self)
-    commonAttribs = utils.RuvmCommonAttribList()
-    uvsLib.uvsBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
+    commonAttribs = utils.StucCommonAttribList()
+    stucLib.stucBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
                                           ctypes.pointer(commonAttribs))
     addCommonAttribs(commonAttribs.faceCount, commonAttribs.pFace,
                      self.commonFaceAttribs)
@@ -38,21 +38,21 @@ def targetObjUpdate(self, context):
     self.name = self.obj.name
 
 def usgFlatCutoffPoll(self, obj):
-    return self != obj and not obj.get("RuvmUsg", None)
+    return self != obj and not obj.get("StucUsg", None)
 
-class RuvmMap(bpy.types.PropertyGroup):
+class StucMap(bpy.types.PropertyGroup):
     name : bpy.props.StringProperty()
     #id : bpy.props.IntProperty(default = -1)
     filepath : bpy.props.StringProperty(subtype = 'FILE_PATH')
 
-class RuvmTarget(bpy.types.PropertyGroup):
+class StucTarget(bpy.types.PropertyGroup):
     name : bpy.props.StringProperty()
     id : bpy.props.IntProperty(default = -1)
     map : bpy.props.StringProperty(update = targetMapUpdate)
     obj : bpy.props.PointerProperty(type = bpy.types.Object,
                                     update = targetObjUpdate)
 
-class RuvmCommonAttrib(bpy.types.PropertyGroup):
+class StucCommonAttrib(bpy.types.PropertyGroup):
     name : bpy.props.StringProperty()
     domain : bpy.props.EnumProperty(items = [
         ('FACE', "Face", ""),
@@ -78,7 +78,7 @@ class RuvmCommonAttrib(bpy.types.PropertyGroup):
         ('MAP_OVER_MESH', "Map Over Mesh", "")
     ])
 
-class RuvmProperties(bpy.types.PropertyGroup):
+class StucProperties(bpy.types.PropertyGroup):
     nextTargetId : bpy.props.IntProperty(default = 0)
     commonAttribDomain : bpy.props.EnumProperty(items = [
         ('FACE', "Face", ""),
@@ -89,31 +89,31 @@ class RuvmProperties(bpy.types.PropertyGroup):
     commonAttribIndex : bpy.props.IntProperty(default = 0)
     wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)
 
-classes = [RuvmProperties,
-           RuvmTarget,
-           RuvmCommonAttrib,
-           RuvmMap]
+classes = [StucProperties,
+           StucTarget,
+           StucCommonAttrib,
+           StucMap]
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Object.uvsTargetId = bpy.props.IntProperty(name = "UVS Target ID", default = -1)
-    bpy.types.Object.uvsUsgFlatCutoff = bpy.props.PointerProperty(type = bpy.types.Object,
-                                                                   name = "Ruvm USG Flatten Cut-Off",
+    bpy.types.Object.stucTargetId = bpy.props.IntProperty(name = "UVS Target ID", default = -1)
+    bpy.types.Object.stucUsgFlatCutoff = bpy.props.PointerProperty(type = bpy.types.Object,
+                                                                   name = "Stuc USG Flatten Cut-Off",
                                                                    poll = usgFlatCutoffPoll)
-    bpy.types.Scene.uvs = bpy.props.PointerProperty(type = RuvmProperties)
-    bpy.types.Scene.uvsTargets = bpy.props.CollectionProperty(name = "Targets", type = RuvmTarget)
-    bpy.types.Scene.uvsTargetsIndex = bpy.props.IntProperty(name = "Targets Index")
-    bpy.types.Scene.uvsMaps = bpy.props.CollectionProperty(name = "Maps", type = RuvmMap)
-    bpy.types.Scene.uvsMapsIndex = bpy.props.IntProperty(name = "Maps Index")
-    RuvmTarget.commonMeshAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
-    RuvmTarget.commonFaceAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
-    RuvmTarget.commonCornerAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
-    RuvmTarget.commonEdgeAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
-    RuvmTarget.commonVertAttribs = bpy.props.CollectionProperty(type = RuvmCommonAttrib)
+    bpy.types.Scene.stuc = bpy.props.PointerProperty(type = StucProperties)
+    bpy.types.Scene.stucTargets = bpy.props.CollectionProperty(name = "Targets", type = StucTarget)
+    bpy.types.Scene.stucTargetsIndex = bpy.props.IntProperty(name = "Targets Index")
+    bpy.types.Scene.stucMaps = bpy.props.CollectionProperty(name = "Maps", type = StucMap)
+    bpy.types.Scene.stucMapsIndex = bpy.props.IntProperty(name = "Maps Index")
+    StucTarget.commonMeshAttribs = bpy.props.CollectionProperty(type = StucCommonAttrib)
+    StucTarget.commonFaceAttribs = bpy.props.CollectionProperty(type = StucCommonAttrib)
+    StucTarget.commonCornerAttribs = bpy.props.CollectionProperty(type = StucCommonAttrib)
+    StucTarget.commonEdgeAttribs = bpy.props.CollectionProperty(type = StucCommonAttrib)
+    StucTarget.commonVertAttribs = bpy.props.CollectionProperty(type = StucCommonAttrib)
 
 #TODO don't you need to delete the other props as well?
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
-    del bpy.types.Scene.Ruvm
+    del bpy.types.Scene.Stuc

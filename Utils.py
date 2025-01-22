@@ -2,18 +2,18 @@ import bpy
 import ctypes
 import numpy
 
-class RuvmVec2(ctypes.Structure):
+class StucVec2(ctypes.Structure):
     _fields_ = [("x", ctypes.c_float),
                 ("y", ctypes.c_float)]
 
-class RuvmVec3(ctypes.Structure):
+class StucVec3(ctypes.Structure):
     _fields_ = [("x", ctypes.c_float),
                 ("y", ctypes.c_float),
                 ("z", ctypes.c_float)]
     
-Ruvm_M4x4_F32 = ctypes.c_float * 16
+Stuc_M4x4_F32 = ctypes.c_float * 16
 
-class RuvmAttrib(ctypes.Structure):
+class StucAttrib(ctypes.Structure):
     _fields_ = [("pData", ctypes.c_void_p),
                 #use c_byte instead of c_char, as the latter is immutable
                 ("name", ctypes.c_byte * 96),
@@ -21,71 +21,71 @@ class RuvmAttrib(ctypes.Structure):
                 ("origin", ctypes.c_int32),
                 ("interpolate", ctypes.c_int32)]
     
-class RuvmAttribIndexed(ctypes.Structure):
+class StucAttribIndexed(ctypes.Structure):
     _fields_ = [("pData", ctypes.c_void_p),
                 ("name", ctypes.c_byte * 96),
                 ("type", ctypes.c_int32),
                 ("count", ctypes.c_int32)]
 
-class RuvmAttribArray(ctypes.Structure):
-    _fields_ = [("pArr", ctypes.POINTER(RuvmAttrib)),
+class StucAttribArray(ctypes.Structure):
+    _fields_ = [("pArr", ctypes.POINTER(StucAttrib)),
                 ("count", ctypes.c_int32),
                 ("size", ctypes.c_int32)]
     
-class RuvmAttribIndexedArr(ctypes.Structure):
-    _fields_ = [("pArr", ctypes.POINTER(RuvmAttribIndexed)),
+class StucAttribIndexedArr(ctypes.Structure):
+    _fields_ = [("pArr", ctypes.POINTER(StucAttribIndexed)),
                 ("count", ctypes.c_int32),
                 ("size", ctypes.c_int32)]
     
-class RuvmObjectData(ctypes.Structure):
+class StucObjectData(ctypes.Structure):
     _fields_ = [("type", ctypes.c_int32)]
 
-class RuvmMesh(ctypes.Structure):
-    _fields_ = [("type", RuvmObjectData),
-                ("meshAttribs", RuvmAttribArray),
+class StucMesh(ctypes.Structure):
+    _fields_ = [("type", StucObjectData),
+                ("meshAttribs", StucAttribArray),
                 ("faceCount", ctypes.c_int32),
                 ("pFaces", ctypes.POINTER(ctypes.c_int32)),
-                ("faceAttribs", RuvmAttribArray),
+                ("faceAttribs", StucAttribArray),
                 ("loopCount", ctypes.c_int32),
                 ("pLoops", ctypes.POINTER(ctypes.c_int32)),
-                ("loopAttribs", RuvmAttribArray),
+                ("loopAttribs", StucAttribArray),
                 ("edgeCount", ctypes.c_int32),
                 ("pEdges", ctypes.POINTER(ctypes.c_int32)),
-                ("edgeAttribs", RuvmAttribArray),
+                ("edgeAttribs", StucAttribArray),
                 ("vertCount", ctypes.c_int32),
-                ("vertAttribs", RuvmAttribArray)]
+                ("vertAttribs", StucAttribArray)]
     
-class RuvmObject(ctypes.Structure):
-    _fields_ = [("pData", ctypes.POINTER(RuvmObjectData)),
-                ("transform", Ruvm_M4x4_F32)]
+class StucObject(ctypes.Structure):
+    _fields_ = [("pData", ctypes.POINTER(StucObjectData)),
+                ("transform", Stuc_M4x4_F32)]
 
-class RuvmBlendConfig(ctypes.Structure):
+class StucBlendConfig(ctypes.Structure):
     _fields_ = [("blend", ctypes.c_int32),
                 ("order", ctypes.c_int8)]
 
-class RuvmCommonAttrib(ctypes.Structure):
+class StucCommonAttrib(ctypes.Structure):
     #use c_byte instead of c_char, as the latter is immutable
     _fields_ = [("name", ctypes.c_byte * 96),
-                ("blendConfig", RuvmBlendConfig)]
+                ("blendConfig", StucBlendConfig)]
 
-class RuvmCommonAttribList(ctypes.Structure):
+class StucCommonAttribList(ctypes.Structure):
     _fields_ = [("meshCount", ctypes.c_int32),
-                ("pMesh", ctypes.POINTER(RuvmCommonAttrib)),
+                ("pMesh", ctypes.POINTER(StucCommonAttrib)),
                 ("faceCount", ctypes.c_int32),
-                ("pFace", ctypes.POINTER(RuvmCommonAttrib)),
+                ("pFace", ctypes.POINTER(StucCommonAttrib)),
                 ("loopCount", ctypes.c_int32),
-                ("pLoop", ctypes.POINTER(RuvmCommonAttrib)),
+                ("pLoop", ctypes.POINTER(StucCommonAttrib)),
                 ("edgeCount", ctypes.c_int32),
-                ("pEdge", ctypes.POINTER(RuvmCommonAttrib)),
+                ("pEdge", ctypes.POINTER(StucCommonAttrib)),
                 ("vertCount", ctypes.c_int32),
-                ("pVert", ctypes.POINTER(RuvmCommonAttrib))]
+                ("pVert", ctypes.POINTER(StucCommonAttrib))]
     
-class RuvmUsg(ctypes.Structure):
-    _fields_ = [("obj", RuvmObject),
-                ("pFlatCutoff", ctypes.POINTER(RuvmObject))]
+class StucUsg(ctypes.Structure):
+    _fields_ = [("obj", StucObject),
+                ("pFlatCutoff", ctypes.POINTER(StucObject))]
 
 def getTargetMapAsUtf8(target):
-    map = bpy.context.scene.uvsMaps.get(target.map, None)
+    map = bpy.context.scene.stucMaps.get(target.map, None)
     if map == None:
         print("Target has no map")
         return None
@@ -95,59 +95,59 @@ def getAttribType(attrib):
     attribType = type(attrib)
     match attribType:
         case bpy.types.BoolAttribute:
-            return (0, ctypes.c_int8) #RUVM_I8
+            return (0, ctypes.c_int8) #UVS_I8
         case bpy.types.ByteColorAttribute:
-            return (18, ctypes.c_int8 * 4) #RUVM_V4_I8
+            return (18, ctypes.c_int8 * 4) #UVS_V4_I8
         case bpy.types.ByteIntAttribute:
-            return (0, ctypes.c_int8) #RUVM_I8
+            return (0, ctypes.c_int8) #UVS_I8
         case bpy.types.Float2Attribute:
-            return (10, ctypes.c_float * 2) #RUVM_V2_F32
+            return (10, ctypes.c_float * 2) #UVS_V2_F32
         case bpy.types.FloatAttribute:
-            return (4, ctypes.c_float) #RUVM_F32
+            return (4, ctypes.c_float) #UVS_F32
         case bpy.types.FloatColorAttribute:
-            return (22, ctypes.c_float * 4) #RUVM_V4_F32
+            return (22, ctypes.c_float * 4) #UVS_V4_F32
         case bpy.types.FloatVectorAttribute:
-            return (16, ctypes.c_float * 3) #RUVM_V3_F32
+            return (16, ctypes.c_float * 3) #UVS_V3_F32
         case bpy.types.Int2Attribute:
-            return (8, ctypes.c_int32 * 2) #RUVM_V2_I32
+            return (8, ctypes.c_int32 * 2) #UVS_V2_I32
         case bpy.types.IntAttribute:
-            return (2, ctypes.c_int32) #RUVM_I32
+            return (2, ctypes.c_int32) #UVS_I32
         case bpy.types.QuaternionAttribute:
-            return (22, ctypes.c_float * 4) #RUVM_V4_F32
+            return (22, ctypes.c_float * 4) #UVS_V4_F32
         case bpy.types.StringAttribute:
-            return (24, ctypes.POINTER(ctypes.c_char)) #RUVM_STRING
+            return (24, ctypes.POINTER(ctypes.c_char)) #UVS_STRING
         case _:
             return None
 
 def getAttribBlenderType(attrib):
     match attrib.type:
-        #TODO add bool type to RUVM lib, as semantics are lost here
+        #TODO add bool type to UVS lib, as semantics are lost here
         #TODO in general, try include all types, including semantic
         #types, in Blender, Houdini, and USD. This includes unsigned
         #ints, quaternions, etc. If someone puts an attribute in, they need to get the
         #same type out. IMPORTANT: it may be best to split the semantic info off
         #into a separate enum
-        case 0: #RUVM_I8
+        case 0: #UVS_I8
             return 'BOOLEAN'
-        case 18: #RUVM_V4_I8
+        case 18: #UVS_V4_I8
             return 'BYTE_COLOR' 
-        case 0: #RUVM_I8
+        case 0: #UVS_I8
             return 'INT8'
-        case 10: #RUVM_V2_F32
+        case 10: #UVS_V2_F32
             return 'FLOAT2'
-        case 4: #RUVM_F32
+        case 4: #UVS_F32
             return 'FLOAT'
-        case 22: #RUVM_V4_F32
+        case 22: #UVS_V4_F32
             return 'FLOAT_COLOR'
-        case 16: #RUVM_V3_F32
+        case 16: #UVS_V3_F32
             return 'FLOAT_VECTOR'
-        case 8: #RUVM_V2_I32
+        case 8: #UVS_V2_I32
             return 'INT32_2D'
-        case 2: #RUVM_I32
+        case 2: #UVS_I32
             return 'INT'
-        case 22: #RUVM_V4_F32
+        case 22: #UVS_V4_F32
             return 'TODO FIX THIS'
-        case 24: #RUVM_STRING
+        case 24: #UVS_STRING
             return 'STRING' 
         case _:
             return None
@@ -181,13 +181,13 @@ def copyAttribName(dest, src):
         i += 1
 
 def allocAttribs(mesh, attribCounts):
-    FaceAttribsArray = RuvmAttrib * attribCounts["face"]
+    FaceAttribsArray = StucAttrib * attribCounts["face"]
     mesh.faceAttribs.pArr = FaceAttribsArray()
-    LoopAttribsArray = RuvmAttrib * (attribCounts["loop"] + 3) # +3 for normals, tangents, & tsign
+    LoopAttribsArray = StucAttrib * (attribCounts["loop"] + 3) # +3 for normals, tangents, & tsign
     mesh.loopAttribs.pArr = LoopAttribsArray()
-    EdgeAttribsArray = RuvmAttrib * attribCounts["edge"]
+    EdgeAttribsArray = StucAttrib * attribCounts["edge"]
     mesh.edgeAttribs.pArr = EdgeAttribsArray()
-    VertAttribsArray = RuvmAttrib * attribCounts["vert"]
+    VertAttribsArray = StucAttrib * attribCounts["vert"]
     mesh.vertAttribs.pArr = VertAttribsArray()
 
 def initAttribEntry(attrib, attribEntry, dataLen, metaOnly, interpolate):
@@ -221,7 +221,7 @@ def initAttribs(mesh, target, metaOnly, getNormals):
                 initAttribEntry(attrib, attribEntry, mesh.vertCount, metaOnly, 0)
                 mesh.vertAttribs.count += 1
 
-def setRuvmMatrix(dest, src):
+def setStucMatrix(dest, src):
     matWorld = src.copy()
     matWorld.transpose()
     j = 0
@@ -233,13 +233,13 @@ def setRuvmMatrix(dest, src):
             k += 1
         j += 1
 
-def setBlenderMatrix(blenderMatrix, uvsMatrix):
+def setBlenderMatrix(blenderMatrix, stucMatrix):
     j = 0
     while j < 4:
         k = 0
         while k < 4:
             linearIndex = k + j * 4
-            blenderMatrix[j][k] = uvsMatrix[linearIndex]
+            blenderMatrix[j][k] = stucMatrix[linearIndex]
             k += 1
         j += 1
     blenderMatrix.transpose()
@@ -254,8 +254,8 @@ def appendAttrib(attribs, name, type, data):
 #returns a tuple containing the mesh, and the edges numpy array.
 #in order to prevent the reference tot he edge array from becoming invalid
 #after the function returns
-def formatAsRuvmMesh(target, metaOnly, getMatIndices, getNormals):
-    mesh = RuvmMesh()
+def formatAsStucMesh(target, metaOnly, getMatIndices, getNormals):
+    mesh = StucMesh()
     mesh.type.type = 1
 
     mesh.faceCount = len(target.polygons)
@@ -283,7 +283,7 @@ def formatAsRuvmMesh(target, metaOnly, getMatIndices, getNormals):
     if getMatIndices:
         matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int32)
         target.polygons.foreach_get("material_index", matIndices)
-        appendAttrib(mesh.faceAttribs, "RuvmMaterialIndices", 2, matIndices.ctypes.data_as(ctypes.c_void_p))
+        appendAttrib(mesh.faceAttribs, "StucMaterialIndices", 2, matIndices.ctypes.data_as(ctypes.c_void_p))
 
     if not getNormals:
         return (mesh, edges)
@@ -294,21 +294,21 @@ def formatAsRuvmMesh(target, metaOnly, getMatIndices, getNormals):
     target.loops.foreach_get("normal", normals)
     appendAttrib(mesh.loopAttribs, "normal", 16, #16 is V3_F32
                  normals.ctypes.data_as(ctypes.c_void_p))
-    Tangents = RuvmVec3 * mesh.loopCount
+    Tangents = StucVec3 * mesh.loopCount
     tangents = Tangents()
-    appendAttrib(mesh.loopAttribs, "RuvmTangent", 16, ctypes.cast(tangents, ctypes.c_void_p))
+    appendAttrib(mesh.loopAttribs, "StucTangent", 16, ctypes.cast(tangents, ctypes.c_void_p))
     TSigns = ctypes.c_float * mesh.loopCount
     tSigns = TSigns()
-    appendAttrib(mesh.loopAttribs, "RuvmTSign", 4, ctypes.cast(tSigns, ctypes.c_void_p)) #4 is F32
+    appendAttrib(mesh.loopAttribs, "StucTSign", 4, ctypes.cast(tSigns, ctypes.c_void_p)) #4 is F32
     #to avoid garbage collection, edges and normals are returned as well
     return (mesh, edges, normals)
 
-def formatAsRuvmObj(obj, depsgraph, getMatIndices):
-    uvsObj = RuvmObject()
+def formatAsStucObj(obj, depsgraph, getMatIndices):
+    stucObj = StucObject()
     objEval = obj.evaluated_get(depsgraph)
     meshEval = objEval.data
-    meshTuple = formatAsRuvmMesh(meshEval, False, getMatIndices, True)
-    uvsObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(RuvmObjectData))
-    setRuvmMatrix(uvsObj.transform, obj.matrix_world)
+    meshTuple = formatAsStucMesh(meshEval, False, getMatIndices, True)
+    stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(StucObjectData))
+    setStucMatrix(stucObj.transform, obj.matrix_world)
     #the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
-    return (uvsObj, meshTuple)
+    return (stucObj, meshTuple)

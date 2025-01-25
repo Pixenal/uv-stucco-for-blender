@@ -33,6 +33,7 @@ def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
 
     stucLib.stucBlenderCopyMeshCore(ctypes.pointer(meshStucFormat[0]), ctypes.pointer(workMesh))
 
+	#TODO fix and uncomment this. I forget why it was disabled
     """
     matIndices = None
     i = 0
@@ -557,6 +558,12 @@ def stucDepsgraphUpdatePostHandler(dummy):
         #pdb.set_trace()
         copyStucMeshToBlenderMesh(meshStuc, workMesh, mats)
         stucLib.stucBlenderMeshDestroy(ctypes.pointer(workMesh))
+        normalBlendAttrib = meshStuc.attributes.get("normal", None)
+        if (normalBlendAttrib):
+            meshStuc.attributes.remove(normalBlendAttrib)
+        matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
+        if (matBlendAttrib):
+            meshStuc.attributes.remove(matBlendAttrib)
         print("FinishedUpdating")
         
 

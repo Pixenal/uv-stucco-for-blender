@@ -74,8 +74,8 @@ class StucCommonAttribList(ctypes.Structure):
                 ("pMesh", ctypes.POINTER(StucCommonAttrib)),
                 ("faceCount", ctypes.c_int32),
                 ("pFace", ctypes.POINTER(StucCommonAttrib)),
-                ("loopCount", ctypes.c_int32),
-                ("pLoop", ctypes.POINTER(StucCommonAttrib)),
+                ("cornerCount", ctypes.c_int32),
+                ("pCorner", ctypes.POINTER(StucCommonAttrib)),
                 ("edgeCount", ctypes.c_int32),
                 ("pEdge", ctypes.POINTER(StucCommonAttrib)),
                 ("vertCount", ctypes.c_int32),
@@ -330,3 +330,19 @@ def formatAsStucObj(obj, depsgraph, mats = None, matTable = None):
     setStucMatrix(stucObj.transform, obj.matrix_world)
     #the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
     return (stucObj, meshTuple)
+
+def setTargetCommonAttribs(targetAttribs, count, attribs):
+    i = 0
+    while i < count:
+        name = attribs[i].name
+        name = ctypes.cast(name, ctypes.c_char_p).value
+        name = name.decode("utf-8")
+        entry = targetAttribs.get(name, None)
+        if not entry:
+            entry = targetAttribs.add()
+            entry.name = name
+            entry.blend = str(attribs[i].blendConfig.blend)
+            entry.order = str(attribs[i].blendConfig.order)
+        attribs[i].blendConfig.blend = int(entry.blend)
+        attribs[i].blendConfig.order = int(entry.order)
+        i += 1

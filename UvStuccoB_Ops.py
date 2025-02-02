@@ -11,7 +11,27 @@ from . import Utils as utils
 import os
 import pdb
 
-#TODO this is in here to use clib? Is there a way to access clib it in Utils.py?
+#TODO these funcs are in here to use clib? Is there a way to access clib it in Utils.py?
+def updateCommonAttribs(target, depsgraph):
+	print("Getting commong attribs")
+	objEval = target.obj.evaluated_get(depsgraph)
+	meshEval = objEval.data
+	meshTuple = utils.formatAsStucMesh(meshEval, True, False, None)
+	mapUtf8 = utils.getTargetMapAsUtf8(target)
+	if not(mapUtf8):
+		return None
+	commonAttribList = utils.StucCommonAttribList()
+	stucLib.stucBlenderQueryCommonAttribs(meshTuple[0], mapUtf8, ctypes.pointer(commonAttribList))
+	utils.setTargetCommonAttribs(target.commonFaceAttribs, commonAttribList.faceCount,
+								commonAttribList.pFace)
+	utils.setTargetCommonAttribs(target.commonCornerAttribs, commonAttribList.cornerCount,
+								commonAttribList.pCorner)
+	utils.setTargetCommonAttribs(target.commonEdgeAttribs, commonAttribList.edgeCount,
+								commonAttribList.pEdge)
+	utils.setTargetCommonAttribs(target.commonVertAttribs, commonAttribList.vertCount,
+								commonAttribList.pVert)
+	return commonAttribList
+
 def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
     if (mats):
         i = 0
@@ -423,44 +443,6 @@ class STUC_OT_StucRemove(bpy.types.Operator):
         scene.stucTargets.remove(scene.stucTargetsIndex)
         return {'FINISHED'}
 
-def setTargetCommonAttribs(target, commonAttribs, commonAttribsCount, domain):
-    i = 0
-    while (i < commonAttribsCount):
-        targetAttrib = target.commonAttribs.get(commonAttribs[i].name, None)
-        if not(targetAttrib):
-            targetAttrib = target.commonAttribs.append()
-            targetAttrib.name = commonAttribs[i].name
-        targetAttrib.domain = domain
-        targetAttrib.blend = commonAttribs[i].blend
-        targetAttrib.order = commonAttribs[i].order
-        i += 1
-
-class STUC_OT_StucQueryCommonAttribs(bpy.types.Operator):
-    bl_idname = "stuc.stuc_query_common_attribs"
-    bl_label = "STUC Query Common Attributes"
-    bl_options = {'REGISTER'}
-
-    def execute(self, context):
-        scene = context.scene
-        target = scene.stucTargets[scene.stucTargetsIndex].obj
-        depsgraph = context.evaluated_depsgraph_get()
-        objEval = target.obj.evaluated_get(depsgraph)
-        meshEval = objEval.mesh
-        meshTuple = utils.formatAsStucMesh(meshEval, True, False, None)
-        mapUtf8 = utils.getTargetMapAsUtf8(target)
-        if not(mapUtf8):
-            return
-        commonAttribList = utils.StucCommonAttribList()
-        stucLib.stucBlenderQueryCommonAttribs(meshTuple[0], mapUtf8, ctypes.pointer(commonAttribList))
-        utils.setTargetCommonAttribs(target, commonAttribList.face,
-                               commonAttribList.faceCount, "FACE")
-        utils.setTargetCommonAttribs(target, commonAttribList.face,
-                               commonAttribList.faceCount, "CORNER")
-        utils.setTargetCommonAttribs(target, commonAttribList.face,
-                               commonAttribList.faceCount, "EDGE")
-        utils.setTargetCommonAttribs(target, commonAttribList.face,
-                               commonAttribList.faceCount, "POINT")
-
 def createSingleAttrib(mesh, attrib, domain):
     attribType = utils.getAttribBlenderType(attrib)
     name = ctypes.cast(attrib.name, ctypes.c_char_p).value
@@ -489,7 +471,6 @@ def getNormalAttrib(mesh):
 
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy):
-    
     scene = bpy.context.scene
     active = bpy.context.active_object
     if (active):
@@ -499,6 +480,7 @@ def stucDepsgraphUpdatePostHandler(dummy):
                 scene.stucTargetsIndex = target.id
     depsgraph = bpy.context.evaluated_depsgraph_get()
     for target in scene.stucTargets:
+        commonAttribs = updateCommonAttribs(target, depsgraph)
         obj = target.obj
         if not(obj in bpy.context.selected_objects):
             continue
@@ -528,9 +510,6 @@ def stucDepsgraphUpdatePostHandler(dummy):
             ctypes.POINTER(utils.StucCommonAttribList),
             ctypes.c_float
         )
-        commonAttribs = utils.StucCommonAttribList()
-        stucLib.stucBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
-                                              ctypes.pointer(commonAttribs))
         result = stucLib.stucBlenderMapToMesh(mapUtf8, ctypes.pointer(meshTuple[0]),
                                               ctypes.pointer(workMesh),
                                               ctypes.pointer(commonAttribs),

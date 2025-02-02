@@ -4,36 +4,6 @@ from . import UvStuccoB_CLib
 stucLib = UvStuccoB_CLib.stucLib
 from . import Utils as utils
 
-def addCommonAttribs(count, attribs, selfAttribs):
-    i = 0
-    while i < count:
-        name = attribs[i].name
-        name = ctypes.cast(name, ctypes.c_char_p).value
-        name = name.decode("utf-8")
-        entry = selfAttribs.get(name, None)
-        if not entry:
-            entry = selfAttribs.add()
-            entry.name = name
-        i += 1
-
-def targetMapUpdate(self, context):
-    depsgraph = context.evaluated_depsgraph_get()
-    objEval = self.obj.evaluated_get(depsgraph)
-    meshEval = objEval.data
-    meshTuple = utils.formatAsStucMesh(meshEval, False, True)
-    mapUtf8 = utils.getTargetMapAsUtf8(self)
-    commonAttribs = utils.StucCommonAttribList()
-    stucLib.stucBlenderQueryCommonAttribs(ctypes.pointer(meshTuple[0]), mapUtf8,
-                                          ctypes.pointer(commonAttribs))
-    addCommonAttribs(commonAttribs.faceCount, commonAttribs.pFace,
-                     self.commonFaceAttribs)
-    addCommonAttribs(commonAttribs.loopCount, commonAttribs.pLoop,
-                     self.commonCornerAttribs)
-    addCommonAttribs(commonAttribs.edgeCount, commonAttribs.pEdge,
-                     self.commonEdgeAttribs)
-    addCommonAttribs(commonAttribs.vertCount, commonAttribs.pVert,
-                     self.commonVertAttribs)
-
 def targetObjUpdate(self, context):
     self.name = self.obj.name
 
@@ -48,7 +18,7 @@ class StucMap(bpy.types.PropertyGroup):
 class StucTarget(bpy.types.PropertyGroup):
     name : bpy.props.StringProperty()
     id : bpy.props.IntProperty(default = -1)
-    map : bpy.props.StringProperty(update = targetMapUpdate)
+    map : bpy.props.StringProperty()
     obj : bpy.props.PointerProperty(type = bpy.types.Object,
                                     update = targetObjUpdate)
 
@@ -60,22 +30,22 @@ class StucCommonAttrib(bpy.types.PropertyGroup):
         ('EDGE', "Edge", ""),
         ('POINT', "Vertex", "")
     ])
-    blend : bpy.props.EnumProperty(default = 'REPLACE', items = [
-        ('REPLACE', "Replace", ""),
-        ('MULTIPLY', "Multiply", ""),
-        ('DIVIDE', "Divide", ""),
-        ('ADD', "Add", ""), 
-        ('SUBTRACT', "Subtract", ""),
-        ('ADD_SUB', "Add Sub", ""),
-        ('LIGHTEN', "Lighten", ""),
-        ('DARKEN', "Darken", ""),
-        ('OVERLAY', "Overlay", ""),
-        ('SOFT_LIGHT', "Soft Light", ""),
-        ('COLOR_DODGE', "Color Dodge", "")
+    blend : bpy.props.EnumProperty(default = '0', items = [
+        ('0', "Replace", ""),
+        ('1', "Multiply", ""),
+        ('2', "Divide", ""),
+        ('3', "Add", ""), 
+        ('4', "Subtract", ""),
+        ('5', "Add Sub", ""),
+        ('6', "Lighten", ""),
+        ('7', "Darken", ""),
+        ('8', "Overlay", ""),
+        ('9', "Soft Light", ""),
+        ('10', "Color Dodge", "")
     ])
-    order : bpy.props.EnumProperty(default = 'MESH_OVER_MAP', items = [
-        ('MESH_OVER_MAP', "Mesh Over Map", ""),
-        ('MAP_OVER_MESH', "Map Over Mesh", "")
+    order : bpy.props.EnumProperty(default = '0', items = [
+        ('0', "Mesh Over Map", ""),
+        ('1', "Map Over Mesh", "")
     ])
 
 class StucProperties(bpy.types.PropertyGroup):

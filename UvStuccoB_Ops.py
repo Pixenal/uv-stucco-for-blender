@@ -11,6 +11,7 @@ from . import Utils as utils
 import os
 import pdb
 
+#TODO this is in here to use clib? Is there a way to access clib it in Utils.py?
 def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
     if (mats):
         i = 0
@@ -27,33 +28,28 @@ def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
     mesh.vertices.add(workMesh.vertCount)
     mesh.loops.add(workMesh.loopCount)
     mesh.polygons.add(workMesh.faceCount)
-    #pdb.set_trace()
     createAllAttribs(mesh, workMesh)
-    meshStucFormat = utils.formatAsStucMesh(mesh, False, False, False)
+    meshStucFormat = utils.formatAsStucMesh(mesh, False, False, None)
 
     stucLib.stucBlenderCopyMeshCore(ctypes.pointer(meshStucFormat[0]), ctypes.pointer(workMesh))
 
-	#TODO fix and uncomment this. I forget why it was disabled
-    """
     matIndices = None
     i = 0
     while i < workMesh.faceAttribs.count:
-        if ctypes.cast(workMesh.faceAttribs.pArr[i].name, ctypes.c_char_p).value == b"material_index":
+        if ctypes.cast(workMesh.faceAttribs.pArr[i].name, ctypes.c_char_p).value == b"StucMaterialIndices":
             matIndices = workMesh.faceAttribs.pArr[i]
             break
         i += 1
     if matIndices:
-        matIndicesNumpy = numpy.ctypeslib.as_array(ctypes.cast(matIndices.pData, ctypes.POINTER(ctypes.c_int32)),
+        matIndicesNumpy = numpy.ctypeslib.as_array(ctypes.cast(matIndices.pData, ctypes.POINTER(ctypes.c_byte)),
                                                    shape = [workMesh.faceCount])
         mesh.polygons.foreach_set("material_index", matIndicesNumpy)
-    """
 
     #meshStuc.uv_layers.new(name="uvmap")
     #uvPtr = meshStuc.uv_layers[0].data[0].as_pointer()
     #stucMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(StucVec2))
     mesh.update()
-    meshStucFormat = utils.formatAsStucMesh(mesh, False, False, False)
-    #pdb.set_trace()
+    meshStucFormat = utils.formatAsStucMesh(mesh, False, False, None)
     stucLib.stucBlenderCopyMeshAttribs(ctypes.pointer(meshStucFormat[0]), ctypes.pointer(workMesh))
     normalsArraySize = workMesh.loopCount * 3
     normalAttrib = getNormalAttrib(workMesh)
@@ -152,7 +148,6 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        #pdb.set_trace()
         if (len(context.selected_objects) == 0):
             print("STUC export failed, no objects selected.")
             return {'CANCELLED'}
@@ -168,15 +163,26 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
         objCount = 0
         usgCount = 0
         cutoffs = {}
-        #pdb.set_trace()
         mats = {}
         tuples = []
+        objCount = 0
+        for obj in context.selected_objects:
+            if obj.type != 'MESH':
+                continue
+            isUsg = obj.get("StucUsg", None)
+            if not isUsg:
+                objCount += 1
+        matTable = utils.StucBlenderMatTableArr()
+        matTable.count = objCount
+        MatTableArr = utils.StucBlenderMatTable * matTable.count
+        matTable.pArr = MatTableArr()
+        objIdx = 0
         for obj in context.selected_objects:
             if obj.type != 'MESH':
                 continue
             isUsg = obj.get("StucUsg", None)
             if isUsg:
-                objTuple = utils.formatAsStucObj(obj, depsgraph, False)
+                objTuple = utils.formatAsStucObj(obj, depsgraph, None)
                 usgArr[usgCount].obj = objTuple[0]
                 tuples.append(objTuple)
                 flatCutoff = obj.get("stucUsgFlatCutoff", None)
@@ -184,7 +190,7 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
                     if flatCutoff.type == 'MESH':
                         cutoffPtr = cutoffs.get(flatCutoff.name, None)
                         if not cutoffPtr:
-                            cutoffObjTuple = utils.formatAsStucObj(flatCutoff, depsgraph, False)
+                            cutoffObjTuple = utils.formatAsStucObj(flatCutoff, depsgraph, None)
                             cutoffPtr = ctypes.pointer(cutoffObjTuple[0])
                             cutoffs.update({flatCutoff.name : cutoffPtr})
                             tuples.append(cutoffObjTuple)
@@ -198,12 +204,11 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
                             self.report({'ERROR'}, "Export failed, mat name is over 64 characters")
                             return {'CANCELLED'}
                         mats[slot.name] = True
-                objTuple = utils.formatAsStucObj(obj, depsgraph, True)
-                objArr[objCount] = objTuple[0]
+                objTuple = utils.formatAsStucObj(obj, depsgraph, mats, matTable.pArr[objIdx])
+                objArr[objIdx] = objTuple[0]
                 tuples.append(objTuple)
-                objCount += 1  
+                objIdx += 1
         
-        #pdb.set_trace()
         matCount = len(mats)
         MatArr = ctypes.c_char * 64 * matCount
         matArr = MatArr()
@@ -225,7 +230,8 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
         #stucLib.stucBlenderMapFileExport.argtypes = (ctypes.POINTER(StucMesh),
         #    numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
         err = stucLib.stucBlenderMapFileExport(filePathUtf8, objCount, objArr,
-                                               usgCount, usgArr, indexedAttribs)
+                                               usgCount, usgArr, indexedAttribs,
+                                               ctypes.pointer(matTable))
         if err != 1:
             self.report({'ERROR'}, "Export failed")
             return {'CANCELLED'}
@@ -262,7 +268,6 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        #pdb.set_trace()
         filepath = self.filepath
         filePathUtf8 = filepath.encode('utf-8')
         name = os.path.basename(filepath)
@@ -281,7 +286,6 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
         if err != 1:
             self.report({'ERROR'}, "Load failed")
             return {'CANCELLED'}
-        pdb.set_trace()
         mats = None
         i = 0
         while i < indexedAttribs.count:
@@ -331,7 +335,6 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        #pdb.set_trace()
         filepath = self.filepath
         for map in context.scene.stucMaps:
             if (filepath == map.filepath):
@@ -359,7 +362,6 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
         return currentTarget.map != ""
 
     def execute(self, context):
-        pdb.set_trace()
         currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
         mapUtf8 = utils.getTargetMapAsUtf8(currentTarget)
         err = stucLib.stucBlenderMapFileUnload(mapUtf8)
@@ -439,13 +441,12 @@ class STUC_OT_StucQueryCommonAttribs(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        pdb.set_trace()
         scene = context.scene
         target = scene.stucTargets[scene.stucTargetsIndex].obj
         depsgraph = context.evaluated_depsgraph_get()
         objEval = target.obj.evaluated_get(depsgraph)
         meshEval = objEval.mesh
-        meshTuple = utils.formatAsStucMesh(meshEval, True, False, False)
+        meshTuple = utils.formatAsStucMesh(meshEval, True, False, None)
         mapUtf8 = utils.getTargetMapAsUtf8(target)
         if not(mapUtf8):
             return
@@ -512,7 +513,7 @@ def stucDepsgraphUpdatePostHandler(dummy):
         
         objEval = obj.evaluated_get(depsgraph)
         meshEval = objEval.data
-        meshTuple = utils.formatAsStucMesh(meshEval, False, False, True)
+        meshTuple = utils.formatAsStucMesh(meshEval, False, True, None)
 
         workMesh = utils.StucMesh()
         mapUtf8 = utils.getTargetMapAsUtf8(target)
@@ -555,7 +556,6 @@ def stucDepsgraphUpdatePostHandler(dummy):
         mats = ctypes.POINTER(utils.StucAttribIndexed)()
         stucLib.stucBlenderMapMatsGet(mapUtf8, ctypes.pointer(mats))
         
-        #pdb.set_trace()
         copyStucMeshToBlenderMesh(meshStuc, workMesh, mats)
         stucLib.stucBlenderMeshDestroy(ctypes.pointer(workMesh))
         normalBlendAttrib = meshStuc.attributes.get("normal", None)

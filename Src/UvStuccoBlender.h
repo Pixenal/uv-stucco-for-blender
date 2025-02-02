@@ -10,13 +10,28 @@
 	#define STUC_BLENDER_EXPORT __declspec(dllexport)
 #endif
 
+//TODO replace these mat structs with a generic per obj offset table for all indexedAttribs,
+//rather than just having an adhoc solution for materials
+//Though really this is only being done to avoid iterating over faces in python,
+//so this should be a non-issue for dcc's with c api's
+typedef struct {
+    int8_t *pArr;
+    int32_t count;
+} StucBlenderMatTable;
+
+typedef struct {
+    StucBlenderMatTable *pArr;
+    int32_t count;
+} StucBlenderMatTableArr;
+
 STUC_BLENDER_EXPORT
 void stucBlenderInit();
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileExport(const char *pName, int32_t objCount,
                                     StucObject* pObjArr, int32_t usgCount,
                                     StucUsg* pUsgArr,
-                                    StucAttribIndexedArr indexedAttribs);
+                                    StucAttribIndexedArr indexedAttribs,
+                                    StucBlenderMatTableArr *pMatTable);
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileLoadForEdit(char *pFilePath,
                                          int32_t *pObjCount, StucObject **ppObjArr,

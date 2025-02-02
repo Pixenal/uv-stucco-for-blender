@@ -62,7 +62,20 @@ void stucBlenderInit() {
 StucResult stucBlenderMapFileExport(const char *pName, int32_t objCount,
                                     StucObject* pObjArr, int32_t usgCount,
                                     StucUsg* pUsgArr,
-                                    StucAttribIndexedArr indexedAttribs) {
+                                    StucAttribIndexedArr indexedAttribs,
+                                    StucBlenderMatTableArr *pMatTable) {
+	for (int32_t i = 0; i < objCount; ++i) {
+		StucMesh *pMesh = (StucMesh *)pObjArr[i].pData;
+		StucAttrib *pAttrib = NULL;
+		stucGetAttrib("StucMaterialIndices", &pMesh->faceAttribs, &pAttrib);
+		if (!pAttrib) {
+			continue;
+		}
+		int8_t *pIndices = pAttrib->pData;
+		for (int32_t j = 0; j < pMesh->faceCount; ++j) {
+			pIndices[j] = pMatTable->pArr[i].pArr[pIndices[j]];
+		}
+	}
 	return stucMapFileExport(pStucContext, pName, objCount, pObjArr, usgCount,
 	                         pUsgArr, indexedAttribs);
 }

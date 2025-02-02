@@ -1,6 +1,7 @@
 import bpy
 import ctypes
 import numpy
+import pdb
 
 class StucVec2(ctypes.Structure):
     _fields_ = [("x", ctypes.c_float),
@@ -83,6 +84,14 @@ class StucCommonAttribList(ctypes.Structure):
 class StucUsg(ctypes.Structure):
     _fields_ = [("obj", StucObject),
                 ("pFlatCutoff", ctypes.POINTER(StucObject))]
+    
+class StucBlenderMatTable(ctypes.Structure):
+    _fields_ = [("pArr", ctypes.POINTER(ctypes.c_byte)),
+                ("count", ctypes.c_byte)]
+    
+class StucBlenderMatTableArr(ctypes.Structure):
+    _fields_ = [("pArr", ctypes.POINTER(StucBlenderMatTable)),
+                ("count", ctypes.c_int32)]
 
 def getTargetMapAsUtf8(target):
     map = bpy.context.scene.stucMaps.get(target.map, None)
@@ -254,7 +263,7 @@ def appendAttrib(attribs, name, type, data):
 #returns a tuple containing the mesh, and the edges numpy array.
 #in order to prevent the reference tot he edge array from becoming invalid
 #after the function returns
-def formatAsStucMesh(target, metaOnly, getMatIndices, getNormals):
+def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None):
     mesh = StucMesh()
     mesh.type.type = 1
 
@@ -275,15 +284,24 @@ def formatAsStucMesh(target, metaOnly, getMatIndices, getNormals):
 
     attribCount = {"face" : 0, "loop" : 0, "edge" : 0, "vert" : 0}
     getAttribCounts(attribCount, target, getNormals)
-    if (getMatIndices):
+    if (mats):
         attribCount["face"] += 1 #for material indices
     allocAttribs(mesh, attribCount)
     initAttribs(mesh, target, metaOnly, getNormals)
 
-    if getMatIndices:
-        matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int32)
+    if mats:
+        matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int8)
         target.polygons.foreach_get("material_index", matIndices)
-        appendAttrib(mesh.faceAttribs, "StucMaterialIndices", 2, matIndices.ctypes.data_as(ctypes.c_void_p))
+        appendAttrib(mesh.faceAttribs, "StucMaterialIndices", 0, matIndices.ctypes.data_as(ctypes.c_void_p))
+        matTable.count = len(target.materials)
+        MatSlots = ctypes.c_byte * matTable.count
+        matTable.pArr = MatSlots()
+        #list global indices of materials in current object,
+        #this will be used as a lookup table, as per face mat indices are obj local
+        i = 0
+        while i < matTable.count:
+            matTable.pArr[i] = list(mats.keys()).index(target.materials[i].name)
+            i += 1
 
     if not getNormals:
         return (mesh, edges)
@@ -303,11 +321,11 @@ def formatAsStucMesh(target, metaOnly, getMatIndices, getNormals):
     #to avoid garbage collection, edges and normals are returned as well
     return (mesh, edges, normals)
 
-def formatAsStucObj(obj, depsgraph, getMatIndices):
+def formatAsStucObj(obj, depsgraph, mats = None, matTable = None):
     stucObj = StucObject()
     objEval = obj.evaluated_get(depsgraph)
     meshEval = objEval.data
-    meshTuple = formatAsStucMesh(meshEval, False, getMatIndices, True)
+    meshTuple = formatAsStucMesh(meshEval, False, True, mats, matTable)
     stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(StucObjectData))
     setStucMatrix(stucObj.transform, obj.matrix_world)
     #the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected

@@ -20,6 +20,7 @@ class StucAttrib(ctypes.Structure):
                 ("name", ctypes.c_byte * 96),
                 ("type", ctypes.c_int32),
                 ("origin", ctypes.c_int32),
+                ("use", ctypes.c_int32),
                 ("interpolate", ctypes.c_int32)]
     
 class StucAttribIndexed(ctypes.Structure):
@@ -41,6 +42,9 @@ class StucAttribIndexedArr(ctypes.Structure):
 class StucObjectData(ctypes.Structure):
     _fields_ = [("type", ctypes.c_int32)]
 
+#TODO rename loop attribs here as well
+#when working with stuc geo of course. Use loop when
+#referncing blender geometry of course
 class StucMesh(ctypes.Structure):
     _fields_ = [("type", StucObjectData),
                 ("meshAttribs", StucAttribArray),
@@ -62,6 +66,7 @@ class StucObject(ctypes.Structure):
 
 class StucBlendConfig(ctypes.Structure):
     _fields_ = [("blend", ctypes.c_int32),
+				("opacity", ctypes.c_float),
                 ("order", ctypes.c_int8)]
 
 class StucCommonAttrib(ctypes.Structure):
@@ -319,6 +324,18 @@ def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None)
     tSigns = TSigns()
     appendAttrib(mesh.loopAttribs, "StucTSign", 4, ctypes.cast(tSigns, ctypes.c_void_p)) #4 is F32
     #to avoid garbage collection, edges and normals are returned as well
+    
+	#TODO this is temp, setup a menu to allow user to set use per attrib
+    # have defaults though an attrib named 'Color' or 'Col' defaults to Color
+    i = 0
+    while i < mesh.loopAttribs.count:
+        name = mesh.loopAttribs.pArr[i].name
+        name = ctypes.cast(name, ctypes.c_char_p).value
+        name = name.decode("utf-8")
+        if name == "Color":
+            mesh.loopAttribs.pArr[i].use = 1
+        i += 1
+
     return (mesh, edges, normals)
 
 def formatAsStucObj(obj, depsgraph, mats = None, matTable = None):
@@ -334,6 +351,7 @@ def formatAsStucObj(obj, depsgraph, mats = None, matTable = None):
 def setTargetCommonAttribs(targetAttribs, count, attribs):
     i = 0
     while i < count:
+        #TODO make this name conversion a generic function
         name = attribs[i].name
         name = ctypes.cast(name, ctypes.c_char_p).value
         name = name.decode("utf-8")
@@ -342,7 +360,9 @@ def setTargetCommonAttribs(targetAttribs, count, attribs):
             entry = targetAttribs.add()
             entry.name = name
             entry.blend = str(attribs[i].blendConfig.blend)
+            entry.opacity = attribs[i].blendConfig.opacity
             entry.order = str(attribs[i].blendConfig.order)
         attribs[i].blendConfig.blend = int(entry.blend)
+        attribs[i].blendConfig.opacity = entry.opacity
         attribs[i].blendConfig.order = int(entry.order)
         i += 1

@@ -55,8 +55,7 @@ static int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry,
 }
 
 void stucBlenderInit() {
-	StucTypeDefaultConfig typeDefaultConfig = {0};
-	stucContextInit(&pStucContext, NULL, NULL, NULL, &typeDefaultConfig, NULL);
+	stucContextInit(&pStucContext, NULL, NULL, NULL, NULL, NULL);
 }
 
 StucResult stucBlenderMapFileExport(const char *pName, int32_t objCount,
@@ -153,6 +152,9 @@ int32_t stucBlenderMapToMesh(char *pFilePath, StucMesh *pMesh, StucMesh *pWorkMe
 		printf("Stuc blender map to mesh failed, specified map not loaded\n");
 		return 1;
 	}
+	//TODO if multiple objects are selected, see if dispatching them all at once on multiple threads
+	// improves perf. Probably not a good idea for high res meshes or maps, given the memory use.
+	// maybe selectivly do it based on the mesh and map res?
 	StucResult result = stucMapToMesh(pStucContext, pEntry->handle, pMesh, pWorkMesh, pCommonAttribs, wScale);
 	return result == STUC_ERROR;
 }

@@ -43,9 +43,10 @@ class StucCommonAttrib(bpy.types.PropertyGroup):
         ('9', "Soft Light", ""),
         ('10', "Color Dodge", "")
     ])
+    opacity : bpy.props.FloatProperty(default = 1.0)
     order : bpy.props.EnumProperty(default = '0', items = [
-        ('0', "Mesh Over Map", ""),
-        ('1', "Map Over Mesh", "")
+        ('0', "Map Over Mesh", ""),
+        ('1', "Mesh Over Map", "")
     ])
 
 class StucProperties(bpy.types.PropertyGroup):

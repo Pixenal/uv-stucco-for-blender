@@ -79,6 +79,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
                     case "POINT":
                         commonAttribEntry =\
                             currentTarget.commonVertAttribs[stuc.commonAttribIndex]
+                col0.prop(commonAttribEntry, "opacity")
                 col0.prop(commonAttribEntry, "blend")
                 col0.prop(commonAttribEntry, "order")
         col0.label(text = "")

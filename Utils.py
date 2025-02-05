@@ -27,6 +27,7 @@ class StucAttribIndexed(ctypes.Structure):
     _fields_ = [("pData", ctypes.c_void_p),
                 ("name", ctypes.c_byte * 96),
                 ("type", ctypes.c_int32),
+                ("use", ctypes.c_int32),
                 ("count", ctypes.c_int32)]
 
 class StucAttribArray(ctypes.Structure):

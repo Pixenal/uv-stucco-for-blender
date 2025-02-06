@@ -42,6 +42,11 @@ class StucAttribIndexedArr(ctypes.Structure):
     
 class StucObjectData(ctypes.Structure):
     _fields_ = [("type", ctypes.c_int32)]
+    
+class StucBlenderMapArr(ctypes.Structure):
+    _fields_ = [("ppArr", ctypes.POINTER(ctypes.POINTER(ctypes.c_byte))),
+                ("pMatIdxArr", ctypes.POINTER(ctypes.c_byte)),
+                ("count", ctypes.c_byte)]
 
 #TODO rename loop attribs here as well
 #when working with stuc geo of course. Use loop when
@@ -98,13 +103,6 @@ class StucBlenderMatTable(ctypes.Structure):
 class StucBlenderMatTableArr(ctypes.Structure):
     _fields_ = [("pArr", ctypes.POINTER(StucBlenderMatTable)),
                 ("count", ctypes.c_int32)]
-
-def getTargetMapAsUtf8(target):
-    map = bpy.context.scene.stucMaps.get(target.map, None)
-    if map == None:
-        print("Target has no map")
-        return None
-    return map.filepath.encode('utf-8')
 
 def getAttribType(attrib):
     attribType = type(attrib)
@@ -171,7 +169,8 @@ def getAttribBlenderType(attrib):
 
 def getAttribCounts(attribCount, target, getNormals):
     for attrib in target.attributes:
-        if '.' in attrib.name or (getNormals and attrib.name == "normal"):
+        if '.' in attrib.name or (getNormals and attrib.name == "normal") or\
+        attrib.name == "material_index":
             continue
         match attrib.domain:
             case 'FACE':
@@ -216,7 +215,8 @@ def initAttribEntry(attrib, attribEntry, dataLen, metaOnly, interpolate):
 
 def initAttribs(mesh, target, metaOnly, getNormals):
     for attrib in target.attributes:
-        if '.' in attrib.name or (getNormals and attrib.name == "normal"):
+        if '.' in attrib.name or (getNormals and attrib.name == "normal") or\
+        attrib.name == "material_index":
             continue
         match attrib.domain:
             case 'FACE':
@@ -299,6 +299,7 @@ def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None)
         matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int8)
         target.polygons.foreach_get("material_index", matIndices)
         appendAttrib(mesh.faceAttribs, "StucMaterialIndices", 0, matIndices.ctypes.data_as(ctypes.c_void_p))
+    if matTable:
         matTable.count = len(target.materials)
         MatSlots = ctypes.c_byte * matTable.count
         matTable.pArr = MatSlots()
@@ -367,3 +368,27 @@ def setTargetCommonAttribs(targetAttribs, count, attribs):
         attribs[i].blendConfig.opacity = entry.opacity
         attribs[i].blendConfig.order = int(entry.order)
         i += 1
+        
+def findMatInCol(mat, col):
+    i = 0
+    for item in col:
+        if item.mat.name == mat.name:
+            return i
+        i += 1
+    return None
+
+def findObjInCol(obj, col):
+    i = 0
+    for item in col:
+        if item.obj.name == obj.name:
+            return i
+        i += 1
+    return None
+
+def getMatsInStucMats(context, mesh):
+	targetMats = []
+	for mat in mesh.materials:
+		idx = findMatInCol(mat, context.scene.stucMats)
+		if idx != None:
+			targetMats.append(context.scene.stucMats[idx])
+	return targetMats

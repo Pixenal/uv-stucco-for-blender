@@ -12,24 +12,43 @@ import os
 import pdb
 
 #TODO these funcs are in here to use clib? Is there a way to access clib it in Utils.py?
-def updateCommonAttribs(target, depsgraph):
-	print("Getting commong attribs")
+def updateCommonAttribs(context, target, depsgraph):
 	objEval = target.obj.evaluated_get(depsgraph)
 	meshEval = objEval.data
-	meshTuple = utils.formatAsStucMesh(meshEval, True, False, None)
-	mapUtf8 = utils.getTargetMapAsUtf8(target)
-	if not(mapUtf8):
+	#clean common attrib entries for mat's no longer assigned to obj
+	for entry in target.commonAttribTable:
+		mat = meshEval.materials.get(entry.mat.name, None)
+		if not mat:
+			target.commonAttribTable.remove(entry)
+            
+	targetMats = utils.getMatsInStucMats(context, meshEval)
+	targetMatCount = len(targetMats)
+	if targetMatCount == 0:
 		return None
-	commonAttribList = utils.StucCommonAttribList()
-	stucLib.stucBlenderQueryCommonAttribs(meshTuple[0], mapUtf8, ctypes.pointer(commonAttribList))
-	utils.setTargetCommonAttribs(target.commonFaceAttribs, commonAttribList.faceCount,
-								commonAttribList.pFace)
-	utils.setTargetCommonAttribs(target.commonCornerAttribs, commonAttribList.cornerCount,
-								commonAttribList.pCorner)
-	utils.setTargetCommonAttribs(target.commonEdgeAttribs, commonAttribList.edgeCount,
-								commonAttribList.pEdge)
-	utils.setTargetCommonAttribs(target.commonVertAttribs, commonAttribList.vertCount,
-								commonAttribList.pVert)
+	CommonAttribList = utils.StucCommonAttribList * targetMatCount
+	commonAttribList = CommonAttribList()
+	meshTuple = utils.formatAsStucMesh(meshEval, True, False, None)
+	i = 0
+	for mat in targetMats:
+		if not len(mat.map):
+			continue
+		idx = utils.findMatInCol(mat.mat, target.commonAttribTable)
+		if idx != None:
+			entry = target.commonAttribTable[idx]
+		else:
+			entry = target.commonAttribTable.add()
+			entry.mat = mat.mat
+		mapUtf8 = mat.map.encode('utf-8')
+		stucLib.stucBlenderQueryCommonAttribs(meshTuple[0], mapUtf8, ctypes.pointer(commonAttribList[i]))
+		utils.setTargetCommonAttribs(entry.faces, commonAttribList[i].faceCount,
+									commonAttribList[i].pFace)
+		utils.setTargetCommonAttribs(entry.corners, commonAttribList[i].cornerCount,
+									commonAttribList[i].pCorner)
+		utils.setTargetCommonAttribs(entry.edges, commonAttribList[i].edgeCount,
+									commonAttribList[i].pEdge)
+		utils.setTargetCommonAttribs(entry.verts, commonAttribList[i].vertCount,
+									commonAttribList[i].pVert)
+		i += 1
 	return commonAttribList
 
 def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
@@ -220,9 +239,6 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
                 for slot in obj.material_slots:
                     entry = mats.get(slot.name, None)
                     if not entry:
-                        if len(slot.name) > 64:
-                            self.report({'ERROR'}, "Export failed, mat name is over 64 characters")
-                            return {'CANCELLED'}
                         mats[slot.name] = True
                 objTuple = utils.formatAsStucObj(obj, depsgraph, mats, matTable.pArr[objIdx])
                 objArr[objIdx] = objTuple[0]
@@ -274,12 +290,18 @@ class STUC_OT_StucAssign(bpy.types.Operator):
                     break
             if exists:
                 continue
-            id = len(context.scene.stucTargets)
             newTarget = context.scene.stucTargets.add()
             newTarget.obj = obj.id_data
-            newTarget.id = id
             obj["stucWScale"] = context.scene.stuc.wScale
-            obj.stucTargetId = id
+        return {'FINISHED'}
+    
+class STUC_OT_StucMatAssign(bpy.types.Operator):
+    bl_idname = "stuc.stuc_mat_assign"
+    bl_label = "STUC Mat Assign"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        item = context.scene.stucMats.add()
         return {'FINISHED'}
     
 class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
@@ -288,10 +310,8 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        filepath = self.filepath
-        filePathUtf8 = filepath.encode('utf-8')
-        name = os.path.basename(filepath)
-        print(filepath)
+        filepathUtf8 = self.filepath.encode('utf-8')
+        name = os.path.basename(self.filepath)
         objCount = ctypes.c_int()
         usgCount = ctypes.c_int()
         flatCutoffCount = ctypes.c_int()
@@ -299,7 +319,7 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
         usgArr = ctypes.POINTER(utils.StucUsg)()
         flatCutoffArr = ctypes.POINTER(utils.StucObject)()
         indexedAttribs = utils.StucAttribIndexedArr()
-        err = stucLib.stucBlenderMapFileLoadForEdit(filePathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
+        err = stucLib.stucBlenderMapFileLoadForEdit(filepathUtf8, ctypes.pointer(objCount), ctypes.pointer(objArr),
                                                     ctypes.pointer(usgCount), ctypes.pointer(usgArr),
                                                     ctypes.pointer(flatCutoffCount), ctypes.pointer(flatCutoffArr),
                                                     ctypes.pointer(indexedAttribs))
@@ -355,22 +375,22 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        filepath = self.filepath
+        name = os.path.basename(self.filepath)
         for map in context.scene.stucMaps:
-            if (filepath == map.filepath):
+            if (name == map.name):
                 return {'CANCELLED'}
-        filePathUtf8 = filepath.encode('utf-8')
+        filepathUtf8 = self.filepath.encode('utf-8')
         newMap = context.scene.stucMaps.add()
-        newMap.name = os.path.basename(filepath)
-        print(filepath)
-        newMap.filepath = filepath
+        newMap.name = name
+        nameUtf8 = newMap.name.encode('utf-8')
         context.scene.stucMapsIndex = len(context.scene.stucMaps)
-        err = stucLib.stucBlenderMapFileLoad(filePathUtf8)
+        err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
         if err != 1:
             self.report({'ERROR'}, "Load failed")
             return {'CANCELLED'}
         return {'FINISHED'}
 
+#fix this
 class STUC_OT_StucReloadStucFile(bpy.types.Operator):
     bl_idname = "stuc.reload_stuc_file"
     bl_label = "Reload STUC File"
@@ -378,12 +398,11 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
-        return currentTarget.map != ""
+        return False
 
     def execute(self, context):
         currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
-        mapUtf8 = utils.getTargetMapAsUtf8(currentTarget)
+        mapUtf8 = ""
         err = stucLib.stucBlenderMapFileUnload(mapUtf8)
         if err != 1:
             self.report({'ERROR'}, "Map reload failed. Couldn't unload existing map")
@@ -410,11 +429,11 @@ class STUC_OT_StucPreviewImage(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
-        return currentTarget.map != ""
+        return False
 
     def execute(self, context):
         currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
-        mapUtf8 = utils.getTargetMapAsUtf8(currentTarget)
+        mapUtf8 = ""
         previewRes = 512
         dataLen = previewRes * previewRes * 4
         preview = numpy.empty(dataLen, dtype = numpy.float32)
@@ -438,9 +457,18 @@ class STUC_OT_StucRemove(bpy.types.Operator):
         scene = context.scene
         if scene.stucTargetsIndex >= len(scene.stucTargets):
             return {'CANCELLED'}
-        del scene.stucTargets[scene.stucTargetsIndex].obj["stucTargetId"]
         del scene.stucTargets[scene.stucTargetsIndex].obj["stucWScale"]
         scene.stucTargets.remove(scene.stucTargetsIndex)
+        return {'FINISHED'}
+
+class STUC_OT_StucMatRemove(bpy.types.Operator):
+    bl_idname = "stuc.stuc_mat_remove"
+    bl_label = "STUC Mat Remove"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        pdb.set_trace()
+        print("hi")
         return {'FINISHED'}
 
 def createSingleAttrib(mesh, attrib, domain):
@@ -474,19 +502,19 @@ def stucDepsgraphUpdatePostHandler(dummy):
     scene = bpy.context.scene
     active = bpy.context.active_object
     if (active):
-        if active.name in scene.stucTargets:
-            target = scene.stucTargets[active.name]
-            if scene.stucTargetsIndex != target.id:
-                scene.stucTargetsIndex = target.id
+        idx = utils.findObjInCol(active, scene.stucTargets)
+        if idx != None:
+            scene.stucTargetsIndex = idx
     depsgraph = bpy.context.evaluated_depsgraph_get()
     for target in scene.stucTargets:
-        commonAttribs = updateCommonAttribs(target, depsgraph)
         obj = target.obj
         if not(obj in bpy.context.selected_objects):
             continue
         elif obj.mode != 'OBJECT':
             continue
-        
+        commonAttribs = updateCommonAttribs(bpy.context, target, depsgraph)
+        if not commonAttribs:
+            continue
         wScale = obj.get("stucWScale", None)
         if not wScale:
             print("Target obj has no w scale. Setting to default")
@@ -495,26 +523,39 @@ def stucDepsgraphUpdatePostHandler(dummy):
         
         objEval = obj.evaluated_get(depsgraph)
         meshEval = objEval.data
-        meshTuple = utils.formatAsStucMesh(meshEval, False, True, None)
-
-        workMesh = utils.StucMesh()
-        mapUtf8 = utils.getTargetMapAsUtf8(target)
-        if not(mapUtf8):
+        
+        targetMats = utils.getMatsInStucMats(bpy.context, meshEval)
+        matCount = len(targetMats)
+        if not matCount:
             continue
-        print("Mapping to mesh with map ", mapUtf8)
-
+        mapArr = utils.StucBlenderMapArr()
+        mapArr.ppArr = (ctypes.POINTER(ctypes.c_byte) * matCount)()
+        mapArr.pMatIdxArr = (ctypes.c_byte * matCount)()
+        mapArr.count = matCount
+        mapStrs = []
+        i = 0
+        for mat in targetMats:
+            mapStrs.append(mat.map.encode('utf-8'))
+            mapArr.ppArr[i] = ctypes.cast(mapStrs[i], ctypes.POINTER(ctypes.c_byte))
+            mapArr.pMatIdxArr[i] = objEval.material_slots.find(mat.mat.name)
+            i += 1
+        meshTuple = utils.formatAsStucMesh(meshEval, False, True, True)
+        workMesh = utils.StucMesh()
         stucLib.stucBlenderMapToMesh.argtypes = (
-            ctypes.POINTER(ctypes.c_char),
+            ctypes.POINTER(utils.StucBlenderMapArr),
             ctypes.POINTER(utils.StucMesh),
             ctypes.POINTER(utils.StucMesh),
             ctypes.POINTER(utils.StucCommonAttribList),
-            ctypes.c_float
+            ctypes.c_float,
         )
-        result = stucLib.stucBlenderMapToMesh(mapUtf8, ctypes.pointer(meshTuple[0]),
+        result = stucLib.stucBlenderMapToMesh(ctypes.pointer(mapArr),
+                                              ctypes.pointer(meshTuple[0]),
                                               ctypes.pointer(workMesh),
-                                              ctypes.pointer(commonAttribs),
-                                              wScale)
-        stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs))
+                                              commonAttribs, wScale)
+        i = 0
+        while i < matCount:
+            stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs[i]))
+            i += 1
         if result != 0:
             print("Stuc python map to mesh failed, map to mesh returned error")
             return
@@ -532,10 +573,10 @@ def stucDepsgraphUpdatePostHandler(dummy):
             objStuc.data = meshStuc
             bpy.data.meshes.remove(meshStucOld)
 
-        mats = ctypes.POINTER(utils.StucAttribIndexed)()
-        stucLib.stucBlenderMapMatsGet(mapUtf8, ctypes.pointer(mats))
+        mapMats = ctypes.POINTER(utils.StucAttribIndexed)()
+        stucLib.stucBlenderMapMatsGet(mapArr, ctypes.pointer(mapMats))
         
-        copyStucMeshToBlenderMesh(meshStuc, workMesh, mats)
+        copyStucMeshToBlenderMesh(meshStuc, workMesh, mapMats)
         stucLib.stucBlenderMeshDestroy(ctypes.pointer(workMesh))
         normalBlendAttrib = meshStuc.attributes.get("normal", None)
         if (normalBlendAttrib):
@@ -560,7 +601,9 @@ classes = [STUC_OT_StucSetAsUsg,
            STUC_OT_StucSetFlatCutoff,
            STUC_OT_StucExportStucFile,
            STUC_OT_StucAssign,
+           STUC_OT_StucMatAssign,
            STUC_OT_StucRemove,
+           STUC_OT_StucMatRemove,
            STUC_OT_StucLoadStucFileForEdit,
            STUC_OT_StucLoadStucFile,
            STUC_OT_StucReloadStucFile,

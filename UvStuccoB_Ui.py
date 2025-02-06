@@ -22,6 +22,14 @@ class STUC_UL_StucCommonAttribs(bpy.types.UIList):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row0 = layout.row(align = True)
             row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_CUBE')
+            
+class STUC_UL_StucMats(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            row0 = layout.row(align = True)
+            row0.prop_search(item, "mat", bpy.data, "materials", text = "")
+            row0.prop_search(item, "map", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
+            remove_props = row0.operator("stuc.stuc_mat_remove", text = "", icon = "REMOVE")
 
 class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
     bl_idname = "STUC_PT_Stuc"
@@ -31,25 +39,39 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
         stuc = context.scene.stuc
         layout = self.layout
         col0 = layout.column()
-        col0.label(text = "Targets")
+        
+        col0.operator("stuc.load_stuc_file", text = "Open Map", icon = "MESH_PLANE")
+        col0.operator("stuc.reload_stuc_file", text = "Reload Map", icon = 'FILE_REFRESH')
+
+        col0.label(text = "")
+        col0.label(text = "Materials")
         row0 = col0.row()
-        row0.template_list("STUC_UL_StucTargets", "", context.scene, "stucTargets",
-                           context.scene, "stucTargetsIndex")
+        row0.template_list("STUC_UL_StucMats", "", context.scene,
+                           "stucMats", context.scene, "stucMatsIndex")
         col1 = row0.column(align = True)
         col1.scale_x = .35
-        col1.operator("stuc.stuc_assign", icon = "ADD")
-        col1.operator("stuc.stuc_remove", icon = "REMOVE")
+        col1.operator("stuc.stuc_mat_assign", text = " ", icon = "ADD")
+        
+        col0.label(text = "")
+        col0.label(text = "Objects")
         row1 = col0.row()
-        row1.operator("stuc.load_stuc_file", text = "Open Map")
+        row1.template_list("STUC_UL_StucTargets", "", context.scene, "stucTargets",
+                           context.scene, "stucTargetsIndex")
+        col2 = row1.column(align = True)
+        col2.scale_x = .35
+        col2.operator("stuc.stuc_assign", text = " ", icon = "ADD")
+        col2.operator("stuc.stuc_remove", text = " ", icon = "REMOVE")
+        
         if (len(context.scene.stucTargets)):
             currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
-            col0.prop_search(currentTarget, "map", context.scene, "stucMaps",
-                             text = "", icon = 'MESH_PLANE')
-            col0.operator("stuc.reload_stuc_file", text = "Reload Map")
+            #col0.prop_search(currentTarget, "map", context.scene, "stucMaps",
+            #                 text = "", icon = 'MESH_PLANE')
             col0.operator("stuc.stuc_preview_image", text = "Preview Map")
             col0.label(text = "")
+            #col0.template_list()
             col0.label(text = "Common Attribs")
             col0.prop(stuc, "commonAttribDomain", text = "")
+            '''
             match (stuc.commonAttribDomain):
                 case "FACE":
                     domain = "commonFaceAttribs"
@@ -82,12 +104,14 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
                 col0.prop(commonAttribEntry, "opacity")
                 col0.prop(commonAttribEntry, "blend")
                 col0.prop(commonAttribEntry, "order")
+            '''
         col0.label(text = "")
         col0.label(text = "Export Options")
         col0.operator("stuc.set_as_usg", icon = "NORMALS_FACE")
         col0.operator("stuc.unset_usg", icon = "X")
         col0.label(text = "Flatten Cut-Off")
-        if (context.view_layer.objects.active.get("StucUsg")):
+        if context.view_layer.objects.active and\
+        	context.view_layer.objects.active.get("StucUsg", None):
             col0.prop_search(context.view_layer.objects.active, "stucUsgFlatCutoff", context.view_layer, "objects", text = "")
         col0.operator("stuc.set_flat_cutoff", text = "Set Sel To Active")
         col0.label(text = "")
@@ -98,7 +122,8 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 
 classes = [STUC_PT_Stuc,
            STUC_UL_StucTargets,
-           STUC_UL_StucCommonAttribs]
+           STUC_UL_StucCommonAttribs,
+           STUC_UL_StucMats]
 
 def register():
     print("Registering STUC_UI")

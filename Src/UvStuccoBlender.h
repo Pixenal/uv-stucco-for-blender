@@ -14,6 +14,13 @@
 //rather than just having an adhoc solution for materials
 //Though really this is only being done to avoid iterating over faces in python,
 //so this should be a non-issue for dcc's with c api's
+
+typedef struct {
+    char **ppArr;
+    char *pMatIdxArr;
+    int8_t count;
+} StucBlenderMapArr;
+
 typedef struct {
     int8_t *pArr;
     int32_t count;
@@ -27,26 +34,25 @@ typedef struct {
 STUC_BLENDER_EXPORT
 void stucBlenderInit();
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileExport(const char *pName, int32_t objCount,
+StucResult stucBlenderMapFileExport(const char *pFilepath, int32_t objCount,
                                     StucObject* pObjArr, int32_t usgCount,
                                     StucUsg* pUsgArr,
                                     StucAttribIndexedArr indexedAttribs,
                                     StucBlenderMatTableArr *pMatTable);
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileLoadForEdit(char *pFilePath,
+StucResult stucBlenderMapFileLoadForEdit(char *pFilepath,
                                          int32_t *pObjCount, StucObject **ppObjArr,
                                          int32_t *pUsgCount, StucUsg **ppUsgArr,
                                          int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
                                          StucAttribIndexedArr *pIndexedAttribs);
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileLoad(char *pFilePath);
+StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName);
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileUnload(char *pFilePath);
+StucResult stucBlenderMapFileUnload(char *pName);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapToMesh(char *pFilePath,
-                             StucMesh *pMesh,
-                             StucMesh *pWorkMesh,
-							 StucCommonAttribList *pCommonAttribs, float wScale);
+int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr, StucMesh *pMesh,
+                             StucMesh *pWorkMesh, StucCommonAttribList *pCommonAttribs,
+                             float wScale);
 STUC_BLENDER_EXPORT
 void stucBlenderQueryCommonAttribs(StucMesh *pMesh,
 								   char *pMapName,
@@ -66,10 +72,10 @@ StucResult stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
 STUC_BLENDER_EXPORT 
 void stucBlenderMeshDestroy(StucMesh *pWorkMesh);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapFileGenPreviewImage(char *pFilePath, int32_t res,
+int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res,
                                           float *pImage);
 STUC_BLENDER_EXPORT
-void stucBlenderMapMatsGet(char *pFilePath,
+void stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
                            StucAttribIndexed **ppMats);
 STUC_BLENDER_EXPORT
 void stucBlenderDestroy();

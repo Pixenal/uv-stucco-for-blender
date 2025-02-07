@@ -76,6 +76,6 @@ int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res,
                                           float *pImage);
 STUC_BLENDER_EXPORT
 int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
-                              StucAttribIndexed **ppMats);
+                              StucAttribIndexedArr *pMats);
 STUC_BLENDER_EXPORT
 void stucBlenderDestroy();

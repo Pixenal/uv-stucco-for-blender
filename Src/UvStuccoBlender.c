@@ -166,6 +166,8 @@ int32_t makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
 int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr, StucMesh *pMesh,
                              StucMesh *pWorkMesh, StucCommonAttribList *pCommonAttribs,
                              float wScale) {
+	printf("face attrib 0 name is %s\n", pMesh->faceAttribs.pArr[0].core.name);
+	printf("face attrib 1 name is %s\n", pMesh->faceAttribs.pArr[1].core.name);
 	StucMapArr mapArr = {0};
 	int32_t err = makeMapArr(pMapArr, &mapArr);
 	if (err) {
@@ -250,7 +252,7 @@ int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res, float *pImag
 }
 
 int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
-                              StucAttribIndexed **ppMats) {
+                              StucAttribIndexedArr *pMats) {
 	StucMapArr mapArr;
 	int32_t err = makeMapArr(pMapArr, &mapArr);
 	if (err) {
@@ -262,7 +264,7 @@ int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
 		for (int32_t j = 0; j < indexedAttribs.count; ++j) {
 			StucAttribIndexed *pAttrib = indexedAttribs.pArr + j;
 			if (!strncmp("StucMaterials", pAttrib->core.name, STUC_ATTRIB_NAME_MAX_LEN)) {
-				ppMats[i] = pAttrib;
+				pMats->pArr[i] = *pAttrib;
 				break;
 			}
 		}

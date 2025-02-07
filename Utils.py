@@ -295,6 +295,7 @@ def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None)
     allocAttribs(mesh, attribCount)
     initAttribs(mesh, target, metaOnly, getNormals)
 
+    matIndices = None
     if mats:
         matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int8)
         target.polygons.foreach_get("material_index", matIndices)
@@ -325,7 +326,6 @@ def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None)
     TSigns = ctypes.c_float * mesh.loopCount
     tSigns = TSigns()
     appendAttrib(mesh.loopAttribs, "StucTSign", 4, ctypes.cast(tSigns, ctypes.c_void_p)) #4 is F32
-    #to avoid garbage collection, edges and normals are returned as well
     
 	#TODO this is temp, setup a menu to allow user to set use per attrib
     # have defaults though an attrib named 'Color' or 'Col' defaults to Color
@@ -337,8 +337,10 @@ def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None)
         if name == "Color":
             mesh.loopAttribs.pArr[i].core.use = 1
         i += 1
-
-    return (mesh, edges, normals)
+	#to avoid garbage collection, edges, normals, & matIndices are returned as well
+    #is there a better way to do this? TODO maybe make edges, normals, & matIndices
+    #out params, so there's a reference in the calling function. Probably cleaner than this.
+    return (mesh, edges, normals, matIndices)
 
 def formatAsStucObj(obj, depsgraph, mats = None, matTable = None):
     stucObj = StucObject()

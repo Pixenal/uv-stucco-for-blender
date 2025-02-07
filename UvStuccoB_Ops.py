@@ -54,14 +54,18 @@ def updateCommonAttribs(context, target, depsgraph):
 def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
     if (mats):
         i = 0
-        while i < mats.contents.count:
-            StucString = ctypes.c_byte * 64
-            matsCast = ctypes.cast(mats.contents.core.pData, ctypes.POINTER(StucString))
-            matName = ctypes.cast(matsCast[i], ctypes.c_char_p).value.decode()
-            mat = bpy.data.materials.get(matName, None)
-            if not mat:
-                mat = bpy.data.materials.new(name = matName)
-            mesh.materials.append(mat)
+        while i < mats.count:
+            attrib = mats.pArr[i]
+            j = 0
+            while j < attrib.count:
+                StucString = ctypes.c_byte * 64
+                matsCast = ctypes.cast(attrib.core.pData, ctypes.POINTER(StucString))
+                matName = ctypes.cast(matsCast[j], ctypes.c_char_p).value.decode()
+                mat = bpy.data.materials.get(matName, None)
+                if not mat:
+                    mat = bpy.data.materials.new(name = matName)
+                mesh.materials.append(mat)
+                j += 1
             i += 1
 
     mesh.vertices.add(workMesh.vertCount)
@@ -548,6 +552,15 @@ def stucDepsgraphUpdatePostHandler(dummy):
             ctypes.POINTER(utils.StucCommonAttribList),
             ctypes.c_float,
         )
+        i = 0
+        while i < meshTuple[0].faceAttribs.count:
+            StucString = ctypes.c_byte * 96
+            nameCast = ctypes.cast(meshTuple[0].faceAttribs.pArr[i].core.name, ctypes.POINTER(StucString))
+            attribName = ctypes.cast(nameCast, ctypes.c_char_p).value.decode()
+            if attribName == "StucMaterialIndices":
+                matIdxArr = ctypes.cast(meshTuple[0].faceAttribs.pArr[i].core.pData, ctypes.POINTER(ctypes.c_byte))
+                print(f"face mat indices 5 on the python side is {matIdxArr[5]}")
+            i += 1
         result = stucLib.stucBlenderMapToMesh(ctypes.pointer(mapArr),
                                               ctypes.pointer(meshTuple[0]),
                                               ctypes.pointer(workMesh),
@@ -573,17 +586,19 @@ def stucDepsgraphUpdatePostHandler(dummy):
             objStuc.data = meshStuc
             bpy.data.meshes.remove(meshStucOld)
 
-        mapMats = None
-        #stucLib.stucBlenderMapMatsGet(mapArr, ctypes.pointer(mapMats))
-        
+        mapMats = utils.StucAttribIndexedArr()
+        mapMats.count = matCount
+        mapMats.pArr = (utils.StucAttribIndexed * matCount)()
+        stucLib.stucBlenderMapMatsGet(mapArr, ctypes.pointer(mapMats))
+
         copyStucMeshToBlenderMesh(meshStuc, workMesh, mapMats)
         stucLib.stucBlenderMeshDestroy(ctypes.pointer(workMesh))
         normalBlendAttrib = meshStuc.attributes.get("normal", None)
         if (normalBlendAttrib):
             meshStuc.attributes.remove(normalBlendAttrib)
-        #matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
-        #if (matBlendAttrib):
-            #meshStuc.attributes.remove(matBlendAttrib)
+        matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
+        if (matBlendAttrib):
+            meshStuc.attributes.remove(matBlendAttrib)
         print("FinishedUpdating")
         
 

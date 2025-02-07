@@ -56,7 +56,7 @@ def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
         i = 0
         while i < mats.contents.count:
             StucString = ctypes.c_byte * 64
-            matsCast = ctypes.cast(mats.contents.pData, ctypes.POINTER(StucString))
+            matsCast = ctypes.cast(mats.contents.core.pData, ctypes.POINTER(StucString))
             matName = ctypes.cast(matsCast[i], ctypes.c_char_p).value.decode()
             mat = bpy.data.materials.get(matName, None)
             if not mat:
@@ -75,12 +75,12 @@ def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
     matIndices = None
     i = 0
     while i < workMesh.faceAttribs.count:
-        if ctypes.cast(workMesh.faceAttribs.pArr[i].name, ctypes.c_char_p).value == b"StucMaterialIndices":
+        if ctypes.cast(workMesh.faceAttribs.pArr[i].core.name, ctypes.c_char_p).value == b"StucMaterialIndices":
             matIndices = workMesh.faceAttribs.pArr[i]
             break
         i += 1
     if matIndices:
-        matIndicesNumpy = numpy.ctypeslib.as_array(ctypes.cast(matIndices.pData, ctypes.POINTER(ctypes.c_byte)),
+        matIndicesNumpy = numpy.ctypeslib.as_array(ctypes.cast(matIndices.core.pData, ctypes.POINTER(ctypes.c_byte)),
                                                    shape = [workMesh.faceCount])
         mesh.polygons.foreach_set("material_index", matIndicesNumpy)
 
@@ -92,7 +92,7 @@ def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
     stucLib.stucBlenderCopyMeshAttribs(ctypes.pointer(meshStucFormat[0]), ctypes.pointer(workMesh))
     normalsArraySize = workMesh.loopCount * 3
     normalAttrib = getNormalAttrib(workMesh)
-    normalsNumpy = numpy.ctypeslib.as_array(ctypes.cast(normalAttrib.contents.pData, ctypes.POINTER(ctypes.c_float)),
+    normalsNumpy = numpy.ctypeslib.as_array(ctypes.cast(normalAttrib.contents.core.pData, ctypes.POINTER(ctypes.c_float)),
                                             shape = [normalsArraySize])
     #this is necessary to set custom normals it seems
     mesh.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
@@ -253,9 +253,9 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
             utils.copyAttribName(matArr[i], matName)
             i += 1
         matAttrib = utils.StucAttribIndexed()
-        matAttrib.pData =  ctypes.cast(matArr, ctypes.c_void_p)
-        utils.copyAttribName(matAttrib.name, "StucMaterials")
-        matAttrib.type = 24 #string
+        matAttrib.core.pData =  ctypes.cast(matArr, ctypes.c_void_p)
+        utils.copyAttribName(matAttrib.core.name, "StucMaterials")
+        matAttrib.core.type = 24 #string
         matAttrib.count = matCount
         matAttrib.size = matCount
         indexedAttribs = utils.StucAttribIndexedArr()
@@ -329,7 +329,7 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
         mats = None
         i = 0
         while i < indexedAttribs.count:
-            if ctypes.cast(indexedAttribs.pArr[i].name, ctypes.c_char_p).value == b"StucMaterials":
+            if ctypes.cast(indexedAttribs.pArr[i].core.name, ctypes.c_char_p).value == b"StucMaterials":
                 mats = ctypes.pointer(indexedAttribs.pArr[i])
                 break
             i += 1
@@ -473,7 +473,7 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 
 def createSingleAttrib(mesh, attrib, domain):
     attribType = utils.getAttribBlenderType(attrib)
-    name = ctypes.cast(attrib.name, ctypes.c_char_p).value
+    name = ctypes.cast(attrib.core.name, ctypes.c_char_p).value
     mesh.attributes.new(name = name.decode("utf-8"), type = attribType, domain = domain)
 
 def createAttribs(mesh, attribs, domain):
@@ -491,7 +491,7 @@ def createAllAttribs(mesh, stucMesh):
 def getNormalAttrib(mesh):
     i = 0
     while (i < mesh.loopAttribs.count):
-        name = ctypes.cast(mesh.loopAttribs.pArr[i].name, ctypes.c_char_p).value
+        name = ctypes.cast(mesh.loopAttribs.pArr[i].core.name, ctypes.c_char_p).value
         if (name.decode("utf-8") == "normal"):
             return ctypes.pointer(mesh.loopAttribs.pArr[i])
         i += 1
@@ -573,17 +573,17 @@ def stucDepsgraphUpdatePostHandler(dummy):
             objStuc.data = meshStuc
             bpy.data.meshes.remove(meshStucOld)
 
-        mapMats = ctypes.POINTER(utils.StucAttribIndexed)()
-        stucLib.stucBlenderMapMatsGet(mapArr, ctypes.pointer(mapMats))
+        mapMats = None
+        #stucLib.stucBlenderMapMatsGet(mapArr, ctypes.pointer(mapMats))
         
         copyStucMeshToBlenderMesh(meshStuc, workMesh, mapMats)
         stucLib.stucBlenderMeshDestroy(ctypes.pointer(workMesh))
         normalBlendAttrib = meshStuc.attributes.get("normal", None)
         if (normalBlendAttrib):
             meshStuc.attributes.remove(normalBlendAttrib)
-        matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
-        if (matBlendAttrib):
-            meshStuc.attributes.remove(matBlendAttrib)
+        #matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
+        #if (matBlendAttrib):
+            #meshStuc.attributes.remove(matBlendAttrib)
         print("FinishedUpdating")
         
 

@@ -58,7 +58,7 @@ void stucBlenderInit() {
 	stucContextInit(&pStucContext, NULL, NULL, NULL, NULL, NULL);
 }
 
-StucResult stucBlenderMapFileExport(const char *pFilepath, int32_t objCount,
+StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
                                     StucObject* pObjArr, int32_t usgCount,
                                     StucUsg* pUsgArr,
                                     StucAttribIndexedArr indexedAttribs,
@@ -70,7 +70,7 @@ StucResult stucBlenderMapFileExport(const char *pFilepath, int32_t objCount,
 		if (!pAttrib) {
 			continue;
 		}
-		int8_t *pIndices = pAttrib->pData;
+		int8_t *pIndices = pAttrib->core.pData;
 		for (int32_t j = 0; j < pMesh->faceCount; ++j) {
 			pIndices[j] = pMatTable->pArr[i].pArr[pIndices[j]];
 		}
@@ -187,7 +187,7 @@ void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
 	       (stucMesh->faceCount + 1));
 	memcpy(stucMesh->pCorners, workMesh->pCorners, sizeof(int32_t) *
 	       stucMesh->cornerCount);
-	memcpy(stucMesh->vertAttribs.pArr[0].pData, workMesh->vertAttribs.pArr[0].pData, sizeof(StucVec3) *
+	memcpy(stucMesh->vertAttribs.pArr[0].core.pData, workMesh->vertAttribs.pArr[0].core.pData, sizeof(StucVec3) *
 	       stucMesh->vertCount);
 	//memcpy(stucMesh->pEdges, workMesh->pEdges, sizeof(int32_t) *
 	//       stucMesh->cornerCount);
@@ -200,7 +200,7 @@ static void copyAttribs(StucAttribArray *pA, StucAttribArray *pB,
 	}
 	for (int32_t i = 0; i < pA->count; ++i) {
 		StucAttrib* pBEntry;
-		stucGetAttrib(pA->pArr[i].name, pB, &pBEntry);
+		stucGetAttrib(pA->pArr[i].core.name, pB, &pBEntry);
 		if (!pBEntry) {
 			printf("Mismatch in workmesh and stucmesh attribs\n");
 			abort();
@@ -208,7 +208,7 @@ static void copyAttribs(StucAttribArray *pA, StucAttribArray *pB,
 		int32_t attribSize;
 		stucGetAttribSize(pA->pArr + i, &attribSize);
 		printf("attrib Size == %d\n", attribSize);
-		memcpy(pBEntry->pData, pA->pArr[i].pData, attribSize * dataLen);
+		memcpy(pBEntry->core.pData, pA->pArr[i].core.pData, attribSize * dataLen);
 	}
 }
 
@@ -249,8 +249,8 @@ int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res, float *pImag
 	return 0;
 }
 
-void stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
-                           StucAttribIndexed **ppMats) {
+int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
+                              StucAttribIndexed **ppMats) {
 	StucMapArr mapArr;
 	int32_t err = makeMapArr(pMapArr, &mapArr);
 	if (err) {
@@ -258,15 +258,16 @@ void stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
 	}
 	for (int32_t i = 0; i < mapArr.count; ++i) {
 		StucAttribIndexedArr indexedAttribs = {0};
-		stucMapIndexedAttribsGet(pStucContext, &mapArr, &indexedAttribs);
+		stucMapIndexedAttribsGet(pStucContext, mapArr.ppArr[i], &indexedAttribs);
 		for (int32_t j = 0; j < indexedAttribs.count; ++j) {
 			StucAttribIndexed *pAttrib = indexedAttribs.pArr + j;
-			if (!strncmp("StucMaterials", pAttrib->name, STUC_ATTRIB_NAME_MAX_LEN)) {
+			if (!strncmp("StucMaterials", pAttrib->core.name, STUC_ATTRIB_NAME_MAX_LEN)) {
 				ppMats[i] = pAttrib;
 				break;
 			}
 		}
 	}
+	return err;
 }
 
 void stucBlenderDestroy() {

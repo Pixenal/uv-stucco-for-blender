@@ -34,7 +34,7 @@ typedef struct {
 STUC_BLENDER_EXPORT
 void stucBlenderInit();
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileExport(const char *pFilepath, int32_t objCount,
+StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
                                     StucObject* pObjArr, int32_t usgCount,
                                     StucUsg* pUsgArr,
                                     StucAttribIndexedArr indexedAttribs,
@@ -75,7 +75,7 @@ STUC_BLENDER_EXPORT
 int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res,
                                           float *pImage);
 STUC_BLENDER_EXPORT
-void stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
-                           StucAttribIndexed **ppMats);
+int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
+                              StucAttribIndexed **ppMats);
 STUC_BLENDER_EXPORT
 void stucBlenderDestroy();

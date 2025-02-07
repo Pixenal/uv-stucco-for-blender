@@ -14,20 +14,20 @@ class StucVec3(ctypes.Structure):
     
 Stuc_M4x4_F32 = ctypes.c_float * 16
 
-class StucAttrib(ctypes.Structure):
+class StucAttribCore(ctypes.Structure):
     _fields_ = [("pData", ctypes.c_void_p),
                 #use c_byte instead of c_char, as the latter is immutable
                 ("name", ctypes.c_byte * 96),
                 ("type", ctypes.c_int32),
+                ("use", ctypes.c_int32)]
+
+class StucAttrib(ctypes.Structure):
+    _fields_ = [("core", StucAttribCore),
                 ("origin", ctypes.c_int32),
-                ("use", ctypes.c_int32),
                 ("interpolate", ctypes.c_int32)]
     
 class StucAttribIndexed(ctypes.Structure):
-    _fields_ = [("pData", ctypes.c_void_p),
-                ("name", ctypes.c_byte * 96),
-                ("type", ctypes.c_int32),
-                ("use", ctypes.c_int32),
+    _fields_ = [("core", StucAttribCore),
                 ("count", ctypes.c_int32)]
 
 class StucAttribArray(ctypes.Structure):
@@ -133,7 +133,7 @@ def getAttribType(attrib):
             return None
 
 def getAttribBlenderType(attrib):
-    match attrib.type:
+    match attrib.core.type:
         #TODO add bool type to UVS lib, as semantics are lost here
         #TODO in general, try include all types, including semantic
         #types, in Blender, Houdini, and USD. This includes unsigned
@@ -205,13 +205,13 @@ def allocAttribs(mesh, attribCounts):
     mesh.vertAttribs.pArr = VertAttribsArray()
 
 def initAttribEntry(attrib, attribEntry, dataLen, metaOnly, interpolate):
-    copyAttribName(attribEntry.name, attrib.name)
+    copyAttribName(attribEntry.core.name, attrib.name)
     attribType = getAttribType(attrib)
-    attribEntry.type = attribType[0]
+    attribEntry.core.type = attribType[0]
     attribEntry.interpolate = interpolate
     if not(metaOnly):
         attribData = attrib.data[0].as_pointer()
-        attribEntry.pData = ctypes.cast(attribData, ctypes.c_void_p)
+        attribEntry.core.pData = ctypes.cast(attribData, ctypes.c_void_p)
 
 def initAttribs(mesh, target, metaOnly, getNormals):
     for attrib in target.attributes:
@@ -261,9 +261,9 @@ def setBlenderMatrix(blenderMatrix, stucMatrix):
 
 def appendAttrib(attribs, name, type, data):
     attribEntry = attribs.pArr[attribs.count]
-    copyAttribName(attribEntry.name, name)
-    attribEntry.type = type
-    attribEntry.pData = data
+    copyAttribName(attribEntry.core.name, name)
+    attribEntry.core.type = type
+    attribEntry.core.pData = data
     attribs.count += 1
 
 #returns a tuple containing the mesh, and the edges numpy array.
@@ -331,11 +331,11 @@ def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None)
     # have defaults though an attrib named 'Color' or 'Col' defaults to Color
     i = 0
     while i < mesh.loopAttribs.count:
-        name = mesh.loopAttribs.pArr[i].name
+        name = mesh.loopAttribs.pArr[i].core.name
         name = ctypes.cast(name, ctypes.c_char_p).value
         name = name.decode("utf-8")
         if name == "Color":
-            mesh.loopAttribs.pArr[i].use = 1
+            mesh.loopAttribs.pArr[i].core.use = 1
         i += 1
 
     return (mesh, edges, normals)

@@ -37,7 +37,7 @@ STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
                                     StucObject* pObjArr, int32_t usgCount,
                                     StucUsg* pUsgArr,
-                                    StucAttribIndexedArr indexedAttribs,
+                                    StucAttribIndexedArr *pIndexedAttribs,
                                     StucBlenderMatTableArr *pMatTable);
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileLoadForEdit(char *pFilepath,
@@ -50,9 +50,10 @@ StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName);
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileUnload(char *pName);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr, StucMesh *pMesh,
-                             StucMesh *pWorkMesh, StucCommonAttribList *pCommonAttribs,
-                             float wScale);
+int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr,
+                             StucMesh *pMesh, StucAttribIndexedArr *pInIndexedAttribs,
+                             StucMesh *pOutMesh, StucAttribIndexedArr *pOutIndexedAttribs,
+                             StucCommonAttribList *pCommonAttribs, float wScale);
 STUC_BLENDER_EXPORT
 void stucBlenderQueryCommonAttribs(StucMesh *pMesh,
 								   char *pMapName,

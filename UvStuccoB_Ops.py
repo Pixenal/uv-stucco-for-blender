@@ -27,7 +27,7 @@ def updateCommonAttribs(context, target, depsgraph):
 		return None
 	CommonAttribList = utils.StucCommonAttribList * targetMatCount
 	commonAttribList = CommonAttribList()
-	meshTuple = utils.formatAsStucMesh(meshEval, True, False, None)
+	meshTuple = utils.formatAsStucMesh(meshEval, True, False, True)
 	i = 0
 	for mat in targetMats:
 		if not len(mat.map):
@@ -51,21 +51,25 @@ def updateCommonAttribs(context, target, depsgraph):
 		i += 1
 	return commonAttribList
 
-def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
-    if (mats):
+def copyStucMeshToBlenderMesh(mesh, workMesh, outIndexedAttribs, commonAttribs = None):
+    if (outIndexedAttribs):
+        #TODO this should be done on the c side, in uv-stucco, not uv-stucco-blender.
+        #this will make it easier to merge duplicate materials.
+        #pass inMesh materials to stucMapToMesh, and it will pass back
+        #an outMesh mat arr (in a separate out param), which contains
+        #the final material slots, and their mat names.
+        outMats = utils.getAttrib(outIndexedAttribs, "StucMaterials")
+        StucString = ctypes.c_byte * 64
+        outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
         i = 0
-        while i < mats.count:
-            attrib = mats.pArr[i]
-            j = 0
-            while j < attrib.count:
-                StucString = ctypes.c_byte * 64
-                matsCast = ctypes.cast(attrib.core.pData, ctypes.POINTER(StucString))
-                matName = ctypes.cast(matsCast[j], ctypes.c_char_p).value.decode()
-                mat = bpy.data.materials.get(matName, None)
-                if not mat:
-                    mat = bpy.data.materials.new(name = matName)
-                mesh.materials.append(mat)
-                j += 1
+        while i < outMats.count:
+            matName = ctypes.cast(outMatsCast[i], ctypes.c_char_p).value.decode()
+            mat = bpy.data.materials.get(matName, None)
+            if not mat:
+                #this should throw an error of some kind, or a warning
+                #there shouldn't be any dups
+                mat = bpy.data.materials.new(name = matName)
+            mesh.materials.append(mat)
             i += 1
 
     mesh.vertices.add(workMesh.vertCount)
@@ -86,6 +90,7 @@ def copyStucMeshToBlenderMesh(mesh, workMesh, mats):
     if matIndices:
         matIndicesNumpy = numpy.ctypeslib.as_array(ctypes.cast(matIndices.core.pData, ctypes.POINTER(ctypes.c_byte)),
                                                    shape = [workMesh.faceCount])
+        print(f"matIndicesNumpy[0] = {matIndicesNumpy[0]}")
         mesh.polygons.foreach_set("material_index", matIndicesNumpy)
 
     #meshStuc.uv_layers.new(name="uvmap")
@@ -219,6 +224,20 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
         matTable.count = objCount
         MatTableArr = utils.StucBlenderMatTable * matTable.count
         matTable.pArr = MatTableArr()
+        
+        for obj in context.selected_objects:
+            if obj.type != 'MESH':
+                continue
+            isUsg = obj.get("StucUsg", None)
+            if not isUsg:
+                for slot in obj.material_slots:
+                    entry = mats.get(slot.name, None)
+                    if not entry:
+                        mats[slot.name] = True
+        matCount = len(mats)
+        if not matCount:
+            mats = None
+                        
         objIdx = 0
         for obj in context.selected_objects:
             if obj.type != 'MESH':
@@ -240,37 +259,33 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
                         usgArr[usgCount].pFlatCutoff = cutoffPtr
                 usgCount += 1
             else:
-                for slot in obj.material_slots:
-                    entry = mats.get(slot.name, None)
-                    if not entry:
-                        mats[slot.name] = True
                 objTuple = utils.formatAsStucObj(obj, depsgraph, mats, matTable.pArr[objIdx])
                 objArr[objIdx] = objTuple[0]
                 tuples.append(objTuple)
                 objIdx += 1
         
-        matCount = len(mats)
-        MatArr = ctypes.c_char * 64 * matCount
-        matArr = MatArr()
-        i = 0
-        for matName in mats.keys():
-            utils.copyAttribName(matArr[i], matName)
-            i += 1
-        matAttrib = utils.StucAttribIndexed()
-        matAttrib.core.pData =  ctypes.cast(matArr, ctypes.c_void_p)
-        utils.copyAttribName(matAttrib.core.name, "StucMaterials")
-        matAttrib.core.type = 24 #string
-        matAttrib.count = matCount
-        matAttrib.size = matCount
+        indexedAttribCount = 0
         indexedAttribs = utils.StucAttribIndexedArr()
-        indexedAttribs.pArr = ctypes.pointer(matAttrib)
-        indexedAttribs.count = 1
-        indexedAttribs.size = 1
-
-        #stucLib.stucBlenderMapFileExport.argtypes = (ctypes.POINTER(StucMesh),
-        #    numpy.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS"))
+        if matCount:
+            MatArr = ctypes.c_byte * 64 * matCount
+            matArr = MatArr()
+            i = 0
+            for matName in mats.keys():
+                utils.copyString(matArr[i], matName, 96)
+                i += 1
+            matAttrib = utils.StucAttribIndexed()
+            matAttrib.core.pData =  ctypes.cast(matArr, ctypes.c_void_p)
+            utils.copyString(matAttrib.core.name, "StucMaterials", 96)
+            matAttrib.core.type = 24 #string
+            matAttrib.count = matCount
+            matAttrib.size = matCount
+            indexedAttribCount = 1
+            indexedAttribs.pArr = ctypes.pointer(matAttrib)
+        indexedAttribs.count = indexedAttribCount
+        indexedAttribs.size = indexedAttribCount
+        
         err = stucLib.stucBlenderMapFileExport(filePathUtf8, objCount, objArr,
-                                               usgCount, usgArr, indexedAttribs,
+                                               usgCount, usgArr, ctypes.pointer(indexedAttribs),
                                                ctypes.pointer(matTable))
         if err != 1:
             self.report({'ERROR'}, "Export failed")
@@ -503,6 +518,7 @@ def getNormalAttrib(mesh):
 
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy):
+    print("hi from depsgraph")
     scene = bpy.context.scene
     active = bpy.context.active_object
     if (active):
@@ -512,12 +528,13 @@ def stucDepsgraphUpdatePostHandler(dummy):
     depsgraph = bpy.context.evaluated_depsgraph_get()
     for target in scene.stucTargets:
         obj = target.obj
-        if not(obj in bpy.context.selected_objects):
+        if obj not in bpy.context.selected_objects and not obj == active:
             continue
         elif obj.mode != 'OBJECT':
             continue
         commonAttribs = updateCommonAttribs(bpy.context, target, depsgraph)
-        if not commonAttribs:
+        #hide_viewport is the moniter icon, and hide_get is the eye
+        if not commonAttribs or obj.hide_viewport or obj.hide_get():
             continue
         wScale = obj.get("stucWScale", None)
         if not wScale:
@@ -537,42 +554,55 @@ def stucDepsgraphUpdatePostHandler(dummy):
         mapArr.pMatIdxArr = (ctypes.c_byte * matCount)()
         mapArr.count = matCount
         mapStrs = []
+        
+        inIndexedAttribs = utils.StucAttribIndexedArr()
+        inIndexedAttribs.count = 1
+        inIndexedAttribs.pArr = ctypes.pointer(utils.StucAttribIndexed())
+        inMats = inIndexedAttribs.pArr.contents
+        inMats.count = matCount
+        inMats.core.type = 24 #string
+        utils.copyString(inMats.core.name, "StucMaterials", 96)
+        StucString = ctypes.c_byte * 64
+        inMatsArr = (StucString * inMats.count)()
+        inMats.core.pData = ctypes.cast(inMatsArr, ctypes.c_void_p)
+        
         i = 0
         for mat in targetMats:
+            utils.copyString(inMatsArr[i], mat.mat.name, 64)
             mapStrs.append(mat.map.encode('utf-8'))
             mapArr.ppArr[i] = ctypes.cast(mapStrs[i], ctypes.POINTER(ctypes.c_byte))
             mapArr.pMatIdxArr[i] = objEval.material_slots.find(mat.mat.name)
             i += 1
+        
         meshTuple = utils.formatAsStucMesh(meshEval, False, True, True)
         workMesh = utils.StucMesh()
         stucLib.stucBlenderMapToMesh.argtypes = (
             ctypes.POINTER(utils.StucBlenderMapArr),
-            ctypes.POINTER(utils.StucMesh),
-            ctypes.POINTER(utils.StucMesh),
+            ctypes.POINTER(utils.StucMesh), ctypes.POINTER(utils.StucAttribIndexedArr),
+            ctypes.POINTER(utils.StucMesh), ctypes.POINTER(utils.StucAttribIndexedArr),
             ctypes.POINTER(utils.StucCommonAttribList),
             ctypes.c_float,
         )
         i = 0
         while i < meshTuple[0].faceAttribs.count:
-            StucString = ctypes.c_byte * 96
-            nameCast = ctypes.cast(meshTuple[0].faceAttribs.pArr[i].core.name, ctypes.POINTER(StucString))
+            StucName = ctypes.c_byte * 96
+            nameCast = ctypes.cast(meshTuple[0].faceAttribs.pArr[i].core.name, ctypes.POINTER(StucName))
             attribName = ctypes.cast(nameCast, ctypes.c_char_p).value.decode()
             if attribName == "StucMaterialIndices":
                 matIdxArr = ctypes.cast(meshTuple[0].faceAttribs.pArr[i].core.pData, ctypes.POINTER(ctypes.c_byte))
                 print(f"face mat indices 5 on the python side is {matIdxArr[5]}")
             i += 1
+        outIndexedAttribs = utils.StucAttribIndexedArr()
         result = stucLib.stucBlenderMapToMesh(ctypes.pointer(mapArr),
                                               ctypes.pointer(meshTuple[0]),
+                                              ctypes.pointer(inIndexedAttribs),
                                               ctypes.pointer(workMesh),
+                                              ctypes.pointer(outIndexedAttribs),
                                               commonAttribs, wScale)
-        i = 0
-        while i < matCount:
-            stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs[i]))
-            i += 1
         if result != 0:
             print("Stuc python map to mesh failed, map to mesh returned error")
             return
-        
+
         nameStuc = obj.name + ".Stuc"
         objStuc = bpy.data.objects.get(nameStuc, None)
         if not(objStuc):
@@ -586,12 +616,7 @@ def stucDepsgraphUpdatePostHandler(dummy):
             objStuc.data = meshStuc
             bpy.data.meshes.remove(meshStucOld)
 
-        mapMats = utils.StucAttribIndexedArr()
-        mapMats.count = matCount
-        mapMats.pArr = (utils.StucAttribIndexed * matCount)()
-        stucLib.stucBlenderMapMatsGet(mapArr, ctypes.pointer(mapMats))
-
-        copyStucMeshToBlenderMesh(meshStuc, workMesh, mapMats)
+        copyStucMeshToBlenderMesh(meshStuc, workMesh, outIndexedAttribs, commonAttribs)
         stucLib.stucBlenderMeshDestroy(ctypes.pointer(workMesh))
         normalBlendAttrib = meshStuc.attributes.get("normal", None)
         if (normalBlendAttrib):
@@ -599,7 +624,13 @@ def stucDepsgraphUpdatePostHandler(dummy):
         matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
         if (matBlendAttrib):
             meshStuc.attributes.remove(matBlendAttrib)
+            
+        i = 0
+        while i < matCount:
+            stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs[i]))
+            i += 1
         print("FinishedUpdating")
+    print("goodbye from depsgraph")
         
 
 @persistent

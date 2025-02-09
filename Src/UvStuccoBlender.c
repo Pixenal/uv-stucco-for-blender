@@ -58,11 +58,9 @@ void stucBlenderInit() {
 	stucContextInit(&pStucContext, NULL, NULL, NULL, NULL, NULL);
 }
 
-StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
-                                    StucObject* pObjArr, int32_t usgCount,
-                                    StucUsg* pUsgArr,
-                                    StucAttribIndexedArr indexedAttribs,
-                                    StucBlenderMatTableArr *pMatTable) {
+static
+void correctMatIndices(int32_t objCount, StucObject* pObjArr,
+                       StucBlenderMatTableArr *pMatTable) {
 	for (int32_t i = 0; i < objCount; ++i) {
 		StucMesh *pMesh = (StucMesh *)pObjArr[i].pData;
 		StucAttrib *pAttrib = NULL;
@@ -75,8 +73,22 @@ StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
 			pIndices[j] = pMatTable->pArr[i].pArr[pIndices[j]];
 		}
 	}
+}
+
+StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
+                                    StucObject* pObjArr, int32_t usgCount,
+                                    StucUsg* pUsgArr,
+                                    StucAttribIndexedArr *pIndexedAttribs,
+                                    StucBlenderMatTableArr *pMatTable) {
+	StucAttribIndexed *pAttrib = NULL;
+	if (pIndexedAttribs->count) {
+		stucGetAttribIndexed("StucMaterials", pIndexedAttribs, &pAttrib);
+	}
+	if (pAttrib) {
+		correctMatIndices(objCount, pObjArr, pMatTable);
+	}
 	return stucMapFileExport(pStucContext, pFilepath, objCount, pObjArr, usgCount,
-	                         pUsgArr, indexedAttribs);
+	                         pUsgArr, pIndexedAttribs);
 }
 StucResult stucBlenderMapFileLoadForEdit(char *pName,
                                          int32_t *pObjCount, StucObject **ppObjArr,
@@ -163,9 +175,10 @@ int32_t makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
 	return 0;
 }
 
-int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr, StucMesh *pMesh,
-                             StucMesh *pWorkMesh, StucCommonAttribList *pCommonAttribs,
-                             float wScale) {
+int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr,
+                             StucMesh *pMesh, StucAttribIndexedArr *pInIndexedAttribs,
+                             StucMesh *pOutMesh, StucAttribIndexedArr *pOutIndexedAttribs,
+                             StucCommonAttribList *pCommonAttribs, float wScale) {
 	printf("face attrib 0 name is %s\n", pMesh->faceAttribs.pArr[0].core.name);
 	printf("face attrib 1 name is %s\n", pMesh->faceAttribs.pArr[1].core.name);
 	StucMapArr mapArr = {0};
@@ -176,7 +189,8 @@ int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr, StucMesh *pMesh,
 	//TODO if multiple objects are selected, see if dispatching them all at once on multiple threads
 	// improves perf. Probably not a good idea for high res meshes or maps, given the memory use.
 	// maybe selectivly do it based on the mesh and map res?
-	StucResult result = stucMapToMesh(pStucContext, &mapArr, pMesh, pWorkMesh, pCommonAttribs, wScale);
+	StucResult result = stucMapToMesh(pStucContext, &mapArr, pMesh, pInIndexedAttribs,
+	                                  pOutMesh, pOutIndexedAttribs, pCommonAttribs, wScale);
 	return result != STUC_SUCCESS;
 }
 
@@ -189,8 +203,9 @@ void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
 	       (stucMesh->faceCount + 1));
 	memcpy(stucMesh->pCorners, workMesh->pCorners, sizeof(int32_t) *
 	       stucMesh->cornerCount);
-	memcpy(stucMesh->vertAttribs.pArr[0].core.pData, workMesh->vertAttribs.pArr[0].core.pData, sizeof(StucVec3) *
-	       stucMesh->vertCount);
+	memcpy(stucMesh->vertAttribs.pArr[0].core.pData,
+	       workMesh->vertAttribs.pArr[0].core.pData,
+	       sizeof(StucVec3) * stucMesh->vertCount);
 	//memcpy(stucMesh->pEdges, workMesh->pEdges, sizeof(int32_t) *
 	//       stucMesh->cornerCount);
 }

@@ -1,4 +1,5 @@
 import bpy
+from . import Utils as utils
 
 def StucExport(self, context):
     self.layout.operator("stuc.export_stuc_file")
@@ -36,12 +37,14 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
     bl_label = "STUC"
 
     def draw(self, context):
+        print("hi from ui")
         stuc = context.scene.stuc
         layout = self.layout
         col0 = layout.column()
         
         col0.operator("stuc.load_stuc_file", text = "Open Map", icon = "MESH_PLANE")
         col0.operator("stuc.reload_stuc_file", text = "Reload Map", icon = 'FILE_REFRESH')
+        col0.operator("stuc.stuc_preview_image", text = "Preview Map")
 
         col0.label(text = "")
         col0.label(text = "Materials")
@@ -63,48 +66,47 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
         col2.operator("stuc.stuc_remove", text = " ", icon = "REMOVE")
         
         if (len(context.scene.stucTargets)):
-            currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
-            #col0.prop_search(currentTarget, "map", context.scene, "stucMaps",
-            #                 text = "", icon = 'MESH_PLANE')
-            col0.operator("stuc.stuc_preview_image", text = "Preview Map")
-            col0.label(text = "")
-            #col0.template_list()
-            col0.label(text = "Common Attribs")
-            col0.prop(stuc, "commonAttribDomain", text = "")
-            '''
-            match (stuc.commonAttribDomain):
-                case "FACE":
-                    domain = "commonFaceAttribs"
-                    commonAttrib = currentTarget.commonFaceAttribs
-                case "CORNER":
-                    domain = "commonCornerAttribs" 
-                    commonAttrib = currentTarget.commonCornerAttribs
-                case "EDGE":
-                    domain = "commonEdgeAttribs"
-                    commonAttrib = currentTarget.commonEdgeAttribs
-                case "POINT":
-                    domain = "commonVertAttribs"
-                    commonAttrib = currentTarget.commonVertAttribs
-            col0.template_list("STUC_UL_StucCommonAttribs", "", currentTarget, domain,
-                               stuc, "commonAttribIndex")
-            if len(commonAttrib):
+            target = context.scene.stucTargets[context.scene.stucTargetsIndex]
+            matSlotIdx = target.obj.active_material_index
+            mat = target.obj.material_slots[matSlotIdx]
+            idx = utils.findMatInCol(mat, target.commonAttribTable)
+            if idx != None:
+                commonAttribs = target.commonAttribTable[idx]
+                col0.label(text = "")
+                col0.label(text = "Common Attribs")
+                col0.prop(stuc, "commonAttribDomain", text = "")
                 match (stuc.commonAttribDomain):
                     case "FACE":
-                        commonAttribEntry =\
-                            currentTarget.commonFaceAttribs[stuc.commonAttribIndex]
+                        domain = "faces"
+                        commonAttrib = commonAttribs.faces
                     case "CORNER":
-                        commonAttribEntry =\
-                            currentTarget.commonCornerAttribs[stuc.commonAttribIndex]
+                        domain = "corners" 
+                        commonAttrib = commonAttribs.corners
                     case "EDGE":
-                        commonAttribEntry =\
-                            currentTarget.commonEdgeAttribs[stuc.commonAttribIndex]
+                        domain = "edges"
+                        commonAttrib = commonAttribs.edges
                     case "POINT":
-                        commonAttribEntry =\
-                            currentTarget.commonVertAttribs[stuc.commonAttribIndex]
-                col0.prop(commonAttribEntry, "opacity")
-                col0.prop(commonAttribEntry, "blend")
-                col0.prop(commonAttribEntry, "order")
-            '''
+                        domain = "verts"
+                        commonAttrib = commonAttribs.verts
+                col0.template_list("STUC_UL_StucCommonAttribs", "", commonAttribs, domain,
+                                   stuc, "commonAttribIndex")
+                if len(commonAttrib):
+                    match (stuc.commonAttribDomain):
+                        case "FACE":
+                            commonAttribEntry =\
+                                commonAttribs.faces[stuc.commonAttribIndex]
+                        case "CORNER":
+                            commonAttribEntry =\
+                                commonAttribs.corners[stuc.commonAttribIndex]
+                        case "EDGE":
+                            commonAttribEntry =\
+                                commonAttribs.edges[stuc.commonAttribIndex]
+                        case "POINT":
+                            commonAttribEntry =\
+                                commonAttribs.verts[stuc.commonAttribIndex]
+                    col0.prop(commonAttribEntry, "opacity")
+                    col0.prop(commonAttribEntry, "blend")
+                    col0.prop(commonAttribEntry, "order")
         col0.label(text = "")
         col0.label(text = "Export Options")
         col0.operator("stuc.set_as_usg", icon = "NORMALS_FACE")
@@ -116,9 +118,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
         col0.operator("stuc.set_flat_cutoff", text = "Set Sel To Active")
         col0.label(text = "")
         col0.prop(context.scene.stuc, "wScale", text = "Default W Scale")
-        #print("currentTarget.map: ", currentTarget.map)
-        #targetsMap = context.scene.stucMaps.get(currentTarget.map, None)
-        #col0.prop(targetsMap, "filepath", text = "", emboss = False);
+    print("goodbye from ui")
 
 classes = [STUC_PT_Stuc,
            STUC_UL_StucTargets,

@@ -28,17 +28,18 @@ class StucAttrib(ctypes.Structure):
     
 class StucAttribIndexed(ctypes.Structure):
     _fields_ = [("core", StucAttribCore),
+                ("size", ctypes.c_int32),
+                ("count", ctypes.c_int32)]
+    
+class StucAttribIndexedArr(ctypes.Structure):
+    _fields_ = [("pArr", ctypes.POINTER(StucAttribIndexed)),
+                ("size", ctypes.c_int32),
                 ("count", ctypes.c_int32)]
 
 class StucAttribArray(ctypes.Structure):
     _fields_ = [("pArr", ctypes.POINTER(StucAttrib)),
-                ("count", ctypes.c_int32),
-                ("size", ctypes.c_int32)]
-    
-class StucAttribIndexedArr(ctypes.Structure):
-    _fields_ = [("pArr", ctypes.POINTER(StucAttribIndexed)),
-                ("count", ctypes.c_int32),
-                ("size", ctypes.c_int32)]
+                ("size", ctypes.c_int32),
+                ("count", ctypes.c_int32)]
     
 class StucObjectData(ctypes.Structure):
     _fields_ = [("type", ctypes.c_int32)]
@@ -73,7 +74,7 @@ class StucObject(ctypes.Structure):
 class StucBlendConfig(ctypes.Structure):
     _fields_ = [("blend", ctypes.c_int32),
 				("opacity", ctypes.c_float),
-                ("order", ctypes.c_int8)]
+                ("order", ctypes.c_bool)]
 
 class StucCommonAttrib(ctypes.Structure):
     #use c_byte instead of c_char, as the latter is immutable
@@ -181,12 +182,14 @@ def getAttribCounts(attribCount, target, getNormals):
                 attribCount["edge"] += 1
             case 'POINT':
                 attribCount["vert"] += 1
+                
 
-def copyAttribName(dest, src):
+
+def copyString(dest, src, maxLen):
     length = len(src)
-    if (length > 96):
+    if (length > maxLen):
         #TODO add proper exception handling in general
-        print("Attribute name length exceeds max")
+        print("string length exceeds max")
         return
     srcUtf8 = src.encode('utf-8')
     i = 0
@@ -205,7 +208,7 @@ def allocAttribs(mesh, attribCounts):
     mesh.vertAttribs.pArr = VertAttribsArray()
 
 def initAttribEntry(attrib, attribEntry, dataLen, metaOnly, interpolate):
-    copyAttribName(attribEntry.core.name, attrib.name)
+    copyString(attribEntry.core.name, attrib.name, 96)
     attribType = getAttribType(attrib)
     attribEntry.core.type = attribType[0]
     attribEntry.interpolate = interpolate
@@ -261,7 +264,7 @@ def setBlenderMatrix(blenderMatrix, stucMatrix):
 
 def appendAttrib(attribs, name, type, data):
     attribEntry = attribs.pArr[attribs.count]
-    copyAttribName(attribEntry.core.name, name)
+    copyString(attribEntry.core.name, name, 96)
     attribEntry.core.type = type
     attribEntry.core.pData = data
     attribs.count += 1
@@ -365,7 +368,7 @@ def setTargetCommonAttribs(targetAttribs, count, attribs):
             entry.name = name
             entry.blend = str(attribs[i].blendConfig.blend)
             entry.opacity = attribs[i].blendConfig.opacity
-            entry.order = str(attribs[i].blendConfig.order)
+            entry.order = str(int(attribs[i].blendConfig.order))
         attribs[i].blendConfig.blend = int(entry.blend)
         attribs[i].blendConfig.opacity = entry.opacity
         attribs[i].blendConfig.order = int(entry.order)
@@ -394,3 +397,23 @@ def getMatsInStucMats(context, mesh):
 		if idx != None:
 			targetMats.append(context.scene.stucMats[idx])
 	return targetMats
+
+#remove this and replace references with getAttrib once commonAttrib arrs
+#have count included in the struct
+def getCommonAttrib(arr, count, name):
+    nameUtf8 = name.encode('utf-8')
+    i = 0
+    while i < count:
+        if ctypes.cast(arr[i].core.name, ctypes.c_char_p).value == nameUtf8:
+            return arr[i]
+        i += 1
+    return None
+
+def getAttrib(arr, name):
+    nameUtf8 = name.encode('utf-8')
+    i = 0
+    while i < arr.count:
+        if ctypes.cast(arr.pArr[i].core.name, ctypes.c_char_p).value == nameUtf8:
+            return arr.pArr[i]
+        i += 1
+    return None

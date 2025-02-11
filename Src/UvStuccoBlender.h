@@ -50,7 +50,7 @@ StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName);
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileUnload(char *pName);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr,
+int32_t stucBlenderMapToMesh(void **ppJobHandle, StucBlenderMapArr *pMapArr,
                              StucMesh *pMesh, StucAttribIndexedArr *pInIndexedAttribs,
                              StucMesh *pOutMesh, StucAttribIndexedArr *pOutIndexedAttribs,
                              StucCommonAttribList *pCommonAttribs, float wScale);
@@ -78,5 +78,7 @@ int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res,
 STUC_BLENDER_EXPORT
 int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
                               StucAttribIndexedArr *pMats);
+STUC_BLENDER_EXPORT
+int32_t stucBlenderWaitForJobs(int32_t count, void **ppJobHandles);
 STUC_BLENDER_EXPORT
 void stucBlenderDestroy();

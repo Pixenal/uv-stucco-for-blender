@@ -175,21 +175,21 @@ int32_t makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
 	return 0;
 }
 
-int32_t stucBlenderMapToMesh(StucBlenderMapArr *pMapArr,
+int32_t stucBlenderMapToMesh(void **ppJobHandle, StucBlenderMapArr *pMapArrPy,
                              StucMesh *pMesh, StucAttribIndexedArr *pInIndexedAttribs,
                              StucMesh *pOutMesh, StucAttribIndexedArr *pOutIndexedAttribs,
                              StucCommonAttribList *pCommonAttribs, float wScale) {
 	printf("face attrib 0 name is %s\n", pMesh->faceAttribs.pArr[0].core.name);
 	printf("face attrib 1 name is %s\n", pMesh->faceAttribs.pArr[1].core.name);
-	StucMapArr mapArr = {0};
-	int32_t err = makeMapArr(pMapArr, &mapArr);
+	StucMapArr *pMapArr = calloc(1, sizeof(StucMapArr));
+	int32_t err = makeMapArr(pMapArrPy, pMapArr);
 	if (err) {
 		return err;
 	}
 	//TODO if multiple objects are selected, see if dispatching them all at once on multiple threads
 	// improves perf. Probably not a good idea for high res meshes or maps, given the memory use.
 	// maybe selectivly do it based on the mesh and map res?
-	StucResult result = stucMapToMesh(pStucContext, &mapArr, pMesh, pInIndexedAttribs,
+	StucResult result = stucQueueMapToMesh(pStucContext, ppJobHandle, pMapArr, pMesh, pInIndexedAttribs,
 	                                  pOutMesh, pOutIndexedAttribs, pCommonAttribs, wScale);
 	return result != STUC_SUCCESS;
 }
@@ -285,6 +285,16 @@ int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
 		}
 	}
 	return err;
+}
+
+int32_t stucBlenderWaitForJobs(int32_t count, void **ppJobHandles) {
+	StucResult err = stucWaitForJobs(pStucContext, count, ppJobHandles);
+	err = stucJobGetErrs(pStucContext, count, &ppJobHandles);
+	err = stucJobDestroyHandles(pStucContext, count, &ppJobHandles);
+	if (err != STUC_SUCCESS) {
+		return 1;
+	}
+	return 0;
 }
 
 void stucBlenderDestroy() {

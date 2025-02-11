@@ -518,7 +518,6 @@ def getNormalAttrib(mesh):
 
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy):
-    print("hi from depsgraph")
     scene = bpy.context.scene
     active = bpy.context.active_object
     if (active):
@@ -526,6 +525,19 @@ def stucDepsgraphUpdatePostHandler(dummy):
         if idx != None:
             scene.stucTargetsIndex = idx
     depsgraph = bpy.context.evaluated_depsgraph_get()
+    class TargetCache:
+        def __init__(self, obj, jobHandle, mapArr, inMeshTuple, inIndexedAttribs, outMesh,
+                     outIndexedAttribs, commonAttribs, matCount):
+            self.obj = obj
+            self.jobHandle = jobHandle
+            self.mapArr = mapArr
+            self.inMeshTuple = inMeshTuple
+            self.inIndexedAttribs = inIndexedAttribs
+            self.outMesh = outMesh
+            self.outIndexedAttribs = outIndexedAttribs
+            self.commonAttribs = commonAttribs
+            self.matCount = matCount
+    targetCache = []
     for target in scene.stucTargets:
         obj = target.obj
         if obj not in bpy.context.selected_objects and not obj == active:
@@ -577,11 +589,12 @@ def stucDepsgraphUpdatePostHandler(dummy):
         meshTuple = utils.formatAsStucMesh(meshEval, False, True, True)
         workMesh = utils.StucMesh()
         stucLib.stucBlenderMapToMesh.argtypes = (
+            ctypes.POINTER(ctypes.c_void_p),
             ctypes.POINTER(utils.StucBlenderMapArr),
             ctypes.POINTER(utils.StucMesh), ctypes.POINTER(utils.StucAttribIndexedArr),
             ctypes.POINTER(utils.StucMesh), ctypes.POINTER(utils.StucAttribIndexedArr),
             ctypes.POINTER(utils.StucCommonAttribList),
-            ctypes.c_float,
+            ctypes.c_float
         )
         i = 0
         while i < meshTuple[0].faceAttribs.count:
@@ -593,17 +606,42 @@ def stucDepsgraphUpdatePostHandler(dummy):
                 print(f"face mat indices 5 on the python side is {matIdxArr[5]}")
             i += 1
         outIndexedAttribs = utils.StucAttribIndexedArr()
-        result = stucLib.stucBlenderMapToMesh(ctypes.pointer(mapArr),
+        jobHandle = ctypes.c_void_p()
+        result = stucLib.stucBlenderMapToMesh(ctypes.pointer(jobHandle),
+                                              ctypes.pointer(mapArr),
                                               ctypes.pointer(meshTuple[0]),
                                               ctypes.pointer(inIndexedAttribs),
                                               ctypes.pointer(workMesh),
                                               ctypes.pointer(outIndexedAttribs),
-                                              commonAttribs, wScale)
+                                              commonAttribs,
+											  wScale)
         if result != 0:
-            print("Stuc python map to mesh failed, map to mesh returned error")
+            print("Stuc python map to mesh failed, error pushing job to queue")
             return
-
-        nameStuc = obj.name + ".Stuc"
+        targetCache.append(TargetCache(objEval,
+                                       jobHandle,
+                                       mapArr,
+                                       meshTuple,
+                                       inIndexedAttribs,
+                                       workMesh,
+                                       outIndexedAttribs,
+                                       commonAttribs,
+                                       matCount))
+    if not len(targetCache):
+        return
+    cacheCount = len(targetCache)
+    jobHandleArr = (ctypes.c_void_p * cacheCount)()
+    i = 0
+    for item in targetCache:
+        jobHandleArr[i] = item.jobHandle
+        i += 1
+    result = stucLib.stucBlenderWaitForJobs(cacheCount, jobHandleArr)
+    if result != 0:
+        print("Stuc python map to mesh failed, map to mesh returned error")
+        return
+    print("all mapping jobs returned success")
+    for item in targetCache:
+        nameStuc = item.obj.name + ".Stuc"
         objStuc = bpy.data.objects.get(nameStuc, None)
         if not(objStuc):
             meshStuc = bpy.data.meshes.new(nameStuc)
@@ -616,8 +654,8 @@ def stucDepsgraphUpdatePostHandler(dummy):
             objStuc.data = meshStuc
             bpy.data.meshes.remove(meshStucOld)
 
-        copyStucMeshToBlenderMesh(meshStuc, workMesh, outIndexedAttribs, commonAttribs)
-        stucLib.stucBlenderMeshDestroy(ctypes.pointer(workMesh))
+        copyStucMeshToBlenderMesh(meshStuc, item.outMesh, outIndexedAttribs, item.commonAttribs)
+        stucLib.stucBlenderMeshDestroy(item.outMesh)
         normalBlendAttrib = meshStuc.attributes.get("normal", None)
         if (normalBlendAttrib):
             meshStuc.attributes.remove(normalBlendAttrib)
@@ -626,11 +664,10 @@ def stucDepsgraphUpdatePostHandler(dummy):
             meshStuc.attributes.remove(matBlendAttrib)
             
         i = 0
-        while i < matCount:
-            stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(commonAttribs[i]))
+        while i < item.matCount:
+            stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(item.commonAttribs[i]))
             i += 1
         print("FinishedUpdating")
-    print("goodbye from depsgraph")
         
 
 @persistent

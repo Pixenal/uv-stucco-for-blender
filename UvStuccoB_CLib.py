@@ -2,7 +2,7 @@ import ctypes
 import sys
 
 if sys.platform == "win32":
-    stucLibPath = "T:/workshop_folders/RUVM_Blender/Build/WinMdNew/Debug/UvStuccoBlender.dll"
+    stucLibPath = "T:/workshop_folders/RUVM_Blender/Build/WinMdNew/Release/UvStuccoBlender.dll"
 elif sys.platform == "darwin":
     stucLibPath = "/Users/calebdawson/Repos/UvStuccoB_Blender/build/macosShared/libUvStuccoBBlender.dylib"
 elif sys.platform == "linux" or "linux2":

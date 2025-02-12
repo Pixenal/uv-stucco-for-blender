@@ -79,6 +79,6 @@ STUC_BLENDER_EXPORT
 int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
                               StucAttribIndexedArr *pMats);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderWaitForJobs(int32_t count, void **ppJobHandles);
+int32_t stucBlenderWaitForJobs(int32_t count, void **ppJobHandles, bool wait, bool *pDone);
 STUC_BLENDER_EXPORT
 void stucBlenderDestroy();

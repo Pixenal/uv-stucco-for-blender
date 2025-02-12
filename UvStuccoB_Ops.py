@@ -525,7 +525,8 @@ def stucDepsgraphUpdatePostHandler(dummy):
         if idx != None:
             scene.stucTargetsIndex = idx
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    class TargetCache:
+    class TargetCache: 
+        done = False
         def __init__(self, obj, jobHandle, mapArr, inMeshTuple, inIndexedAttribs, outMesh,
                      outIndexedAttribs, commonAttribs, matCount):
             self.obj = obj
@@ -627,8 +628,10 @@ def stucDepsgraphUpdatePostHandler(dummy):
                                        outIndexedAttribs,
                                        commonAttribs,
                                        matCount))
-    if not len(targetCache):
+    cacheCount = len(targetCache)
+    if not cacheCount:
         return
+    '''
     cacheCount = len(targetCache)
     jobHandleArr = (ctypes.c_void_p * cacheCount)()
     i = 0
@@ -640,34 +643,52 @@ def stucDepsgraphUpdatePostHandler(dummy):
         print("Stuc python map to mesh failed, map to mesh returned error")
         return
     print("all mapping jobs returned success")
-    for item in targetCache:
-        nameStuc = item.obj.name + ".Stuc"
-        objStuc = bpy.data.objects.get(nameStuc, None)
-        if not(objStuc):
-            meshStuc = bpy.data.meshes.new(nameStuc)
-            objStuc = bpy.data.objects.new(nameStuc, meshStuc)
-            bpy.context.scene.collection.objects.link(objStuc)
-        else:
-            meshStucOld = objStuc.data
-            meshStucOld.name += ".Old"
-            meshStuc = bpy.data.meshes.new(nameStuc)
-            objStuc.data = meshStuc
-            bpy.data.meshes.remove(meshStucOld)
+	'''
+    print("-----------------------------------------------waiting for finished jobs")
+    doneCount = 0
+    while doneCount < cacheCount:
+        for item in targetCache:
+            if item.done:
+                continue
+            jobHandlePtr = ctypes.POINTER(ctypes.c_void_p)()
+            jobHandlePtr = ctypes.pointer(item.jobHandle)
+            done = ctypes.c_bool()
+            result = stucLib.stucBlenderWaitForJobs(1, jobHandlePtr, False, ctypes.pointer(done))
+            if not done.value:
+                continue
+            item.done = True
+            doneCount += 1
+            if result != 0:
+                print(f"Stuc python, map to mesh failed on obj {item.obj.name}, skipping")
+            print(f"---------------------------------------------------------------Stuc python, map to mesh returned success on obj {item.obj.name}")
 
-        copyStucMeshToBlenderMesh(meshStuc, item.outMesh, outIndexedAttribs, item.commonAttribs)
-        stucLib.stucBlenderMeshDestroy(item.outMesh)
-        normalBlendAttrib = meshStuc.attributes.get("normal", None)
-        if (normalBlendAttrib):
-            meshStuc.attributes.remove(normalBlendAttrib)
-        matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
-        if (matBlendAttrib):
-            meshStuc.attributes.remove(matBlendAttrib)
+            nameStuc = item.obj.name + ".Stuc"
+            objStuc = bpy.data.objects.get(nameStuc, None)
+            if not(objStuc):
+                meshStuc = bpy.data.meshes.new(nameStuc)
+                objStuc = bpy.data.objects.new(nameStuc, meshStuc)
+                bpy.context.scene.collection.objects.link(objStuc)
+            else:
+                meshStucOld = objStuc.data
+                meshStucOld.name += ".Old"
+                meshStuc = bpy.data.meshes.new(nameStuc)
+                objStuc.data = meshStuc
+                bpy.data.meshes.remove(meshStucOld)
+
+            copyStucMeshToBlenderMesh(meshStuc, item.outMesh, item.outIndexedAttribs, item.commonAttribs)
+            stucLib.stucBlenderMeshDestroy(item.outMesh)
+            normalBlendAttrib = meshStuc.attributes.get("normal", None)
+            if (normalBlendAttrib):
+                meshStuc.attributes.remove(normalBlendAttrib)
+            matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
+            if (matBlendAttrib):
+                meshStuc.attributes.remove(matBlendAttrib)
             
-        i = 0
-        while i < item.matCount:
-            stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(item.commonAttribs[i]))
-            i += 1
-        print("FinishedUpdating")
+            i = 0
+            while i < item.matCount:
+                stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(item.commonAttribs[i]))
+                i += 1
+            print("FinishedUpdating")
         
 
 @persistent

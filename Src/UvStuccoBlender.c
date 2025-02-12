@@ -287,17 +287,22 @@ int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
 	return err;
 }
 
-int32_t stucBlenderWaitForJobs(int32_t count, void **ppJobHandles) {
-	StucResult err = stucWaitForJobs(pStucContext, count, ppJobHandles);
-	err = stucJobGetErrs(pStucContext, count, &ppJobHandles);
-	err = stucJobDestroyHandles(pStucContext, count, &ppJobHandles);
+int32_t stucBlenderWaitForJobs(int32_t count, void **ppJobHandles, bool wait, bool *pDone) {
+	StucResult err = stucWaitForJobs(pStucContext, count, ppJobHandles, wait, pDone);
 	if (err != STUC_SUCCESS) {
 		return 1;
+	}
+	if (wait || *pDone) {
+		err = stucJobGetErrs(pStucContext, count, &ppJobHandles);
+		err = stucJobDestroyHandles(pStucContext, count, &ppJobHandles);
+		if (err != STUC_SUCCESS) {
+			return 1;
+		}
 	}
 	return 0;
 }
 
 void stucBlenderDestroy() {
-	//TODO implement this
+	stucContextDestroy(pStucContext);
 	return;
 }

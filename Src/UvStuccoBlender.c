@@ -16,6 +16,7 @@ static HandleEntry handleTable[HANDLE_TABLE_SIZE];
 
 StucContext pStucContext;
 
+static
 uint32_t fnvHash(unsigned char *value, int32_t valueSize, uint32_t size) {
 	uint32_t hash = 2166136261;
 	for (int32_t i = 0; i < valueSize; ++i) {
@@ -26,11 +27,10 @@ uint32_t fnvHash(unsigned char *value, int32_t valueSize, uint32_t size) {
 	return hash;
 }
 
-static int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry,
-                            char *pName) {
+static
+int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry, char *pName) {
 	int32_t pathLength = strlen(pName);
-	int32_t hash = fnvHash((unsigned char *)pName, pathLength,
-			HANDLE_TABLE_SIZE);
+	int32_t hash = fnvHash((unsigned char *)pName, pathLength, HANDLE_TABLE_SIZE);
 	*pEntry = handleTable + hash;
 	*pPrevEntry = NULL;
 	do {
@@ -59,8 +59,11 @@ void stucBlenderInit() {
 }
 
 static
-void correctMatIndices(int32_t objCount, StucObject* pObjArr,
-                       StucBlenderMatTableArr *pMatTable) {
+void correctMatIndices(
+	int32_t objCount,
+	StucObject *pObjArr,
+	StucBlenderMatTableArr *pMatTable
+) {
 	for (int32_t i = 0; i < objCount; ++i) {
 		StucMesh *pMesh = (StucMesh *)pObjArr[i].pData;
 		StucAttrib *pAttrib = NULL;
@@ -75,11 +78,15 @@ void correctMatIndices(int32_t objCount, StucObject* pObjArr,
 	}
 }
 
-StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
-                                    StucObject* pObjArr, int32_t usgCount,
-                                    StucUsg* pUsgArr,
-                                    StucAttribIndexedArr *pIndexedAttribs,
-                                    StucBlenderMatTableArr *pMatTable) {
+StucResult stucBlenderMapFileExport(
+	char *pFilepath,
+	int32_t objCount,
+	StucObject *pObjArr,
+	int32_t usgCount,
+	StucUsg *pUsgArr,
+	StucAttribIndexedArr *pIndexedAttribs,
+	StucBlenderMatTableArr *pMatTable
+) {
 	StucAttribIndexed *pAttrib = NULL;
 	if (pIndexedAttribs->count) {
 		stucGetAttribIndexed("StucMaterials", pIndexedAttribs, &pAttrib);
@@ -87,17 +94,37 @@ StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
 	if (pAttrib) {
 		correctMatIndices(objCount, pObjArr, pMatTable);
 	}
-	return stucMapFileExport(pStucContext, pFilepath, objCount, pObjArr, usgCount,
-	                         pUsgArr, pIndexedAttribs);
+	return stucMapFileExport(
+		pStucContext,
+		pFilepath,
+		objCount,
+		pObjArr,
+		usgCount,
+		pUsgArr,
+		pIndexedAttribs
+	);
 }
-StucResult stucBlenderMapFileLoadForEdit(char *pName,
-                                         int32_t *pObjCount, StucObject **ppObjArr,
-                                         int32_t *pUsgCount, StucUsg **ppUsgArr,
-                                         int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
-                                         StucAttribIndexedArr *pIndexedAttribs) {
-	return stucMapFileLoadForEdit(pStucContext, pName, pObjCount, ppObjArr,
-	                              pUsgCount, ppUsgArr, pFlatCutoffCount, ppFlatCutoffArr,
-	                              pIndexedAttribs);
+StucResult stucBlenderMapFileLoadForEdit(
+	char *pName,
+	int32_t *pObjCount,
+	StucObject **ppObjArr,
+	int32_t *pUsgCount,
+	StucUsg **ppUsgArr,
+	int32_t *pFlatCutoffCount,
+	StucObject **ppFlatCutoffArr,
+	StucAttribIndexedArr *pIndexedAttribs
+) {
+	return stucMapFileLoadForEdit(
+		pStucContext,
+		pName,
+		pObjCount,
+		ppObjArr,
+		pUsgCount,
+		ppUsgArr,
+		pFlatCutoffCount,
+		ppFlatCutoffArr,
+		pIndexedAttribs
+	);
 }
 
 StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName) {
@@ -148,8 +175,11 @@ StucResult stucBlenderMapFileUnload(char *pName) {
 	return STUC_SUCCESS;
 }
 
-void stucBlenderQueryCommonAttribs(StucMesh *pMesh, char *pMap,
-								   StucCommonAttribList *pCommonAttribs) {
+void stucBlenderQueryCommonAttribs(
+	StucMesh *pMesh,
+	char *pMap,
+	StucCommonAttribList *pCommonAttribs
+) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pMap) != 4) {
 		printf("Stuc query common attribs failed, specified map not loaded\n");
@@ -175,10 +205,16 @@ int32_t makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
 	return 0;
 }
 
-int32_t stucBlenderMapToMesh(void **ppJobHandle, StucBlenderMapArr *pMapArrPy,
-                             StucMesh *pMesh, StucAttribIndexedArr *pInIndexedAttribs,
-                             StucMesh *pOutMesh, StucAttribIndexedArr *pOutIndexedAttribs,
-                             StucCommonAttribList *pCommonAttribs, float wScale) {
+int32_t stucBlenderMapToMesh(
+	void **ppJobHandle,
+	StucBlenderMapArr *pMapArrPy,
+	StucMesh *pMesh,
+	StucAttribIndexedArr *pInIndexedAttribs,
+	StucMesh *pOutMesh,
+	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucCommonAttribList *pCommonAttribs,
+	float wScale
+) {
 	printf("face attrib 0 name is %s\n", pMesh->faceAttribs.pArr[0].core.name);
 	printf("face attrib 1 name is %s\n", pMesh->faceAttribs.pArr[1].core.name);
 	StucMapArr *pMapArr = calloc(1, sizeof(StucMapArr));
@@ -189,8 +225,17 @@ int32_t stucBlenderMapToMesh(void **ppJobHandle, StucBlenderMapArr *pMapArrPy,
 	//TODO if multiple objects are selected, see if dispatching them all at once on multiple threads
 	// improves perf. Probably not a good idea for high res meshes or maps, given the memory use.
 	// maybe selectivly do it based on the mesh and map res?
-	StucResult result = stucQueueMapToMesh(pStucContext, ppJobHandle, pMapArr, pMesh, pInIndexedAttribs,
-	                                  pOutMesh, pOutIndexedAttribs, pCommonAttribs, wScale);
+	StucResult result = stucQueueMapToMesh(
+		pStucContext,
+		ppJobHandle,
+		pMapArr,
+		pMesh,
+		pInIndexedAttribs,
+		pOutMesh,
+		pOutIndexedAttribs,
+		pCommonAttribs,
+		wScale
+	);
 	return result != STUC_SUCCESS;
 }
 
@@ -210,8 +255,8 @@ void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
 	//       stucMesh->cornerCount);
 }
 
-static void copyAttribs(StucAttribArray *pA, StucAttribArray *pB,
-                        int32_t dataLen) {
+static
+void copyAttribs(StucAttribArray *pA, StucAttribArray *pB, int32_t dataLen) {
 	if (!pA || !pB) {
 		return;
 	}
@@ -266,8 +311,7 @@ int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res, float *pImag
 	return 0;
 }
 
-int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
-                              StucAttribIndexedArr *pMats) {
+int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr, StucAttribIndexedArr *pMats) {
 	StucMapArr mapArr;
 	int32_t err = makeMapArr(pMapArr, &mapArr);
 	if (err) {
@@ -287,7 +331,12 @@ int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
 	return err;
 }
 
-int32_t stucBlenderWaitForJobs(int32_t count, void **ppJobHandles, bool wait, bool *pDone) {
+int32_t stucBlenderWaitForJobs(
+	int32_t count,
+	void **ppJobHandles,
+	bool wait,
+	bool *pDone
+) {
 	StucResult err = stucWaitForJobs(pStucContext, count, ppJobHandles, wait, pDone);
 	if (err != STUC_SUCCESS) {
 		return 1;

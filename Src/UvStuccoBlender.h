@@ -4,7 +4,7 @@
 #include <UvStucco.h>
 
 #ifdef PLATFORM_LINUX
-    #define STUC_BLENDER_EXPORT
+	#define STUC_BLENDER_EXPORT
 #endif
 #ifdef PLATFORM_WINDOWS
 	#define STUC_BLENDER_EXPORT __declspec(dllexport)
@@ -16,69 +16,87 @@
 //so this should be a non-issue for dcc's with c api's
 
 typedef struct {
-    char **ppArr;
-    char *pMatIdxArr;
-    int8_t count;
+	char **ppArr;
+	char *pMatIdxArr;
+	int8_t count;
 } StucBlenderMapArr;
 
 typedef struct {
-    int8_t *pArr;
-    int32_t count;
+	int8_t *pArr;
+	int32_t count;
 } StucBlenderMatTable;
 
 typedef struct {
-    StucBlenderMatTable *pArr;
-    int32_t count;
+	StucBlenderMatTable *pArr;
+	int32_t count;
 } StucBlenderMatTableArr;
 
 STUC_BLENDER_EXPORT
 void stucBlenderInit();
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileExport(char *pFilepath, int32_t objCount,
-                                    StucObject* pObjArr, int32_t usgCount,
-                                    StucUsg* pUsgArr,
-                                    StucAttribIndexedArr *pIndexedAttribs,
-                                    StucBlenderMatTableArr *pMatTable);
+StucResult stucBlenderMapFileExport(
+	char *pFilepath,
+	int32_t objCount,
+	StucObject *pObjArr,
+	int32_t usgCount,
+	StucUsg *pUsgArr,
+	StucAttribIndexedArr *pIndexedAttribs,
+	StucBlenderMatTableArr *pMatTable
+);
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileLoadForEdit(char *pFilepath,
-                                         int32_t *pObjCount, StucObject **ppObjArr,
-                                         int32_t *pUsgCount, StucUsg **ppUsgArr,
-                                         int32_t *pFlatCutoffCount, StucObject **ppFlatCutoffArr,
-                                         StucAttribIndexedArr *pIndexedAttribs);
+StucResult stucBlenderMapFileLoadForEdit(
+	char *pFilepath,
+	int32_t *pObjCount,
+	StucObject **ppObjArr,
+	int32_t *pUsgCount,
+	StucUsg **ppUsgArr,
+	int32_t *pFlatCutoffCount,
+	StucObject **ppFlatCutoffArr,
+	StucAttribIndexedArr *pIndexedAttribs
+);
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName);
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileUnload(char *pName);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapToMesh(void **ppJobHandle, StucBlenderMapArr *pMapArr,
-                             StucMesh *pMesh, StucAttribIndexedArr *pInIndexedAttribs,
-                             StucMesh *pOutMesh, StucAttribIndexedArr *pOutIndexedAttribs,
-                             StucCommonAttribList *pCommonAttribs, float wScale);
+int32_t stucBlenderMapToMesh(
+	void **ppJobHandle,
+	StucBlenderMapArr *pMapArr,
+	StucMesh *pMesh,
+	StucAttribIndexedArr *pInIndexedAttribs,
+	StucMesh *pOutMesh,
+	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucCommonAttribList *pCommonAttribs,
+	float wScale
+);
 STUC_BLENDER_EXPORT
-void stucBlenderQueryCommonAttribs(StucMesh *pMesh,
-								   char *pMapName,
-								   StucCommonAttribList *pCommonAttribs);
+void stucBlenderQueryCommonAttribs(
+	StucMesh *pMesh,
+	char *pMapName,
+	StucCommonAttribList *pCommonAttribs
+);
 STUC_BLENDER_EXPORT
 void stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs);
 STUC_BLENDER_EXPORT
-void stucBlenderCopyMeshCore(StucMesh *stucMesh,
-                             StucMesh *workMesh);
+void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh);
 STUC_BLENDER_EXPORT
-void stucBlenderCopyMeshAttribs(StucMesh *stucMesh,
-                                StucMesh *workMesh);
+void stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh);
 STUC_BLENDER_EXPORT
 StucResult stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr);
 STUC_BLENDER_EXPORT
 StucResult stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
-STUC_BLENDER_EXPORT 
+STUC_BLENDER_EXPORT
 void stucBlenderMeshDestroy(StucMesh *pWorkMesh);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res,
-                                          float *pImage);
+int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res, float *pImage);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr,
-                              StucAttribIndexedArr *pMats);
+int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr, StucAttribIndexedArr *pMats);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderWaitForJobs(int32_t count, void **ppJobHandles, bool wait, bool *pDone);
+int32_t stucBlenderWaitForJobs(
+	int32_t count,
+	void **ppJobHandles,
+	bool wait,
+	bool *pDone
+);
 STUC_BLENDER_EXPORT
 void stucBlenderDestroy();

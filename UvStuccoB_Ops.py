@@ -12,140 +12,7 @@ import os
 import pdb
 
 #TODO these funcs are in here to use clib? Is there a way to access clib it in Utils.py?
-def updateCommonAttribs(context, target, depsgraph):
-	objEval = target.obj.evaluated_get(depsgraph)
-	meshEval = objEval.data
-	#clean common attrib entries for mat's no longer assigned to obj
-	for entry in target.commonAttribTable:
-		mat = meshEval.materials.get(entry.mat.name, None)
-		if not mat:
-			target.commonAttribTable.remove(entry)
-			
-	targetMats = utils.getMatsInStucMats(context, meshEval)
-	targetMatCount = len(targetMats)
-	if targetMatCount == 0:
-		return None
-	CommonAttribList = utils.StucCommonAttribList * targetMatCount
-	commonAttribList = CommonAttribList()
-	meshTuple = utils.formatAsStucMesh(meshEval, True, False, True)
-	i = 0
-	for mat in targetMats:
-		if not len(mat.map):
-			continue
-		idx = utils.findMatInCol(mat.mat, target.commonAttribTable)
-		if idx != None:
-			entry = target.commonAttribTable[idx]
-		else:
-			entry = target.commonAttribTable.add()
-			entry.mat = mat.mat
-		mapUtf8 = mat.map.encode('utf-8')
-		stucLib.stucBlenderQueryCommonAttribs(
-			meshTuple[0],
-			mapUtf8,
-			ctypes.pointer(commonAttribList[i])
-		)
-		utils.setTargetCommonAttribs(
-			entry.faces,
-			commonAttribList[i].faceCount,
-			commonAttribList[i].pFace
-		)
-		utils.setTargetCommonAttribs(
-			entry.corners,
-			commonAttribList[i].cornerCount,
-			commonAttribList[i].pCorner
-		)
-		utils.setTargetCommonAttribs(
-			entry.edges,
-			commonAttribList[i].edgeCount,
-			commonAttribList[i].pEdge
-		)
-		utils.setTargetCommonAttribs(
-			entry.verts,
-			commonAttribList[i].vertCount,
-			commonAttribList[i].pVert
-		)
-		i += 1
-	return commonAttribList
 
-def copyStucMeshToBlenderMesh(mesh, workMesh, outIndexedAttribs, commonAttribs = None):
-	if (outIndexedAttribs):
-		#TODO this should be done on the c side, in uv-stucco, not uv-stucco-blender.
-		#this will make it easier to merge duplicate materials.
-		#pass inMesh materials to stucMapToMesh, and it will pass back
-		#an outMesh mat arr (in a separate out param), which contains
-		#the final material slots, and their mat names.
-		outMats = utils.getAttrib(outIndexedAttribs, "StucMaterials")
-		StucString = ctypes.c_byte * 64
-		outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
-		i = 0
-		while i < outMats.count:
-			matName = ctypes.cast(outMatsCast[i], ctypes.c_char_p).value.decode()
-			mat = bpy.data.materials.get(matName, None)
-			if not mat:
-				#this should throw an error of some kind, or a warning
-				#there shouldn't be any dups
-				mat = bpy.data.materials.new(name = matName)
-			mesh.materials.append(mat)
-			i += 1
-
-	mesh.vertices.add(workMesh.vertCount)
-	mesh.loops.add(workMesh.loopCount)
-	mesh.polygons.add(workMesh.faceCount)
-	createAllAttribs(mesh, workMesh)
-	meshStucFormat = utils.formatAsStucMesh(mesh, False, False, None)
-
-	stucLib.stucBlenderCopyMeshCore(
-		ctypes.pointer(meshStucFormat[0]),
-		ctypes.pointer(workMesh)
-	)
-
-	matIndices = None
-	i = 0
-	while i < workMesh.faceAttribs.count:
-		name = ctypes.cast(workMesh.faceAttribs.pArr[i].core.name, ctypes.c_char_p).value
-		if name == b"StucMaterialIndices":
-			matIndices = workMesh.faceAttribs.pArr[i]
-			break
-		i += 1
-	if matIndices:
-		matIndicesNumpy = numpy.ctypeslib.as_array(
-			ctypes.cast(matIndices.core.pData,
-			ctypes.POINTER(ctypes.c_byte)),
-			shape = [workMesh.faceCount]
-		)
-		mesh.polygons.foreach_set("material_index", matIndicesNumpy)
-
-	#meshStuc.uv_layers.new(name="uvmap")
-	#uvPtr = meshStuc.uv_layers[0].data[0].as_pointer()
-	#stucMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(StucVec2))
-	mesh.update()
-	meshStucFormat = utils.formatAsStucMesh(mesh, False, False, None)
-	stucLib.stucBlenderCopyMeshAttribs(
-		ctypes.pointer(meshStucFormat[0]),
-		ctypes.pointer(workMesh)
-	)
-	normalsArraySize = workMesh.loopCount * 3
-	normalAttrib = getNormalAttrib(workMesh)
-	normalsNumpy = numpy.ctypeslib.as_array(
-		ctypes.cast(normalAttrib.contents.core.pData,
-		ctypes.POINTER(ctypes.c_float)),
-		shape = [normalsArraySize]
-	)
-	#this is necessary to set custom normals it seems
-	mesh.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
-	mesh.use_auto_smooth = True
-
-def blendObjFromStuc(stucObj, col, name, displayType, isUsg, mats):
-	mesh = bpy.data.meshes.new(f"{name}Mesh")
-	obj = bpy.data.objects.new(name, mesh)
-	col.objects.link(obj)
-	meshStuc = ctypes.cast(stucObj.pData, ctypes.POINTER(utils.StucMesh))
-	copyStucMeshToBlenderMesh(mesh, meshStuc.contents, mats)
-	utils.setBlenderMatrix(obj.matrix_world, stucObj.transform)
-	obj.display_type = displayType
-	if (isUsg):
-		obj['StucUsg'] = isUsg
-	return obj
 
 #TODO calc_normals_split has been removed in 4.1, so you'll need to handle that
 #TODO It seems that normals can be accessed as contiguous arrays now,
@@ -155,14 +22,6 @@ def blendObjFromStuc(stucObj, col, name, displayType, isUsg, mats):
 #these seem to have been converted to attributes in 4.0 versions.
 #So probably only need to do it for pre 4.0 versions.
 
-def getUsgCountInSelObjs(context):
-	count = 0
-	for obj in context.selected_objects:
-		isUsg = obj.get("StucUsg", None)
-		if isUsg:
-			count += 1
-	return count
-
 class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 	bl_idname = "stuc.set_as_usg"
 	bl_label = "Set As USG"
@@ -170,7 +29,7 @@ class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context):
-		return getUsgCountInSelObjs(context) < len(context.selected_objects)
+		return utils.getUsgCountInSelObjs(context) < len(context.selected_objects)
 
 	def execute(self, context):
 		for obj in context.selected_objects:
@@ -188,7 +47,7 @@ class STUC_OT_StucUnsetUsg(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context):
-		return getUsgCountInSelObjs(context) > 0
+		return utils.getUsgCountInSelObjs(context) > 0
 
 	def execute(self, context):
 		for obj in context.selected_objects:
@@ -206,7 +65,7 @@ class STUC_OT_StucSetFlatCutoff(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context):
-		return getUsgCountInSelObjs(context) > 0
+		return utils.getUsgCountInSelObjs(context) > 0
 
 	def execute(self, context):
 		activeObj = context.view_layer.objects.active
@@ -398,7 +257,7 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 		context.collection.children.link(col)
 		i = 0
 		while (i < objCount.value):
-			blendObjFromStuc(objArr[i], col, "Stuc", 'TEXTURED', False, mats)
+			utils.blendObjFromStuc(objArr[i], col, "Stuc", 'TEXTURED', False, mats)
 			i += 1
 		stucLib.stucBlenderObjArrDestroy(objCount, objArr)
 
@@ -409,12 +268,12 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 		cutoffBlend = []
 		i = 0
 		while (i < flatCutoffCount.value):
-			cutoff = blendObjFromStuc(flatCutoffArr[i], cutoffCol,  "FlatCutoff", 'WIRE', False, None)
+			cutoff = utils.blendObjFromStuc(flatCutoffArr[i], cutoffCol,  "FlatCutoff", 'WIRE', False, None)
 			cutoffBlend.append(cutoff)
 			i += 1
 		i = 0
 		while (i < usgCount.value):
-			usg = blendObjFromStuc(usgArr[i].obj, usgCol, "Usg", 'WIRE', True, None)
+			usg = utils.blendObjFromStuc(usgArr[i].obj, usgCol, "Usg", 'WIRE', True, None)
 			if (usgArr[i].pFlatCutoff):
 				j = 0
 				while (j < flatCutoffCount.value):
@@ -534,32 +393,6 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 		print("hi")
 		return {'FINISHED'}
 
-def createSingleAttrib(mesh, attrib, domain):
-	attribType = utils.getAttribBlenderType(attrib)
-	name = ctypes.cast(attrib.core.name, ctypes.c_char_p).value
-	mesh.attributes.new(name = name.decode("utf-8"), type = attribType, domain = domain)
-
-def createAttribs(mesh, attribs, domain):
-	i = 0
-	while (i < attribs.count):
-		createSingleAttrib(mesh, attribs.pArr[i], domain)
-		i += 1
-
-def createAllAttribs(mesh, stucMesh):
-	createAttribs(mesh, stucMesh.faceAttribs, "FACE")
-	createAttribs(mesh, stucMesh.loopAttribs, "CORNER")
-	#createAttribs(mesh, stucMesh.pEdgeAttribs, stucMesh.edgeAttribCount, "EDGE")
-	#createAttribs(mesh, stucMesh.pVertAttribs, stucMesh.vertAttribCount, "POINT")
-
-def getNormalAttrib(mesh):
-	i = 0
-	while (i < mesh.loopAttribs.count):
-		name = ctypes.cast(mesh.loopAttribs.pArr[i].core.name, ctypes.c_char_p).value
-		if (name.decode("utf-8") == "normal"):
-			return ctypes.pointer(mesh.loopAttribs.pArr[i])
-		i += 1
-	return None
-
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy):
 	scene = bpy.context.scene
@@ -599,7 +432,7 @@ def stucDepsgraphUpdatePostHandler(dummy):
 			continue
 		elif obj.mode != 'OBJECT':
 			continue
-		commonAttribs = updateCommonAttribs(bpy.context, target, depsgraph)
+		commonAttribs = utils.updateCommonAttribs(stucLib, bpy.context, target, depsgraph)
 		#hide_viewport is the moniter icon, and hide_get is the eye
 		if not commonAttribs or obj.hide_viewport or obj.hide_get():
 			continue
@@ -741,7 +574,13 @@ def stucDepsgraphUpdatePostHandler(dummy):
 				objStuc.data = meshStuc
 				bpy.data.meshes.remove(meshStucOld)
 
-			copyStucMeshToBlenderMesh(meshStuc, item.outMesh, item.outIndexedAttribs, item.commonAttribs)
+			utils.copyStucMeshToBlenderMesh(
+				stucLib,
+				meshStuc,
+				item.outMesh,
+				item.outIndexedAttribs,
+				item.commonAttribs
+			)
 			stucLib.stucBlenderMeshDestroy(item.outMesh)
 			normalBlendAttrib = meshStuc.attributes.get("normal", None)
 			if (normalBlendAttrib):

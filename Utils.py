@@ -167,7 +167,31 @@ def getAttribBlenderType(attrib):
 		case _:
 			return None
 
+def createSingleAttrib(mesh, attrib, domain):
+	attribType = getAttribBlenderType(attrib)
+	name = ctypes.cast(attrib.core.name, ctypes.c_char_p).value
+	mesh.attributes.new(name = name.decode("utf-8"), type = attribType, domain = domain)
 
+def createAttribs(mesh, attribs, domain):
+	i = 0
+	while (i < attribs.count):
+		createSingleAttrib(mesh, attribs.pArr[i], domain)
+		i += 1
+
+def createAllAttribs(mesh, stucMesh):
+	createAttribs(mesh, stucMesh.faceAttribs, "FACE")
+	createAttribs(mesh, stucMesh.loopAttribs, "CORNER")
+	#createAttribs(mesh, stucMesh.pEdgeAttribs, stucMesh.edgeAttribCount, "EDGE")
+	#createAttribs(mesh, stucMesh.pVertAttribs, stucMesh.vertAttribCount, "POINT")
+
+def getNormalAttrib(mesh):
+	i = 0
+	while (i < mesh.loopAttribs.count):
+		name = ctypes.cast(mesh.loopAttribs.pArr[i].core.name, ctypes.c_char_p).value
+		if (name.decode("utf-8") == "normal"):
+			return ctypes.pointer(mesh.loopAttribs.pArr[i])
+		i += 1
+	return None
 
 def getAttribCounts(attribCount, target, getNormals):
 	for attrib in target.attributes:
@@ -438,3 +462,146 @@ def getAttrib(arr, name):
 			return arr.pArr[i]
 		i += 1
 	return None
+
+def updateCommonAttribs(stucLib, context, target, depsgraph):
+	objEval = target.obj.evaluated_get(depsgraph)
+	meshEval = objEval.data
+	#clean common attrib entries for mat's no longer assigned to obj
+	for entry in target.commonAttribTable:
+		mat = meshEval.materials.get(entry.mat.name, None)
+		if not mat:
+			target.commonAttribTable.remove(entry)
+			
+	targetMats = getMatsInStucMats(context, meshEval)
+	targetMatCount = len(targetMats)
+	if targetMatCount == 0:
+		return None
+	CommonAttribList = StucCommonAttribList * targetMatCount
+	commonAttribList = CommonAttribList()
+	meshTuple = formatAsStucMesh(meshEval, True, False, True)
+	i = 0
+	for mat in targetMats:
+		if not len(mat.map):
+			continue
+		idx = findMatInCol(mat.mat, target.commonAttribTable)
+		if idx != None:
+			entry = target.commonAttribTable[idx]
+		else:
+			entry = target.commonAttribTable.add()
+			entry.mat = mat.mat
+		mapUtf8 = mat.map.encode('utf-8')
+		stucLib.stucBlenderQueryCommonAttribs(
+			meshTuple[0],
+			mapUtf8,
+			ctypes.pointer(commonAttribList[i])
+		)
+		setTargetCommonAttribs(
+			entry.faces,
+			commonAttribList[i].faceCount,
+			commonAttribList[i].pFace
+		)
+		setTargetCommonAttribs(
+			entry.corners,
+			commonAttribList[i].cornerCount,
+			commonAttribList[i].pCorner
+		)
+		setTargetCommonAttribs(
+			entry.edges,
+			commonAttribList[i].edgeCount,
+			commonAttribList[i].pEdge
+		)
+		setTargetCommonAttribs(
+			entry.verts,
+			commonAttribList[i].vertCount,
+			commonAttribList[i].pVert
+		)
+		i += 1
+	return commonAttribList
+
+def copyStucMeshToBlenderMesh(stucLib, mesh, workMesh, outIndexedAttribs, commonAttribs = None):
+	if (outIndexedAttribs):
+		#TODO this should be done on the c side, in uv-stucco, not uv-stucco-blender.
+		#this will make it easier to merge duplicate materials.
+		#pass inMesh materials to stucMapToMesh, and it will pass back
+		#an outMesh mat arr (in a separate out param), which contains
+		#the final material slots, and their mat names.
+		outMats = getAttrib(outIndexedAttribs, "StucMaterials")
+		StucString = ctypes.c_byte * 64
+		outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
+		i = 0
+		while i < outMats.count:
+			matName = ctypes.cast(outMatsCast[i], ctypes.c_char_p).value.decode()
+			mat = bpy.data.materials.get(matName, None)
+			if not mat:
+				#this should throw an error of some kind, or a warning
+				#there shouldn't be any dups
+				mat = bpy.data.materials.new(name = matName)
+			mesh.materials.append(mat)
+			i += 1
+
+	mesh.vertices.add(workMesh.vertCount)
+	mesh.loops.add(workMesh.loopCount)
+	mesh.polygons.add(workMesh.faceCount)
+	createAllAttribs(mesh, workMesh)
+	meshStucFormat = formatAsStucMesh(mesh, False, False, None)
+
+	stucLib.stucBlenderCopyMeshCore(
+		ctypes.pointer(meshStucFormat[0]),
+		ctypes.pointer(workMesh)
+	)
+
+	matIndices = None
+	i = 0
+	while i < workMesh.faceAttribs.count:
+		name = ctypes.cast(workMesh.faceAttribs.pArr[i].core.name, ctypes.c_char_p).value
+		if name == b"StucMaterialIndices":
+			matIndices = workMesh.faceAttribs.pArr[i]
+			break
+		i += 1
+	if matIndices:
+		matIndicesNumpy = numpy.ctypeslib.as_array(
+			ctypes.cast(matIndices.core.pData,
+			ctypes.POINTER(ctypes.c_byte)),
+			shape = [workMesh.faceCount]
+		)
+		mesh.polygons.foreach_set("material_index", matIndicesNumpy)
+
+	#meshStuc.uv_layers.new(name="uvmap")
+	#uvPtr = meshStuc.uv_layers[0].data[0].as_pointer()
+	#stucMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(StucVec2))
+	mesh.update()
+	meshStucFormat = formatAsStucMesh(mesh, False, False, None)
+	stucLib.stucBlenderCopyMeshAttribs(
+		ctypes.pointer(meshStucFormat[0]),
+		ctypes.pointer(workMesh)
+	)
+	normalsArraySize = workMesh.loopCount * 3
+	normalAttrib = getNormalAttrib(workMesh)
+	normalsNumpy = numpy.ctypeslib.as_array(
+		ctypes.cast(normalAttrib.contents.core.pData,
+		ctypes.POINTER(ctypes.c_float)),
+		shape = [normalsArraySize]
+	)
+	#this is necessary to set custom normals it seems
+	mesh.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
+	mesh.use_auto_smooth = True
+
+def blendObjFromStuc(stucObj, col, name, displayType, isUsg, mats):
+	mesh = bpy.data.meshes.new(f"{name}Mesh")
+	obj = bpy.data.objects.new(name, mesh)
+	col.objects.link(obj)
+	meshStuc = ctypes.cast(stucObj.pData, ctypes.POINTER(StucMesh))
+	copyStucMeshToBlenderMesh(mesh, meshStuc.contents, mats)
+	setBlenderMatrix(obj.matrix_world, stucObj.transform)
+	obj.display_type = displayType
+	if (isUsg):
+		obj['StucUsg'] = isUsg
+	return obj
+
+def getUsgCountInSelObjs(context):
+	count = 0
+	for obj in context.selected_objects:
+		isUsg = obj.get("StucUsg", None)
+		if isUsg:
+			count += 1
+	return count

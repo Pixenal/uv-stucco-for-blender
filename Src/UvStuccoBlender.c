@@ -29,7 +29,7 @@ uint32_t fnvHash(unsigned char *value, int32_t valueSize, uint32_t size) {
 
 static
 int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry, char *pName) {
-	int32_t pathLength = strlen(pName);
+	int32_t pathLength = (int32_t)strlen(pName);
 	int32_t hash = fnvHash((unsigned char *)pName, pathLength, HANDLE_TABLE_SIZE);
 	*pEntry = handleTable + hash;
 	*pPrevEntry = NULL;
@@ -128,7 +128,9 @@ StucResult stucBlenderMapFileLoadForEdit(
 }
 
 StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName) {
-	HandleEntry *pEntry, *pPrevEntry;
+	StucResult err = STUC_SUCCESS;
+	HandleEntry *pEntry = NULL;
+	HandleEntry *pPrevEntry = NULL;
 	int32_t result = getHandle(&pEntry, &pPrevEntry, pName);
 	switch (result) {
 		case 1: {
@@ -137,18 +139,25 @@ StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName) {
 		}
 		case 2: {
 			printf("Handle table entry has valid filepath, but invalid handle\n");
-			abort();
+			err = STUC_ERROR;
+			break;
 		}
 		case 3: {
 			printf("No match in handle table\n");
-			abort();
+			err = STUC_ERROR;
+			break;
 		}
 	}
-	int32_t nameLength = strlen(pName) + 1;
-	pEntry->pName = malloc(nameLength);
-	memcpy(pEntry->pName, pName, nameLength);
-
-	return stucMapFileLoad(pStucContext, &pEntry->handle, pFilepath);
+	if (pEntry) {
+		int32_t nameLength = (int32_t)strlen(pName) + 1;
+		pEntry->pName = malloc(nameLength);
+		memcpy(pEntry->pName, pName, nameLength);
+		return stucMapFileLoad(pStucContext, &pEntry->handle, pFilepath);
+	}
+	else {
+		err = STUC_ERROR;
+	}
+	return err;
 }
 
 StucResult stucBlenderMapFileUnload(char *pName) {
@@ -343,7 +352,7 @@ int32_t stucBlenderWaitForJobs(
 	}
 	if (wait || *pDone) {
 		err = stucJobGetErrs(pStucContext, count, &ppJobHandles);
-		err = stucJobDestroyHandles(pStucContext, count, &ppJobHandles);
+		stucJobDestroyHandles(pStucContext, count, ppJobHandles);
 		if (err != STUC_SUCCESS) {
 			return 1;
 		}

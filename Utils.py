@@ -4,392 +4,412 @@ import numpy
 import pdb
 
 class StucVec2(ctypes.Structure):
-    _fields_ = [("x", ctypes.c_float),
-                ("y", ctypes.c_float)]
+	_fields_ = [("x", ctypes.c_float),
+				("y", ctypes.c_float)]
 
 class StucVec3(ctypes.Structure):
-    _fields_ = [("x", ctypes.c_float),
-                ("y", ctypes.c_float),
-                ("z", ctypes.c_float)]
-    
+	_fields_ = [("x", ctypes.c_float),
+				("y", ctypes.c_float),
+				("z", ctypes.c_float)]
+	
 Stuc_M4x4_F32 = ctypes.c_float * 16
 
 class StucAttribCore(ctypes.Structure):
-    _fields_ = [("pData", ctypes.c_void_p),
-                #use c_byte instead of c_char, as the latter is immutable
-                ("name", ctypes.c_byte * 96),
-                ("type", ctypes.c_int32),
-                ("use", ctypes.c_int32)]
+	_fields_ = [("pData", ctypes.c_void_p),
+				#use c_byte instead of c_char, as the latter is immutable
+				("name", ctypes.c_byte * 96),
+				("type", ctypes.c_int32),
+				("use", ctypes.c_int32)]
 
 class StucAttrib(ctypes.Structure):
-    _fields_ = [("core", StucAttribCore),
-                ("origin", ctypes.c_int32),
-                ("interpolate", ctypes.c_int32)]
-    
+	_fields_ = [("core", StucAttribCore),
+				("origin", ctypes.c_int32),
+				("interpolate", ctypes.c_int32)]
+	
 class StucAttribIndexed(ctypes.Structure):
-    _fields_ = [("core", StucAttribCore),
-                ("size", ctypes.c_int32),
-                ("count", ctypes.c_int32)]
-    
+	_fields_ = [("core", StucAttribCore),
+				("size", ctypes.c_int32),
+				("count", ctypes.c_int32)]
+	
 class StucAttribIndexedArr(ctypes.Structure):
-    _fields_ = [("pArr", ctypes.POINTER(StucAttribIndexed)),
-                ("size", ctypes.c_int32),
-                ("count", ctypes.c_int32)]
+	_fields_ = [("pArr", ctypes.POINTER(StucAttribIndexed)),
+				("size", ctypes.c_int32),
+				("count", ctypes.c_int32)]
 
 class StucAttribArray(ctypes.Structure):
-    _fields_ = [("pArr", ctypes.POINTER(StucAttrib)),
-                ("size", ctypes.c_int32),
-                ("count", ctypes.c_int32)]
-    
+	_fields_ = [("pArr", ctypes.POINTER(StucAttrib)),
+				("size", ctypes.c_int32),
+				("count", ctypes.c_int32)]
+	
 class StucObjectData(ctypes.Structure):
-    _fields_ = [("type", ctypes.c_int32)]
-    
+	_fields_ = [("type", ctypes.c_int32)]
+	
 class StucBlenderMapArr(ctypes.Structure):
-    _fields_ = [("ppArr", ctypes.POINTER(ctypes.POINTER(ctypes.c_byte))),
-                ("pMatIdxArr", ctypes.POINTER(ctypes.c_byte)),
-                ("count", ctypes.c_byte)]
+	_fields_ = [("ppArr", ctypes.POINTER(ctypes.POINTER(ctypes.c_byte))),
+				("pMatIdxArr", ctypes.POINTER(ctypes.c_byte)),
+				("count", ctypes.c_byte)]
 
 #TODO rename loop attribs here as well
 #when working with stuc geo of course. Use loop when
 #referncing blender geometry of course
 class StucMesh(ctypes.Structure):
-    _fields_ = [("type", StucObjectData),
-                ("pFaces", ctypes.POINTER(ctypes.c_int32)),
-                ("pLoops", ctypes.POINTER(ctypes.c_int32)),
-                ("pEdges", ctypes.POINTER(ctypes.c_int32)),
-                ("meshAttribs", StucAttribArray),
-                ("faceAttribs", StucAttribArray),
-                ("loopAttribs", StucAttribArray),
-                ("edgeAttribs", StucAttribArray),
-                ("vertAttribs", StucAttribArray),
-                ("faceCount", ctypes.c_int32),
-                ("loopCount", ctypes.c_int32),
-                ("edgeCount", ctypes.c_int32),
-                ("vertCount", ctypes.c_int32)]
-                
-    
+	_fields_ = [("type", StucObjectData),
+				("pFaces", ctypes.POINTER(ctypes.c_int32)),
+				("pLoops", ctypes.POINTER(ctypes.c_int32)),
+				("pEdges", ctypes.POINTER(ctypes.c_int32)),
+				("meshAttribs", StucAttribArray),
+				("faceAttribs", StucAttribArray),
+				("loopAttribs", StucAttribArray),
+				("edgeAttribs", StucAttribArray),
+				("vertAttribs", StucAttribArray),
+				("faceCount", ctypes.c_int32),
+				("loopCount", ctypes.c_int32),
+				("edgeCount", ctypes.c_int32),
+				("vertCount", ctypes.c_int32)]
+				
+	
 class StucObject(ctypes.Structure):
-    _fields_ = [("pData", ctypes.POINTER(StucObjectData)),
-                ("transform", Stuc_M4x4_F32)]
+	_fields_ = [("pData", ctypes.POINTER(StucObjectData)),
+				("transform", Stuc_M4x4_F32)]
 
 class StucBlendConfig(ctypes.Structure):
-    _fields_ = [("blend", ctypes.c_int32),
+	_fields_ = [("blend", ctypes.c_int32),
 				("opacity", ctypes.c_float),
-                ("order", ctypes.c_bool)]
+				("order", ctypes.c_bool)]
 
 class StucCommonAttrib(ctypes.Structure):
-    #use c_byte instead of c_char, as the latter is immutable
-    _fields_ = [("name", ctypes.c_byte * 96),
-                ("blendConfig", StucBlendConfig)]
+	#use c_byte instead of c_char, as the latter is immutable
+	_fields_ = [("name", ctypes.c_byte * 96),
+				("blendConfig", StucBlendConfig)]
 
 class StucCommonAttribList(ctypes.Structure):
-    _fields_ = [("pMesh", ctypes.POINTER(StucCommonAttrib)),
-                ("pFace", ctypes.POINTER(StucCommonAttrib)),
-                ("pCorner", ctypes.POINTER(StucCommonAttrib)),
-                ("pEdge", ctypes.POINTER(StucCommonAttrib)),
-                ("pVert", ctypes.POINTER(StucCommonAttrib)),
-                ("meshCount", ctypes.c_int32),
-                ("faceCount", ctypes.c_int32),
-                ("cornerCount", ctypes.c_int32),
-                ("edgeCount", ctypes.c_int32),
-                ("vertCount", ctypes.c_int32)]
-    
+	_fields_ = [("pMesh", ctypes.POINTER(StucCommonAttrib)),
+				("pFace", ctypes.POINTER(StucCommonAttrib)),
+				("pCorner", ctypes.POINTER(StucCommonAttrib)),
+				("pEdge", ctypes.POINTER(StucCommonAttrib)),
+				("pVert", ctypes.POINTER(StucCommonAttrib)),
+				("meshCount", ctypes.c_int32),
+				("faceCount", ctypes.c_int32),
+				("cornerCount", ctypes.c_int32),
+				("edgeCount", ctypes.c_int32),
+				("vertCount", ctypes.c_int32)]
+	
 class StucUsg(ctypes.Structure):
-    _fields_ = [("obj", StucObject),
-                ("pFlatCutoff", ctypes.POINTER(StucObject))]
-    
+	_fields_ = [("obj", StucObject),
+				("pFlatCutoff", ctypes.POINTER(StucObject))]
+	
 class StucBlenderMatTable(ctypes.Structure):
-    _fields_ = [("pArr", ctypes.POINTER(ctypes.c_byte)),
-                ("count", ctypes.c_byte)]
-    
+	_fields_ = [("pArr", ctypes.POINTER(ctypes.c_byte)),
+				("count", ctypes.c_byte)]
+	
 class StucBlenderMatTableArr(ctypes.Structure):
-    _fields_ = [("pArr", ctypes.POINTER(StucBlenderMatTable)),
-                ("count", ctypes.c_int32)]
+	_fields_ = [("pArr", ctypes.POINTER(StucBlenderMatTable)),
+				("count", ctypes.c_int32)]
 
 def getAttribType(attrib):
-    attribType = type(attrib)
-    match attribType:
-        case bpy.types.BoolAttribute:
-            return (0, ctypes.c_int8) #UVS_I8
-        case bpy.types.ByteColorAttribute:
-            return (18, ctypes.c_int8 * 4) #UVS_V4_I8
-        case bpy.types.ByteIntAttribute:
-            return (0, ctypes.c_int8) #UVS_I8
-        case bpy.types.Float2Attribute:
-            return (10, ctypes.c_float * 2) #UVS_V2_F32
-        case bpy.types.FloatAttribute:
-            return (4, ctypes.c_float) #UVS_F32
-        case bpy.types.FloatColorAttribute:
-            return (22, ctypes.c_float * 4) #UVS_V4_F32
-        case bpy.types.FloatVectorAttribute:
-            return (16, ctypes.c_float * 3) #UVS_V3_F32
-        case bpy.types.Int2Attribute:
-            return (8, ctypes.c_int32 * 2) #UVS_V2_I32
-        case bpy.types.IntAttribute:
-            return (2, ctypes.c_int32) #UVS_I32
-        case bpy.types.QuaternionAttribute:
-            return (22, ctypes.c_float * 4) #UVS_V4_F32
-        case bpy.types.StringAttribute:
-            return (24, ctypes.POINTER(ctypes.c_char)) #UVS_STRING
-        case _:
-            return None
+	attribType = type(attrib)
+	match attribType:
+		case bpy.types.BoolAttribute:
+			return (0, ctypes.c_int8) #UVS_I8
+		case bpy.types.ByteColorAttribute:
+			return (18, ctypes.c_int8 * 4) #UVS_V4_I8
+		case bpy.types.ByteIntAttribute:
+			return (0, ctypes.c_int8) #UVS_I8
+		case bpy.types.Float2Attribute:
+			return (10, ctypes.c_float * 2) #UVS_V2_F32
+		case bpy.types.FloatAttribute:
+			return (4, ctypes.c_float) #UVS_F32
+		case bpy.types.FloatColorAttribute:
+			return (22, ctypes.c_float * 4) #UVS_V4_F32
+		case bpy.types.FloatVectorAttribute:
+			return (16, ctypes.c_float * 3) #UVS_V3_F32
+		case bpy.types.Int2Attribute:
+			return (8, ctypes.c_int32 * 2) #UVS_V2_I32
+		case bpy.types.IntAttribute:
+			return (2, ctypes.c_int32) #UVS_I32
+		case bpy.types.QuaternionAttribute:
+			return (22, ctypes.c_float * 4) #UVS_V4_F32
+		case bpy.types.StringAttribute:
+			return (24, ctypes.POINTER(ctypes.c_char)) #UVS_STRING
+		case _:
+			return None
 
 def getAttribBlenderType(attrib):
-    match attrib.core.type:
-        #TODO add bool type to UVS lib, as semantics are lost here
-        #TODO in general, try include all types, including semantic
-        #types, in Blender, Houdini, and USD. This includes unsigned
-        #ints, quaternions, etc. If someone puts an attribute in, they need to get the
-        #same type out. IMPORTANT: it may be best to split the semantic info off
-        #into a separate enum
-        case 0: #UVS_I8
-            return 'BOOLEAN'
-        case 18: #UVS_V4_I8
-            return 'BYTE_COLOR' 
-        case 0: #UVS_I8
-            return 'INT8'
-        case 10: #UVS_V2_F32
-            return 'FLOAT2'
-        case 4: #UVS_F32
-            return 'FLOAT'
-        case 22: #UVS_V4_F32
-            return 'FLOAT_COLOR'
-        case 16: #UVS_V3_F32
-            return 'FLOAT_VECTOR'
-        case 8: #UVS_V2_I32
-            return 'INT32_2D'
-        case 2: #UVS_I32
-            return 'INT'
-        case 22: #UVS_V4_F32
-            return 'TODO FIX THIS'
-        case 24: #UVS_STRING
-            return 'STRING' 
-        case _:
-            return None
+	match attrib.core.type:
+		#TODO add bool type to UVS lib, as semantics are lost here
+		#TODO in general, try include all types, including semantic
+		#types, in Blender, Houdini, and USD. This includes unsigned
+		#ints, quaternions, etc. If someone puts an attribute in, they need to get the
+		#same type out. IMPORTANT: it may be best to split the semantic info off
+		#into a separate enum
+		case 0: #UVS_I8
+			return 'BOOLEAN'
+		case 18: #UVS_V4_I8
+			return 'BYTE_COLOR' 
+		case 0: #UVS_I8
+			return 'INT8'
+		case 10: #UVS_V2_F32
+			return 'FLOAT2'
+		case 4: #UVS_F32
+			return 'FLOAT'
+		case 22: #UVS_V4_F32
+			return 'FLOAT_COLOR'
+		case 16: #UVS_V3_F32
+			return 'FLOAT_VECTOR'
+		case 8: #UVS_V2_I32
+			return 'INT32_2D'
+		case 2: #UVS_I32
+			return 'INT'
+		case 22: #UVS_V4_F32
+			return 'TODO FIX THIS'
+		case 24: #UVS_STRING
+			return 'STRING' 
+		case _:
+			return None
 
 
 
 def getAttribCounts(attribCount, target, getNormals):
-    for attrib in target.attributes:
-        if '.' in attrib.name or (getNormals and attrib.name == "normal") or\
-        attrib.name == "material_index":
-            continue
-        match attrib.domain:
-            case 'FACE':
-                attribCount["face"] += 1
-            case 'CORNER':
-                attribCount["loop"] += 1
-            case 'EDGE':
-                attribCount["edge"] += 1
-            case 'POINT':
-                attribCount["vert"] += 1
-                
+	for attrib in target.attributes:
+		if '.' in attrib.name or (getNormals and attrib.name == "normal") or\
+		attrib.name == "material_index":
+			continue
+		match attrib.domain:
+			case 'FACE':
+				attribCount["face"] += 1
+			case 'CORNER':
+				attribCount["loop"] += 1
+			case 'EDGE':
+				attribCount["edge"] += 1
+			case 'POINT':
+				attribCount["vert"] += 1
+				
 
 
 def copyString(dest, src, maxLen):
-    length = len(src)
-    if (length > maxLen):
-        #TODO add proper exception handling in general
-        print("string length exceeds max")
-        return
-    srcUtf8 = src.encode('utf-8')
-    i = 0
-    while (i < length):
-        dest[i] = srcUtf8[i]
-        i += 1
+	length = len(src)
+	if (length > maxLen):
+		#TODO add proper exception handling in general
+		print("string length exceeds max")
+		return
+	srcUtf8 = src.encode('utf-8')
+	i = 0
+	while (i < length):
+		dest[i] = srcUtf8[i]
+		i += 1
 
 def allocAttribs(mesh, attribCounts):
-    FaceAttribsArray = StucAttrib * attribCounts["face"]
-    mesh.faceAttribs.pArr = FaceAttribsArray()
-    LoopAttribsArray = StucAttrib * (attribCounts["loop"] + 3) # +3 for normals, tangents, & tsign
-    mesh.loopAttribs.pArr = LoopAttribsArray()
-    EdgeAttribsArray = StucAttrib * attribCounts["edge"]
-    mesh.edgeAttribs.pArr = EdgeAttribsArray()
-    VertAttribsArray = StucAttrib * attribCounts["vert"]
-    mesh.vertAttribs.pArr = VertAttribsArray()
+	FaceAttribsArray = StucAttrib * attribCounts["face"]
+	mesh.faceAttribs.pArr = FaceAttribsArray()
+	LoopAttribsArray = StucAttrib * (attribCounts["loop"] + 3) # +3 for normals, tangents, & tsign
+	mesh.loopAttribs.pArr = LoopAttribsArray()
+	EdgeAttribsArray = StucAttrib * attribCounts["edge"]
+	mesh.edgeAttribs.pArr = EdgeAttribsArray()
+	VertAttribsArray = StucAttrib * attribCounts["vert"]
+	mesh.vertAttribs.pArr = VertAttribsArray()
 
 def initAttribEntry(attrib, attribEntry, dataLen, metaOnly, interpolate):
-    copyString(attribEntry.core.name, attrib.name, 96)
-    attribType = getAttribType(attrib)
-    attribEntry.core.type = attribType[0]
-    attribEntry.interpolate = interpolate
-    if not(metaOnly):
-        attribData = attrib.data[0].as_pointer()
-        attribEntry.core.pData = ctypes.cast(attribData, ctypes.c_void_p)
+	copyString(attribEntry.core.name, attrib.name, 96)
+	attribType = getAttribType(attrib)
+	attribEntry.core.type = attribType[0]
+	attribEntry.interpolate = interpolate
+	if not(metaOnly):
+		attribData = attrib.data[0].as_pointer()
+		attribEntry.core.pData = ctypes.cast(attribData, ctypes.c_void_p)
 
 def initAttribs(mesh, target, metaOnly, getNormals):
-    for attrib in target.attributes:
-        if '.' in attrib.name or (getNormals and attrib.name == "normal") or\
-        attrib.name == "material_index":
-            continue
-        match attrib.domain:
-            case 'FACE':
-                attribEntry = mesh.faceAttribs.pArr[mesh.faceAttribs.count]
-                initAttribEntry(attrib, attribEntry, mesh.faceCount, metaOnly, 0)
-                mesh.faceAttribs.count += 1
-            case 'CORNER':
-                attribEntry = mesh.loopAttribs.pArr[mesh.loopAttribs.count]
-                initAttribEntry(attrib, attribEntry, mesh.loopCount, metaOnly, 1)
-                mesh.loopAttribs.count += 1
-            case 'EDGE':
-                attribEntry = mesh.edgeAttribs.pArr[mesh.edgeAttribs.count]
-                initAttribEntry(attrib, attribEntry, mesh.edgeCount, metaOnly, 0)
-                mesh.edgeAttribs.count += 1
-            case 'POINT':
-                attribEntry = mesh.vertAttribs.pArr[mesh.vertAttribs.count]
-                initAttribEntry(attrib, attribEntry, mesh.vertCount, metaOnly, 0)
-                mesh.vertAttribs.count += 1
+	for attrib in target.attributes:
+		if '.' in attrib.name or (getNormals and attrib.name == "normal") or\
+		attrib.name == "material_index":
+			continue
+		match attrib.domain:
+			case 'FACE':
+				attribEntry = mesh.faceAttribs.pArr[mesh.faceAttribs.count]
+				initAttribEntry(attrib, attribEntry, mesh.faceCount, metaOnly, 0)
+				mesh.faceAttribs.count += 1
+			case 'CORNER':
+				attribEntry = mesh.loopAttribs.pArr[mesh.loopAttribs.count]
+				initAttribEntry(attrib, attribEntry, mesh.loopCount, metaOnly, 1)
+				mesh.loopAttribs.count += 1
+			case 'EDGE':
+				attribEntry = mesh.edgeAttribs.pArr[mesh.edgeAttribs.count]
+				initAttribEntry(attrib, attribEntry, mesh.edgeCount, metaOnly, 0)
+				mesh.edgeAttribs.count += 1
+			case 'POINT':
+				attribEntry = mesh.vertAttribs.pArr[mesh.vertAttribs.count]
+				initAttribEntry(attrib, attribEntry, mesh.vertCount, metaOnly, 0)
+				mesh.vertAttribs.count += 1
 
 def setStucMatrix(dest, src):
-    matWorld = src.copy()
-    matWorld.transpose()
-    j = 0
-    while j < 4:
-        k = 0
-        while k < 4:
-            linearIndex = k + j * 4
-            dest[linearIndex] = matWorld[j][k]
-            k += 1
-        j += 1
+	matWorld = src.copy()
+	matWorld.transpose()
+	j = 0
+	while j < 4:
+		k = 0
+		while k < 4:
+			linearIndex = k + j * 4
+			dest[linearIndex] = matWorld[j][k]
+			k += 1
+		j += 1
 
 def setBlenderMatrix(blenderMatrix, stucMatrix):
-    j = 0
-    while j < 4:
-        k = 0
-        while k < 4:
-            linearIndex = k + j * 4
-            blenderMatrix[j][k] = stucMatrix[linearIndex]
-            k += 1
-        j += 1
-    blenderMatrix.transpose()
+	j = 0
+	while j < 4:
+		k = 0
+		while k < 4:
+			linearIndex = k + j * 4
+			blenderMatrix[j][k] = stucMatrix[linearIndex]
+			k += 1
+		j += 1
+	blenderMatrix.transpose()
 
 def appendAttrib(attribs, name, type, data):
-    attribEntry = attribs.pArr[attribs.count]
-    copyString(attribEntry.core.name, name, 96)
-    attribEntry.core.type = type
-    attribEntry.core.pData = data
-    attribs.count += 1
+	attribEntry = attribs.pArr[attribs.count]
+	copyString(attribEntry.core.name, name, 96)
+	attribEntry.core.type = type
+	attribEntry.core.pData = data
+	attribs.count += 1
 
 #returns a tuple containing the mesh, and the edges numpy array.
 #in order to prevent the reference tot he edge array from becoming invalid
 #after the function returns
 def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None):
-    mesh = StucMesh()
-    mesh.type.type = 1
+	mesh = StucMesh()
+	mesh.type.type = 1
 
-    mesh.faceCount = len(target.polygons)
-    mesh.loopCount = len(target.loops)
-    mesh.edgeCount = len(target.edges)
-    mesh.vertCount = len(target.vertices)
+	mesh.faceCount = len(target.polygons)
+	mesh.loopCount = len(target.loops)
+	mesh.edgeCount = len(target.edges)
+	mesh.vertCount = len(target.vertices)
 
-    facesPtr = target.polygons[0].as_pointer()
-    mesh.pFaces = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int32))
+	facesPtr = target.polygons[0].as_pointer()
+	mesh.pFaces = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int32))
 
-    loopsPtr = target.loops[0].as_pointer()
-    mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int32))
+	loopsPtr = target.loops[0].as_pointer()
+	mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int32))
 
-    edges = numpy.empty(mesh.loopCount, dtype = numpy.int32)
-    target.loops.foreach_get("edge_index", edges)
-    mesh.pEdges = edges.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
+	edges = numpy.empty(mesh.loopCount, dtype = numpy.int32)
+	target.loops.foreach_get("edge_index", edges)
+	mesh.pEdges = edges.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
 
-    attribCount = {"face" : 0, "loop" : 0, "edge" : 0, "vert" : 0}
-    getAttribCounts(attribCount, target, getNormals)
-    if (mats):
-        attribCount["face"] += 1 #for material indices
-    allocAttribs(mesh, attribCount)
-    initAttribs(mesh, target, metaOnly, getNormals)
+	attribCount = {"face" : 0, "loop" : 0, "edge" : 0, "vert" : 0}
+	getAttribCounts(attribCount, target, getNormals)
+	if (mats):
+		attribCount["face"] += 1 #for material indices
+	allocAttribs(mesh, attribCount)
+	initAttribs(mesh, target, metaOnly, getNormals)
 
-    matIndices = None
-    if mats:
-        matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int8)
-        target.polygons.foreach_get("material_index", matIndices)
-        appendAttrib(mesh.faceAttribs, "StucMaterialIndices", 0, matIndices.ctypes.data_as(ctypes.c_void_p))
-    if matTable:
-        matTable.count = len(target.materials)
-        MatSlots = ctypes.c_byte * matTable.count
-        matTable.pArr = MatSlots()
-        #list global indices of materials in current object,
-        #this will be used as a lookup table, as per face mat indices are obj local
-        i = 0
-        while i < matTable.count:
-            matTable.pArr[i] = list(mats.keys()).index(target.materials[i].name)
-            i += 1
+	matIndices = None
+	if mats:
+		matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int8)
+		target.polygons.foreach_get("material_index", matIndices)
+		appendAttrib(
+			mesh.faceAttribs,
+			"StucMaterialIndices",
+			0,
+			matIndices.ctypes.data_as(ctypes.c_void_p)
+		)
+	if matTable:
+		matTable.count = len(target.materials)
+		MatSlots = ctypes.c_byte * matTable.count
+		matTable.pArr = MatSlots()
+		#list global indices of materials in current object,
+		#this will be used as a lookup table, as per face mat indices are obj local
+		i = 0
+		while i < matTable.count:
+			matTable.pArr[i] = list(mats.keys()).index(target.materials[i].name)
+			i += 1
 
-    if not getNormals:
-        return (mesh, edges)
-    #afaik, normals are not accessable as an attribute.
-    #atleast not at the time of writing.
-    normals = numpy.empty(mesh.loopCount * 3, dtype = numpy.float32)
-    target.calc_normals_split()
-    target.loops.foreach_get("normal", normals)
-    appendAttrib(mesh.loopAttribs, "normal", 16, #16 is V3_F32
-                 normals.ctypes.data_as(ctypes.c_void_p))
-    Tangents = StucVec3 * mesh.loopCount
-    tangents = Tangents()
-    appendAttrib(mesh.loopAttribs, "StucTangent", 16, ctypes.cast(tangents, ctypes.c_void_p))
-    TSigns = ctypes.c_float * mesh.loopCount
-    tSigns = TSigns()
-    appendAttrib(mesh.loopAttribs, "StucTSign", 4, ctypes.cast(tSigns, ctypes.c_void_p)) #4 is F32
-    
+	if not getNormals:
+		return (mesh, edges)
+	#afaik, normals are not accessable as an attribute.
+	#atleast not at the time of writing.
+	normals = numpy.empty(mesh.loopCount * 3, dtype = numpy.float32)
+	target.calc_normals_split()
+	target.loops.foreach_get("normal", normals)
+	appendAttrib(
+		mesh.loopAttribs,
+		"normal",
+		16, #16 is V3_F32
+		normals.ctypes.data_as(ctypes.c_void_p)
+	)
+	Tangents = StucVec3 * mesh.loopCount
+	tangents = Tangents()
+	appendAttrib(
+		mesh.loopAttribs,
+		"StucTangent",
+		16,
+		ctypes.cast(tangents,
+		ctypes.c_void_p)
+	)
+	TSigns = ctypes.c_float * mesh.loopCount
+	tSigns = TSigns()
+	appendAttrib(
+		mesh.loopAttribs,
+		"StucTSign",
+		4, #4 is F32
+		ctypes.cast(tSigns, ctypes.c_void_p)
+	) 
+	
 	#TODO this is temp, setup a menu to allow user to set use per attrib
-    # have defaults though an attrib named 'Color' or 'Col' defaults to Color
-    i = 0
-    while i < mesh.loopAttribs.count:
-        name = mesh.loopAttribs.pArr[i].core.name
-        name = ctypes.cast(name, ctypes.c_char_p).value
-        name = name.decode("utf-8")
-        if name == "Color":
-            mesh.loopAttribs.pArr[i].core.use = 1
-        i += 1
+	# have defaults though an attrib named 'Color' or 'Col' defaults to Color
+	i = 0
+	while i < mesh.loopAttribs.count:
+		name = mesh.loopAttribs.pArr[i].core.name
+		name = ctypes.cast(name, ctypes.c_char_p).value
+		name = name.decode("utf-8")
+		if name == "Color":
+			mesh.loopAttribs.pArr[i].core.use = 1
+		i += 1
 	#to avoid garbage collection, edges, normals, & matIndices are returned as well
-    #is there a better way to do this? TODO maybe make edges, normals, & matIndices
-    #out params, so there's a reference in the calling function. Probably cleaner than this.
-    return (mesh, edges, normals, matIndices)
+	#is there a better way to do this? TODO maybe make edges, normals, & matIndices
+	#out params, so there's a reference in the calling function. Probably cleaner than this.
+	return (mesh, edges, normals, matIndices)
 
 def formatAsStucObj(obj, depsgraph, mats = None, matTable = None):
-    stucObj = StucObject()
-    objEval = obj.evaluated_get(depsgraph)
-    meshEval = objEval.data
-    meshTuple = formatAsStucMesh(meshEval, False, True, mats, matTable)
-    stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(StucObjectData))
-    setStucMatrix(stucObj.transform, obj.matrix_world)
-    #the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
-    return (stucObj, meshTuple)
+	stucObj = StucObject()
+	objEval = obj.evaluated_get(depsgraph)
+	meshEval = objEval.data
+	meshTuple = formatAsStucMesh(meshEval, False, True, mats, matTable)
+	stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(StucObjectData))
+	setStucMatrix(stucObj.transform, obj.matrix_world)
+	#the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
+	return (stucObj, meshTuple)
 
 def setTargetCommonAttribs(targetAttribs, count, attribs):
-    i = 0
-    while i < count:
-        #TODO make this name conversion a generic function
-        name = attribs[i].name
-        name = ctypes.cast(name, ctypes.c_char_p).value
-        name = name.decode("utf-8")
-        entry = targetAttribs.get(name, None)
-        if not entry:
-            entry = targetAttribs.add()
-            entry.name = name
-            entry.blend = str(attribs[i].blendConfig.blend)
-            entry.opacity = attribs[i].blendConfig.opacity
-            entry.order = str(int(attribs[i].blendConfig.order))
-        attribs[i].blendConfig.blend = int(entry.blend)
-        attribs[i].blendConfig.opacity = entry.opacity
-        attribs[i].blendConfig.order = int(entry.order)
-        i += 1
-        
+	i = 0
+	while i < count:
+		#TODO make this name conversion a generic function
+		name = attribs[i].name
+		name = ctypes.cast(name, ctypes.c_char_p).value
+		name = name.decode("utf-8")
+		entry = targetAttribs.get(name, None)
+		if not entry:
+			entry = targetAttribs.add()
+			entry.name = name
+			entry.blend = str(attribs[i].blendConfig.blend)
+			entry.opacity = attribs[i].blendConfig.opacity
+			entry.order = str(int(attribs[i].blendConfig.order))
+		attribs[i].blendConfig.blend = int(entry.blend)
+		attribs[i].blendConfig.opacity = entry.opacity
+		attribs[i].blendConfig.order = int(entry.order)
+		i += 1
+		
 def findMatInCol(mat, col):
-    i = 0
-    for item in col:
-        if item.mat.name == mat.name:
-            return i
-        i += 1
-    return None
+	i = 0
+	for item in col:
+		if item.mat.name == mat.name:
+			return i
+		i += 1
+	return None
 
 def findObjInCol(obj, col):
-    i = 0
-    for item in col:
-        if item.obj.name == obj.name:
-            return i
-        i += 1
-    return None
+	i = 0
+	for item in col:
+		if item.obj.name == obj.name:
+			return i
+		i += 1
+	return None
 
 def getMatsInStucMats(context, mesh):
 	targetMats = []
@@ -402,19 +422,19 @@ def getMatsInStucMats(context, mesh):
 #remove this and replace references with getAttrib once commonAttrib arrs
 #have count included in the struct
 def getCommonAttrib(arr, count, name):
-    nameUtf8 = name.encode('utf-8')
-    i = 0
-    while i < count:
-        if ctypes.cast(arr[i].core.name, ctypes.c_char_p).value == nameUtf8:
-            return arr[i]
-        i += 1
-    return None
+	nameUtf8 = name.encode('utf-8')
+	i = 0
+	while i < count:
+		if ctypes.cast(arr[i].core.name, ctypes.c_char_p).value == nameUtf8:
+			return arr[i]
+		i += 1
+	return None
 
 def getAttrib(arr, name):
-    nameUtf8 = name.encode('utf-8')
-    i = 0
-    while i < arr.count:
-        if ctypes.cast(arr.pArr[i].core.name, ctypes.c_char_p).value == nameUtf8:
-            return arr.pArr[i]
-        i += 1
-    return None
+	nameUtf8 = name.encode('utf-8')
+	i = 0
+	while i < arr.count:
+		if ctypes.cast(arr.pArr[i].core.name, ctypes.c_char_p).value == nameUtf8:
+			return arr.pArr[i]
+		i += 1
+	return None

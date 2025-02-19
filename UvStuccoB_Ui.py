@@ -2,137 +2,157 @@ import bpy
 from . import Utils as utils
 
 def StucExport(self, context):
-    self.layout.operator("stuc.export_stuc_file")
+	self.layout.operator("stuc.export_stuc_file")
 
 def StucLoadForEdit(self, context):
-    self.layout.operator("stuc.load_stuc_file_for_edit")
+	self.layout.operator("stuc.load_stuc_file_for_edit")
 
 class StucParentPanel(bpy.types.Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = "UI"
-    bl_category = "UV Stucco"
+	bl_space_type = 'VIEW_3D'
+	bl_region_type = "UI"
+	bl_category = "UV Stucco"
 
 class STUC_UL_StucTargets(bpy.types.UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            row0 = layout.row(align = True)
-            row0.prop(item, "obj", text = "", emboss = False, icon = 'MESH_CUBE')
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+		if self.layout_type in {'DEFAULT', 'COMPACT'}:
+			row0 = layout.row(align = True)
+			row0.prop(item, "obj", text = "", emboss = False, icon = 'MESH_CUBE')
 
 class STUC_UL_StucCommonAttribs(bpy.types.UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            row0 = layout.row(align = True)
-            row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_CUBE')
-            
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+		if self.layout_type in {'DEFAULT', 'COMPACT'}:
+			row0 = layout.row(align = True)
+			row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_CUBE')
+			
 class STUC_UL_StucMats(bpy.types.UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            row0 = layout.row(align = True)
-            row0.prop_search(item, "mat", bpy.data, "materials", text = "")
-            row0.prop_search(item, "map", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
-            remove_props = row0.operator("stuc.stuc_mat_remove", text = "", icon = "REMOVE")
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+		if self.layout_type in {'DEFAULT', 'COMPACT'}:
+			row0 = layout.row(align = True)
+			row0.prop_search(item, "mat", bpy.data, "materials", text = "")
+			row0.prop_search(item, "map", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
+			remove_props = row0.operator("stuc.stuc_mat_remove", text = "", icon = "REMOVE")
 
 class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
-    bl_idname = "STUC_PT_Stuc"
-    bl_label = "STUC"
+	bl_idname = "STUC_PT_Stuc"
+	bl_label = "STUC"
 
-    def draw(self, context):
-        stuc = context.scene.stuc
-        layout = self.layout
-        col0 = layout.column()
-        
-        col0.operator("stuc.load_stuc_file", text = "Open Map", icon = "MESH_PLANE")
-        col0.operator("stuc.reload_stuc_file", text = "Reload Map", icon = 'FILE_REFRESH')
-        col0.operator("stuc.stuc_preview_image", text = "Preview Map")
+	def draw(self, context):
+		stuc = context.scene.stuc
+		layout = self.layout
+		col0 = layout.column()
+		
+		col0.operator("stuc.load_stuc_file", text = "Open Map", icon = "MESH_PLANE")
+		col0.operator("stuc.reload_stuc_file", text = "Reload Map", icon = 'FILE_REFRESH')
+		col0.operator("stuc.stuc_preview_image", text = "Preview Map")
 
-        col0.label(text = "")
-        col0.label(text = "Materials")
-        row0 = col0.row()
-        row0.template_list("STUC_UL_StucMats", "", context.scene,
-                           "stucMats", context.scene, "stucMatsIndex")
-        col1 = row0.column(align = True)
-        col1.scale_x = .35
-        col1.operator("stuc.stuc_mat_assign", text = " ", icon = "ADD")
-        
-        col0.label(text = "")
-        col0.label(text = "Objects")
-        row1 = col0.row()
-        row1.template_list("STUC_UL_StucTargets", "", context.scene, "stucTargets",
-                           context.scene, "stucTargetsIndex")
-        col2 = row1.column(align = True)
-        col2.scale_x = .35
-        col2.operator("stuc.stuc_assign", text = " ", icon = "ADD")
-        col2.operator("stuc.stuc_remove", text = " ", icon = "REMOVE")
-        
-        if (len(context.scene.stucTargets)):
-            target = context.scene.stucTargets[context.scene.stucTargetsIndex]
-            matSlotIdx = target.obj.active_material_index
-            mat = target.obj.material_slots[matSlotIdx]
-            idx = utils.findMatInCol(mat, target.commonAttribTable)
-            if idx != None:
-                commonAttribs = target.commonAttribTable[idx]
-                col0.label(text = "")
-                col0.label(text = "Common Attribs")
-                col0.prop(stuc, "commonAttribDomain", text = "")
-                match (stuc.commonAttribDomain):
-                    case "FACE":
-                        domain = "faces"
-                        commonAttrib = commonAttribs.faces
-                    case "CORNER":
-                        domain = "corners" 
-                        commonAttrib = commonAttribs.corners
-                    case "EDGE":
-                        domain = "edges"
-                        commonAttrib = commonAttribs.edges
-                    case "POINT":
-                        domain = "verts"
-                        commonAttrib = commonAttribs.verts
-                col0.template_list("STUC_UL_StucCommonAttribs", "", commonAttribs, domain,
-                                   stuc, "commonAttribIndex")
-                if len(commonAttrib):
-                    match (stuc.commonAttribDomain):
-                        case "FACE":
-                            commonAttribEntry =\
-                                commonAttribs.faces[stuc.commonAttribIndex]
-                        case "CORNER":
-                            commonAttribEntry =\
-                                commonAttribs.corners[stuc.commonAttribIndex]
-                        case "EDGE":
-                            commonAttribEntry =\
-                                commonAttribs.edges[stuc.commonAttribIndex]
-                        case "POINT":
-                            commonAttribEntry =\
-                                commonAttribs.verts[stuc.commonAttribIndex]
-                    col0.prop(commonAttribEntry, "opacity")
-                    col0.prop(commonAttribEntry, "blend")
-                    col0.prop(commonAttribEntry, "order")
-        col0.label(text = "")
-        col0.label(text = "Export Options")
-        col0.operator("stuc.set_as_usg", icon = "NORMALS_FACE")
-        col0.operator("stuc.unset_usg", icon = "X")
-        col0.label(text = "Flatten Cut-Off")
-        if context.view_layer.objects.active and\
-        	context.view_layer.objects.active.get("StucUsg", None):
-            col0.prop_search(context.view_layer.objects.active, "stucUsgFlatCutoff", context.view_layer, "objects", text = "")
-        col0.operator("stuc.set_flat_cutoff", text = "Set Sel To Active")
-        col0.label(text = "")
-        col0.prop(context.scene.stuc, "wScale", text = "Default W Scale")
+		col0.label(text = "")
+		col0.label(text = "Materials")
+		row0 = col0.row()
+		row0.template_list("STUC_UL_StucMats", "", context.scene,
+						   "stucMats", context.scene, "stucMatsIndex")
+		col1 = row0.column(align = True)
+		col1.scale_x = .35
+		col1.operator("stuc.stuc_mat_assign", text = " ", icon = "ADD")
+		
+		col0.label(text = "")
+		col0.label(text = "Objects")
+		row1 = col0.row()
+		row1.template_list(
+			"STUC_UL_StucTargets",
+			"",
+			context.scene,
+			"stucTargets",
+			context.scene,
+			"stucTargetsIndex"
+		)
+		col2 = row1.column(align = True)
+		col2.scale_x = .35
+		col2.operator("stuc.stuc_assign", text = " ", icon = "ADD")
+		col2.operator("stuc.stuc_remove", text = " ", icon = "REMOVE")
+		
+		if (len(context.scene.stucTargets)):
+			target = context.scene.stucTargets[context.scene.stucTargetsIndex]
+			matSlotIdx = target.obj.active_material_index
+			mat = target.obj.material_slots[matSlotIdx]
+			idx = utils.findMatInCol(mat, target.commonAttribTable)
+			if idx != None:
+				commonAttribs = target.commonAttribTable[idx]
+				col0.label(text = "")
+				col0.label(text = "Common Attribs")
+				col0.prop(stuc, "commonAttribDomain", text = "")
+				match (stuc.commonAttribDomain):
+					case "FACE":
+						domain = "faces"
+						commonAttrib = commonAttribs.faces
+					case "CORNER":
+						domain = "corners" 
+						commonAttrib = commonAttribs.corners
+					case "EDGE":
+						domain = "edges"
+						commonAttrib = commonAttribs.edges
+					case "POINT":
+						domain = "verts"
+						commonAttrib = commonAttribs.verts
+				col0.template_list(
+					"STUC_UL_StucCommonAttribs",
+					"",
+					commonAttribs,
+					domain,
+					stuc,
+					"commonAttribIndex"
+				)
+				if len(commonAttrib):
+					match (stuc.commonAttribDomain):
+						case "FACE":
+							commonAttribEntry =\
+								commonAttribs.faces[stuc.commonAttribIndex]
+						case "CORNER":
+							commonAttribEntry =\
+								commonAttribs.corners[stuc.commonAttribIndex]
+						case "EDGE":
+							commonAttribEntry =\
+								commonAttribs.edges[stuc.commonAttribIndex]
+						case "POINT":
+							commonAttribEntry =\
+								commonAttribs.verts[stuc.commonAttribIndex]
+					col0.prop(commonAttribEntry, "opacity")
+					col0.prop(commonAttribEntry, "blend")
+					col0.prop(commonAttribEntry, "order")
+		col0.label(text = "")
+		col0.label(text = "Export Options")
+		col0.operator("stuc.set_as_usg", icon = "NORMALS_FACE")
+		col0.operator("stuc.unset_usg", icon = "X")
+		col0.label(text = "Flatten Cut-Off")
+		if context.view_layer.objects.active and\
+			context.view_layer.objects.active.get("StucUsg", None):
+			col0.prop_search(
+				context.view_layer.objects.active,
+				"stucUsgFlatCutoff",
+				context.view_layer,
+				"objects",
+				text = ""
+			)
+		col0.operator("stuc.set_flat_cutoff", text = "Set Sel To Active")
+		col0.label(text = "")
+		col0.prop(context.scene.stuc, "wScale", text = "Default W Scale")
 
-classes = [STUC_PT_Stuc,
-           STUC_UL_StucTargets,
-           STUC_UL_StucCommonAttribs,
-           STUC_UL_StucMats]
+classes = [
+	STUC_PT_Stuc,
+	STUC_UL_StucTargets,
+	STUC_UL_StucCommonAttribs,
+	STUC_UL_StucMats
+]
 
 def register():
-    print("Registering STUC_UI")
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    bpy.types.TOPBAR_MT_file_export.append(StucExport)
-    bpy.types.TOPBAR_MT_file_import.append(StucLoadForEdit)
+	print("Registering STUC_UI")
+	for cls in classes:
+		bpy.utils.register_class(cls)
+	bpy.types.TOPBAR_MT_file_export.append(StucExport)
+	bpy.types.TOPBAR_MT_file_import.append(StucLoadForEdit)
 
 def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
-    bpy.types.TOPBAR_MT_file_export.remove(StucExport)
-    bpy.types.TOPBAR_MT_file_import.remove(StucLoadForEdit)
+	for cls in classes:
+		bpy.utils.unregister_class(cls)
+	bpy.types.TOPBAR_MT_file_export.remove(StucExport)
+	bpy.types.TOPBAR_MT_file_import.remove(StucLoadForEdit)
 

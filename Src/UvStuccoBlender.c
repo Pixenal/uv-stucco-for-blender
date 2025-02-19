@@ -224,8 +224,6 @@ int32_t stucBlenderMapToMesh(
 	StucCommonAttribList *pCommonAttribs,
 	float wScale
 ) {
-	printf("face attrib 0 name is %s\n", pMesh->faceAttribs.pArr[0].core.name);
-	printf("face attrib 1 name is %s\n", pMesh->faceAttribs.pArr[1].core.name);
 	StucMapArr *pMapArr = calloc(1, sizeof(StucMapArr));
 	int32_t err = makeMapArr(pMapArrPy, pMapArr);
 	if (err) {
@@ -278,7 +276,6 @@ void copyAttribs(StucAttribArray *pA, StucAttribArray *pB, int32_t dataLen) {
 		}
 		int32_t attribSize;
 		stucGetAttribSize(pA->pArr + i, &attribSize);
-		printf("attrib Size == %d\n", attribSize);
 		memcpy(pBEntry->core.pData, pA->pArr[i].core.pData, attribSize * dataLen);
 	}
 }

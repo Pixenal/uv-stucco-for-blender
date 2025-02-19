@@ -54,18 +54,19 @@ class StucBlenderMapArr(ctypes.Structure):
 #referncing blender geometry of course
 class StucMesh(ctypes.Structure):
     _fields_ = [("type", StucObjectData),
-                ("meshAttribs", StucAttribArray),
-                ("faceCount", ctypes.c_int32),
                 ("pFaces", ctypes.POINTER(ctypes.c_int32)),
-                ("faceAttribs", StucAttribArray),
-                ("loopCount", ctypes.c_int32),
                 ("pLoops", ctypes.POINTER(ctypes.c_int32)),
-                ("loopAttribs", StucAttribArray),
-                ("edgeCount", ctypes.c_int32),
                 ("pEdges", ctypes.POINTER(ctypes.c_int32)),
+                ("meshAttribs", StucAttribArray),
+                ("faceAttribs", StucAttribArray),
+                ("loopAttribs", StucAttribArray),
                 ("edgeAttribs", StucAttribArray),
-                ("vertCount", ctypes.c_int32),
-                ("vertAttribs", StucAttribArray)]
+                ("vertAttribs", StucAttribArray),
+                ("faceCount", ctypes.c_int32),
+                ("loopCount", ctypes.c_int32),
+                ("edgeCount", ctypes.c_int32),
+                ("vertCount", ctypes.c_int32)]
+                
     
 class StucObject(ctypes.Structure):
     _fields_ = [("pData", ctypes.POINTER(StucObjectData)),
@@ -82,16 +83,16 @@ class StucCommonAttrib(ctypes.Structure):
                 ("blendConfig", StucBlendConfig)]
 
 class StucCommonAttribList(ctypes.Structure):
-    _fields_ = [("meshCount", ctypes.c_int32),
-                ("pMesh", ctypes.POINTER(StucCommonAttrib)),
-                ("faceCount", ctypes.c_int32),
+    _fields_ = [("pMesh", ctypes.POINTER(StucCommonAttrib)),
                 ("pFace", ctypes.POINTER(StucCommonAttrib)),
-                ("cornerCount", ctypes.c_int32),
                 ("pCorner", ctypes.POINTER(StucCommonAttrib)),
-                ("edgeCount", ctypes.c_int32),
                 ("pEdge", ctypes.POINTER(StucCommonAttrib)),
-                ("vertCount", ctypes.c_int32),
-                ("pVert", ctypes.POINTER(StucCommonAttrib))]
+                ("pVert", ctypes.POINTER(StucCommonAttrib)),
+                ("meshCount", ctypes.c_int32),
+                ("faceCount", ctypes.c_int32),
+                ("cornerCount", ctypes.c_int32),
+                ("edgeCount", ctypes.c_int32),
+                ("vertCount", ctypes.c_int32)]
     
 class StucUsg(ctypes.Structure):
     _fields_ = [("obj", StucObject),

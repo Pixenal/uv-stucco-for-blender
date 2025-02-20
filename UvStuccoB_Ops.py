@@ -11,9 +11,6 @@ from . import Utils as utils
 import os
 import pdb
 
-#TODO these funcs are in here to use clib? Is there a way to access clib it in Utils.py?
-
-
 #TODO calc_normals_split has been removed in 4.1, so you'll need to handle that
 #TODO It seems that normals can be accessed as contiguous arrays now,
 #using the polygon_normals, or vertex_normals, properties, in a mesh.
@@ -205,6 +202,7 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 			newTarget = context.scene.stucTargets.add()
 			newTarget.obj = obj.id_data
 			obj["stucWScale"] = context.scene.stuc.wScale
+			obj["stucReceiveLen"] = -1.0
 		return {'FINISHED'}
 	
 class STUC_OT_StucMatAssign(bpy.types.Operator):
@@ -347,7 +345,7 @@ class STUC_OT_StucPreviewImage(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context):
-		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
+		#currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
 		return False
 
 	def execute(self, context):
@@ -437,10 +435,14 @@ def stucDepsgraphUpdatePostHandler(dummy):
 		if not commonAttribs or obj.hide_viewport or obj.hide_get():
 			continue
 		wScale = obj.get("stucWScale", None)
-		if not wScale:
+		if wScale == None:
 			print("Target obj has no w scale. Setting to default")
 			wScale = scene.stuc.wScale
 			obj["stucWScale"] = wScale
+
+		receiveLen = obj.get("stucReceiveLen", None)
+		if receiveLen == None:
+			receiveLen = -1.0
 		
 		objEval = obj.evaluated_get(depsgraph)
 		meshEval = objEval.data
@@ -482,6 +484,7 @@ def stucDepsgraphUpdatePostHandler(dummy):
 			ctypes.POINTER(utils.StucMesh), ctypes.POINTER(utils.StucAttribIndexedArr),
 			ctypes.POINTER(utils.StucMesh), ctypes.POINTER(utils.StucAttribIndexedArr),
 			ctypes.POINTER(utils.StucCommonAttribList),
+			ctypes.c_float,
 			ctypes.c_float
 		)
 		i = 0
@@ -506,7 +509,8 @@ def stucDepsgraphUpdatePostHandler(dummy):
 			ctypes.pointer(workMesh),
 			ctypes.pointer(outIndexedAttribs),
 			commonAttribs,
-			wScale
+			wScale,
+			receiveLen
 		)
 		if result != 0:
 			print("Stuc python map to mesh failed, error pushing job to queue")
@@ -525,19 +529,6 @@ def stucDepsgraphUpdatePostHandler(dummy):
 	cacheCount = len(targetCache)
 	if not cacheCount:
 		return
-	'''
-	cacheCount = len(targetCache)
-	jobHandleArr = (ctypes.c_void_p * cacheCount)()
-	i = 0
-	for item in targetCache:
-		jobHandleArr[i] = item.jobHandle
-		i += 1
-	result = stucLib.stucBlenderWaitForJobs(cacheCount, jobHandleArr)
-	if result != 0:
-		print("Stuc python map to mesh failed, map to mesh returned error")
-		return
-	print("all mapping jobs returned success")
-	'''
 	print("-----------------------------------------------waiting for finished jobs")
 	doneCount = 0
 	while doneCount < cacheCount:
@@ -560,7 +551,7 @@ def stucDepsgraphUpdatePostHandler(dummy):
 			if result != 0:
 				print(f"Stuc python, map to mesh failed on obj {item.obj.name}, skipping")
 			print(f"---------------------------------------------------------------Stuc python, map to mesh returned success on obj {item.obj.name}")
-
+			
 			nameStuc = item.obj.name + ".Stuc"
 			objStuc = bpy.data.objects.get(nameStuc, None)
 			if not(objStuc):

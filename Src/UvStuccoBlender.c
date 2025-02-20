@@ -222,7 +222,8 @@ int32_t stucBlenderMapToMesh(
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	StucCommonAttribList *pCommonAttribs,
-	float wScale
+	float wScale,
+	float receiveLen
 ) {
 	StucMapArr *pMapArr = calloc(1, sizeof(StucMapArr));
 	int32_t err = makeMapArr(pMapArrPy, pMapArr);
@@ -241,7 +242,8 @@ int32_t stucBlenderMapToMesh(
 		pOutMesh,
 		pOutIndexedAttribs,
 		pCommonAttribs,
-		wScale
+		wScale,
+		receiveLen
 	);
 	return result != STUC_SUCCESS;
 }

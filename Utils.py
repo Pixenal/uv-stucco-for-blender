@@ -348,32 +348,17 @@ def formatAsStucMesh(target, metaOnly, getNormals, mats = None, matTable = None)
 		return (mesh, edges)
 	#afaik, normals are not accessable as an attribute.
 	#atleast not at the time of writing.
-	normals = numpy.empty(mesh.loopCount * 3, dtype = numpy.float32)
-	target.calc_normals_split()
-	target.loops.foreach_get("normal", normals)
+	if bpy.app.version < (4, 1, 0) and not len(target.corner_normals):
+		target.calc_normals_split()
+	normalsPtr = target.corner_normals[0].as_pointer()
+	normals = ctypes.cast(normalsPtr, ctypes.c_void_p)
+		
 	appendAttrib(
 		mesh.loopAttribs,
 		"normal",
 		16, #16 is V3_F32
-		normals.ctypes.data_as(ctypes.c_void_p)
+		normals
 	)
-	Tangents = StucVec3 * mesh.loopCount
-	tangents = Tangents()
-	appendAttrib(
-		mesh.loopAttribs,
-		"StucTangent",
-		16,
-		ctypes.cast(tangents,
-		ctypes.c_void_p)
-	)
-	TSigns = ctypes.c_float * mesh.loopCount
-	tSigns = TSigns()
-	appendAttrib(
-		mesh.loopAttribs,
-		"StucTSign",
-		4, #4 is F32
-		ctypes.cast(tSigns, ctypes.c_void_p)
-	) 
 	
 	#TODO this is temp, setup a menu to allow user to set use per attrib
 	# have defaults though an attrib named 'Color' or 'Col' defaults to Color
@@ -575,16 +560,15 @@ def copyStucMeshToBlenderMesh(stucLib, mesh, workMesh, outIndexedAttribs, common
 		ctypes.pointer(meshStucFormat[0]),
 		ctypes.pointer(workMesh)
 	)
-	normalsArraySize = workMesh.loopCount * 3
 	normalAttrib = getNormalAttrib(workMesh)
 	normalsNumpy = numpy.ctypeslib.as_array(
 		ctypes.cast(normalAttrib.contents.core.pData,
 		ctypes.POINTER(ctypes.c_float)),
-		shape = [normalsArraySize]
+		shape = [workMesh.loopCount, 3]
 	)
-	#this is necessary to set custom normals it seems
-	mesh.normals_split_custom_set(tuple(zip(*(iter(normalsNumpy),) * 3)))
-	mesh.use_auto_smooth = True
+	mesh.normals_split_custom_set(normalsNumpy)
+	if (bpy.app.version < (4, 1, 0)):
+		mesh.use_auto_smooth = True
 
 def blendObjFromStuc(stucObj, col, name, displayType, isUsg, mats):
 	mesh = bpy.data.meshes.new(f"{name}Mesh")

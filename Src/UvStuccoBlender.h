@@ -67,7 +67,8 @@ int32_t stucBlenderMapToMesh(
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	StucCommonAttribList *pCommonAttribs,
-	float wScale
+	float wScale,
+	float receiveLen
 );
 STUC_BLENDER_EXPORT
 void stucBlenderQueryCommonAttribs(

@@ -1,0 +1,3 @@
+[submodule "extern/uv-stucco"]
+	path = extern/uv-stucco
+	url = https://github.com/Pixenal/uv-stucco

@@ -14,7 +14,7 @@ typedef struct HandleEntry {
 } HandleEntry;
 static HandleEntry handleTable[HANDLE_TABLE_SIZE];
 
-StucContext pStucContext;
+static StucContext pStucCtx;
 
 static
 uint32_t fnvHash(unsigned char *value, int32_t valueSize, uint32_t size) {
@@ -28,7 +28,7 @@ uint32_t fnvHash(unsigned char *value, int32_t valueSize, uint32_t size) {
 }
 
 static
-int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry, char *pName) {
+int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry, const char *pName) {
 	int32_t pathLength = (int32_t)strlen(pName);
 	int32_t hash = fnvHash((unsigned char *)pName, pathLength, HANDLE_TABLE_SIZE);
 	*pEntry = handleTable + hash;
@@ -54,8 +54,54 @@ int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry, char *pName) {
 	return 3;
 }
 
+static
+void mapFileDestroy(const char *pName) {
+	HandleEntry *pEntry, *pPrevEntry;
+	getHandle(&pEntry, &pPrevEntry, pName);
+	stucMapFileUnload(pStucCtx, pEntry->handle);
+	if (pEntry->pName) {
+		free(pEntry->pName);
+		pEntry->pName = NULL;
+	}
+	if (!pPrevEntry) {
+		if (pEntry->pNext) {
+			HandleEntry *pNext = pEntry->pNext;
+			*pEntry = *pNext;
+			free(pNext);
+		}
+		else {
+			HandleEntry empty = {0};
+			*pEntry = empty;
+		}
+	}
+	else {
+		pPrevEntry->pNext = pEntry->pNext;
+		free(pEntry);
+	}
+}
+
+static
+StucResult handleTableDestroy() {
+	for (int32_t i = 0; i < HANDLE_TABLE_SIZE; ++i) {
+		HandleEntry *pEntry = handleTable + i;
+		if (pEntry->handle) {
+			stucMapFileUnload(pStucCtx, pEntry->handle);
+		}
+		pEntry = pEntry->pNext;
+		while (pEntry) {
+			if (pEntry->handle) {
+				stucMapFileUnload(pStucCtx, pEntry->handle);
+			}
+			HandleEntry *pNext = pEntry->pNext;
+			free(pEntry);
+			pEntry = pNext;
+		};
+	}
+	return STUC_SUCCESS;
+}
+
 void stucBlenderInit() {
-	stucContextInit(&pStucContext, NULL, NULL, NULL, NULL, NULL);
+	stucContextInit(&pStucCtx, NULL, NULL, NULL, NULL, NULL);
 }
 
 static
@@ -79,7 +125,7 @@ void correctMatIndices(
 }
 
 StucResult stucBlenderMapFileExport(
-	char *pFilepath,
+	const char *pFilepath,
 	int32_t objCount,
 	StucObject *pObjArr,
 	int32_t usgCount,
@@ -95,7 +141,7 @@ StucResult stucBlenderMapFileExport(
 		correctMatIndices(objCount, pObjArr, pMatTable);
 	}
 	return stucMapFileExport(
-		pStucContext,
+		pStucCtx,
 		pFilepath,
 		objCount,
 		pObjArr,
@@ -105,7 +151,7 @@ StucResult stucBlenderMapFileExport(
 	);
 }
 StucResult stucBlenderMapFileLoadForEdit(
-	char *pName,
+	const char *pName,
 	int32_t *pObjCount,
 	StucObject **ppObjArr,
 	int32_t *pUsgCount,
@@ -115,7 +161,7 @@ StucResult stucBlenderMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 ) {
 	return stucMapFileLoadForEdit(
-		pStucContext,
+		pStucCtx,
 		pName,
 		pObjCount,
 		ppObjArr,
@@ -127,66 +173,64 @@ StucResult stucBlenderMapFileLoadForEdit(
 	);
 }
 
-StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName) {
-	StucResult err = STUC_SUCCESS;
+StucResult stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
 	HandleEntry *pEntry = NULL;
 	HandleEntry *pPrevEntry = NULL;
 	int32_t result = getHandle(&pEntry, &pPrevEntry, pName);
 	switch (result) {
 		case 1: {
-			pEntry = pEntry->pNext = calloc(1, sizeof(HandleEntry));
+			pEntry = pEntry->pNext = (HandleEntry *)calloc(1, sizeof(HandleEntry));
 			break;
 		}
 		case 2: {
 			printf("Handle table entry has valid filepath, but invalid handle\n");
-			err = STUC_ERROR;
-			break;
+			return STUC_ERROR;
 		}
 		case 3: {
 			printf("No match in handle table\n");
-			err = STUC_ERROR;
-			break;
+			return STUC_ERROR;
 		}
 	}
-	if (pEntry) {
-		int32_t nameLength = (int32_t)strlen(pName) + 1;
-		pEntry->pName = malloc(nameLength);
-		memcpy(pEntry->pName, pName, nameLength);
-		return stucMapFileLoad(pStucContext, &pEntry->handle, pFilepath);
+	if (!pEntry) {
+		return STUC_ERROR;
 	}
-	else {
-		err = STUC_ERROR;
+	StucResult err = stucMapFileLoad(pStucCtx, &pEntry->handle, pFilepath);
+	if (err != STUC_SUCCESS) {
+		return err;
 	}
-	return err;
+	int32_t nameLength = (int32_t)strlen(pName) + 1;
+	pEntry->pName = (char *)calloc(nameLength, 1);
+	memcpy(pEntry->pName, pName, nameLength);
+	return STUC_SUCCESS;
 }
 
-StucResult stucBlenderMapFileUnload(char *pName) {
-	HandleEntry *pEntry, *pPrevEntry;
-	getHandle(&pEntry, &pPrevEntry, pName);
-	stucMapFileUnload(pStucContext, pEntry->handle);
-	if (!pPrevEntry) {
-		free(pEntry->pName);
-		if (pEntry->pNext) {
-			HandleEntry *pNext = pEntry->pNext;
-			*pEntry = *pNext;
-			free(pNext);
-		}
-		else {
-			HandleEntry empty = {0};
-			*pEntry = empty;
-		}
+StucResult stucBlenderMapFileUnload(const char *pName) {
+	HandleEntry *pEntry = NULL;
+	HandleEntry *pPrevEntry = NULL;
+	int32_t result = getHandle(&pEntry, &pPrevEntry, pName);
+	switch (result) {
+	case 1: {
+		pEntry = pEntry->pNext = (HandleEntry *)calloc(1, sizeof(HandleEntry));
+		break;
 	}
-	else {
-		pPrevEntry->pNext = pEntry->pNext;
-		free(pEntry->pName);
-		free(pEntry);
+	case 2: {
+		printf("Handle table entry has valid filepath, but invalid handle\n");
+		return STUC_ERROR;
 	}
-	return STUC_SUCCESS;
+	case 3: {
+		printf("No match in handle table\n");
+		return STUC_ERROR;
+	}
+	}
+	if (!pEntry) {
+		return STUC_ERROR;
+	}
+	return stucMapFileUnload(pStucCtx, pEntry->handle);
 }
 
 void stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
-	char *pMap,
+	const char *pMap,
 	StucCommonAttribList *pCommonAttribs
 ) {
 	HandleEntry *pEntry, *pPrevEntry;
@@ -194,11 +238,14 @@ void stucBlenderQueryCommonAttribs(
 		printf("Stuc query common attribs failed, specified map not loaded\n");
 		return;
 	}
-	stucQueryCommonAttribs(pStucContext, pEntry->handle, pMesh, pCommonAttribs);
+	stucQueryCommonAttribs(pStucCtx, pEntry->handle, pMesh, pCommonAttribs);
 }
 
 static
 int32_t makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
+	if (!pBlendMapArr->count) {
+		return 1;
+	}
 	pMapArr->size = pBlendMapArr->count;
 	pMapArr->count = pBlendMapArr->count;
 	pMapArr->pMatArr = pBlendMapArr->pMatIdxArr;
@@ -211,6 +258,7 @@ int32_t makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
 		}
 		pMapArr->ppArr[i] = pEntry->handle;
 	}
+	pMapArr->pCommonAttribArr = pBlendMapArr->pCommonAttribArr;
 	return 0;
 }
 
@@ -221,7 +269,6 @@ int32_t stucBlenderMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucCommonAttribList *pCommonAttribs,
 	float wScale,
 	float receiveLen
 ) {
@@ -234,14 +281,13 @@ int32_t stucBlenderMapToMesh(
 	// improves perf. Probably not a good idea for high res meshes or maps, given the memory use.
 	// maybe selectivly do it based on the mesh and map res?
 	StucResult result = stucQueueMapToMesh(
-		pStucContext,
+		pStucCtx,
 		ppJobHandle,
 		pMapArr,
 		pMesh,
 		pInIndexedAttribs,
 		pOutMesh,
 		pOutIndexedAttribs,
-		pCommonAttribs,
 		wScale,
 		receiveLen
 	);
@@ -249,7 +295,7 @@ int32_t stucBlenderMapToMesh(
 }
 
 void stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs) {
-	stucDestroyCommonAttribs(pStucContext, pCommonAttribs);
+	stucDestroyCommonAttribs(pStucCtx, pCommonAttribs);
 }
 
 void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
@@ -277,7 +323,7 @@ void copyAttribs(StucAttribArray *pA, StucAttribArray *pB, int32_t dataLen) {
 			abort();
 		}
 		int32_t attribSize;
-		stucGetAttribSize(pA->pArr + i, &attribSize);
+		stucGetAttribSize(&pA->pArr[i].core, &attribSize);
 		memcpy(pBEntry->core.pData, pA->pArr[i].core.pData, attribSize * dataLen);
 	}
 }
@@ -296,25 +342,25 @@ void stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh) {
 }
 
 StucResult stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr) {
-	return stucObjArrDestroy(pStucContext, objCount, pObjArr);
+	return stucObjArrDestroy(pStucCtx, objCount, pObjArr);
 }
 
 StucResult stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr) {
-	return stucUsgArrDestroy(pStucContext, count, pUsgArr);
+	return stucUsgArrDestroy(pStucCtx, count, pUsgArr);
 }
 
 void stucBlenderMeshDestroy(StucMesh *pMesh) {
-	stucMeshDestroy(pStucContext, pMesh);
+	stucMeshDestroy(pStucCtx, pMesh);
 }
 
-int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res, float *pImage) {
+int32_t stucBlenderMapFileGenPreviewImage(const char *pName, int32_t res, float *pImage) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pName) != 4) {
 		printf("Stuc blender map to mesh failed, specified map not loaded\n");
 		return 1;
 	}
 	StucImage image = {.res = res, .type = STUC_IMAGE_F32};
-	stucMapFileGenPreviewImage(pStucContext, pEntry->handle, &image);
+	stucMapFileGenPreviewImage(pStucCtx, pEntry->handle, &image);
 	memcpy(pImage, image.pData, res * res * 4 * sizeof(float));
 	return 0;
 }
@@ -327,7 +373,7 @@ int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr, StucAttribIndexedArr *
 	}
 	for (int32_t i = 0; i < mapArr.count; ++i) {
 		StucAttribIndexedArr indexedAttribs = {0};
-		stucMapIndexedAttribsGet(pStucContext, mapArr.ppArr[i], &indexedAttribs);
+		stucMapIndexedAttribsGet(pStucCtx, mapArr.ppArr[i], &indexedAttribs);
 		for (int32_t j = 0; j < indexedAttribs.count; ++j) {
 			StucAttribIndexed *pAttrib = indexedAttribs.pArr + j;
 			if (!strncmp("StucMaterials", pAttrib->core.name, STUC_ATTRIB_NAME_MAX_LEN)) {
@@ -345,13 +391,13 @@ int32_t stucBlenderWaitForJobs(
 	bool wait,
 	bool *pDone
 ) {
-	StucResult err = stucWaitForJobs(pStucContext, count, ppJobHandles, wait, pDone);
+	StucResult err = stucWaitForJobs(pStucCtx, count, ppJobHandles, wait, pDone);
 	if (err != STUC_SUCCESS) {
 		return 1;
 	}
 	if (wait || *pDone) {
-		err = stucJobGetErrs(pStucContext, count, &ppJobHandles);
-		stucJobDestroyHandles(pStucContext, count, ppJobHandles);
+		err = stucJobGetErrs(pStucCtx, count, &ppJobHandles);
+		stucJobDestroyHandles(pStucCtx, count, ppJobHandles);
 		if (err != STUC_SUCCESS) {
 			return 1;
 		}
@@ -360,6 +406,7 @@ int32_t stucBlenderWaitForJobs(
 }
 
 void stucBlenderDestroy() {
-	stucContextDestroy(pStucContext);
+	handleTableDestroy();
+	stucContextDestroy(pStucCtx);
 	return;
 }

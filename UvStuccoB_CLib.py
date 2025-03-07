@@ -1,10 +1,20 @@
-import ctypes
+import os
 import sys
+import ctypes
+import addon_utils
 
-if sys.platform == "win32":
-	stucLibPath = "T:/workshop_folders/RUVM_Blender/Build/WinMdNew/Release/UvStuccoBlender.dll"
-elif sys.platform == "darwin":
-	stucLibPath = "/Users/calebdawson/Repos/UvStuccoB_Blender/build/macosShared/libUvStuccoBBlender.dylib"
-elif sys.platform == "linux" or "linux2":
-	stucLibPath = "/run/media/calebdawson/Tuna/workshop_folders/UvStuccoB_Blender/Build/Debug/libStucBlender.so"
-stucLib = ctypes.cdll.LoadLibrary(stucLibPath)
+import pdb
+initPath = None
+for module in addon_utils.modules():
+	if module.bl_info['name'] == "UV Stucco":
+		initPath = module.__file__
+stucLib = None
+if initPath:
+	initDir = os.path.dirname(initPath)
+	if sys.platform == "win32":
+		stucLibPath = f"{initDir}\\lib\\win\\UvStuccoBlender.dll"
+	elif sys.platform == "darwin":
+		stucLibPath = f"{initDir}/lib/macos/libUvStuccoBBlender.dylib"
+	elif sys.platform == "linux" or "linux2":
+		stucLibPath = f"{initDir}/lib/linux/libStucBlender.so"
+	stucLib = ctypes.cdll.LoadLibrary(stucLibPath)

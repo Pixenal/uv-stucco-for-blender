@@ -19,13 +19,13 @@ else:
 	from . import UvStuccoB_Ops
 	from . import UvStuccoB_Ui
 
-def register():
+def register() -> None:
 	print("Registering UvStuccoB")
 	UvStuccoB_Props.register()
 	UvStuccoB_Ops.register()
 	UvStuccoB_Ui.register()
 
-def unregister():
+def unregister() -> None:
 	print("Unregistering UvStuccoB")
 	UvStuccoB_Props.unregister()
 	UvStuccoB_Ops.unregister()

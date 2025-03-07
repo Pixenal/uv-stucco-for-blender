@@ -3,19 +3,18 @@ import pdb
 import ctypes
 from . import UvStuccoB_CLib
 stucLib = UvStuccoB_CLib.stucLib
-from . import Utils as utils
 
-def targetObjUpdate(self, context):
+def targetObjUpdate(self, context) -> None:
 	print(f"updating name from {self.name} to {self.obj.name}")
 	self.name = self.obj.name
 
-def usgFlatCutoffPoll(self, obj):
+def usgFlatCutoffPoll(self, obj: bpy.types.Object) -> bool | None:
 	return self != obj and not obj.get("StucUsg", None)
 
-def stucMatPoll(self, obj):
+def stucMatPoll(self, obj) -> bool:
 	return not obj.get("StucMat", None)
 
-def stucMatUpdate(self, context):
+def stucMatUpdate(self, context) -> None:
 	if self.matCpy and self.mat != self.matCpy:
 		del self.matCpy["StucMat"]
 	self.matCpy = self.mat
@@ -28,17 +27,24 @@ class StucMap(bpy.types.PropertyGroup):
 class StucTarget(bpy.types.PropertyGroup):
 	obj : bpy.props.PointerProperty(type = bpy.types.Object,
 									update = targetObjUpdate)
+	activeAttribIdx : bpy.props.IntProperty()
+
+class StucActiveAttrib(bpy.types.PropertyGroup):
+	name : bpy.props.StringProperty()
 	
 class StucMat(bpy.types.PropertyGroup):
 	mat : bpy.props.PointerProperty(type = bpy.types.Material, poll = stucMatPoll,
 									update = stucMatUpdate)
 	#matCpy exists to allow stucMatUpdate to see the mat a material pointed to before
-	#it was changed (there doesn't seem to be a pre-update callback)
+	#it was changed (there doesn't seem to be a pre-update callback).
+	#(Map property needs to be a string it seems for the prop_search
+	#  to work on custom collections?)
 	matCpy : bpy.props.PointerProperty(type = bpy.types.Material)
 	map : bpy.props.StringProperty()
 
 class StucCommonAttrib(bpy.types.PropertyGroup):
 	domain : bpy.props.EnumProperty(items = [
+		('NONE', "None", ""),
 		('FACE', "Face", ""),
 		('CORNER', "Face Corner", ""),
 		('EDGE', "Edge", ""),
@@ -80,13 +86,14 @@ class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
 classes = [
 	StucProperties,
 	StucTarget,
+	StucActiveAttrib,
 	StucCommonAttrib,
 	StucCommonAttribTableEntry,
 	StucMap,
 	StucMat
 ]
 
-def register():
+def register() -> None:
 	for cls in classes:
 		bpy.utils.register_class(cls)
 	#TODO add these as needed, rather than adding it to every object like this
@@ -108,8 +115,9 @@ def register():
 	StucCommonAttribTableEntry.edges = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucCommonAttribTableEntry.verts = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucTarget.commonAttribTable = bpy.props.CollectionProperty(type = StucCommonAttribTableEntry)
+	StucTarget.activeAttribs = bpy.props.CollectionProperty(type = StucActiveAttrib)
 
 #TODO don't you need to delete the other props as well?
-def unregister():
+def unregister() -> None:
 	for cls in classes:
 		bpy.utils.unregister_class(cls)

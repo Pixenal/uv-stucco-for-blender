@@ -1,10 +1,9 @@
 import bpy
 import ctypes
-import sys
+from typing import Any, cast
 from . import UvStuccoB_CLib
 stucLib = UvStuccoB_CLib.stucLib
 import numpy
-import bmesh
 from bpy.app.handlers import persistent
 from bpy_extras.io_utils import ImportHelper
 from . import Utils as utils
@@ -25,10 +24,10 @@ class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	@classmethod
-	def poll(cls, context):
+	def poll(cls, context) -> bool:
 		return utils.getUsgCountInSelObjs(context) < len(context.selected_objects)
 
-	def execute(self, context):
+	def execute(self, context: bpy.types.Context) -> set[str]:
 		for obj in context.selected_objects:
 			isUsg = obj.get("StucUsg", None)
 			if isUsg:
@@ -43,10 +42,10 @@ class STUC_OT_StucUnsetUsg(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	@classmethod
-	def poll(cls, context):
+	def poll(cls, context) -> bool:
 		return utils.getUsgCountInSelObjs(context) > 0
 
-	def execute(self, context):
+	def execute(self, context: bpy.types.Context) -> set[str]:
 		for obj in context.selected_objects:
 			isUsg = obj.get("StucUsg", None)
 			if isUsg:
@@ -61,10 +60,10 @@ class STUC_OT_StucSetFlatCutoff(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	@classmethod
-	def poll(cls, context):
+	def poll(cls, context) -> bool:
 		return utils.getUsgCountInSelObjs(context) > 0
 
-	def execute(self, context):
+	def execute(self, context: bpy.types.Context) -> set[str]:
 		activeObj = context.view_layer.objects.active
 		for obj in context.selected_objects:
 			if obj == activeObj:
@@ -79,12 +78,12 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
 	bl_label = "STUC Export"
 	bl_options = {'REGISTER'}
 
-	def execute(self, context):
+	def execute(self, context: bpy.types.Context) -> set[str]:
 		if (len(context.selected_objects) == 0):
 			print("STUC export failed, no objects selected.")
 			return {'CANCELLED'}
 		
-		filepath = self.filepath
+		filepath = self.filepath #type:ignore
 		filePathUtf8 = filepath.encode('utf-8')
 		
 		depsgraph = context.evaluated_depsgraph_get()
@@ -128,7 +127,7 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
 				continue
 			isUsg = obj.get("StucUsg", None)
 			if isUsg:
-				objTuple = utils.formatAsStucObj(obj, depsgraph, None)
+				objTuple = utils.formatAsStucObj(obj, depsgraph, False)
 				usgArr[usgCount].obj = objTuple[0]
 				tuples.append(objTuple)
 				flatCutoff = obj.get("stucUsgFlatCutoff", None)
@@ -136,14 +135,14 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
 					if flatCutoff.type == 'MESH':
 						cutoffPtr = cutoffs.get(flatCutoff.name, None)
 						if not cutoffPtr:
-							cutoffObjTuple = utils.formatAsStucObj(flatCutoff, depsgraph, None)
+							cutoffObjTuple = utils.formatAsStucObj(flatCutoff, depsgraph, False)
 							cutoffPtr = ctypes.pointer(cutoffObjTuple[0])
 							cutoffs.update({flatCutoff.name : cutoffPtr})
 							tuples.append(cutoffObjTuple)
 						usgArr[usgCount].pFlatCutoff = cutoffPtr
 				usgCount += 1
 			else:
-				objTuple = utils.formatAsStucObj(obj, depsgraph, mats, matTable.pArr[objIdx])
+				objTuple = utils.formatAsStucObj(obj, depsgraph, True, mats, matTable.pArr[objIdx])
 				objArr[objIdx] = objTuple[0]
 				tuples.append(objTuple)
 				objIdx += 1
@@ -151,16 +150,18 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
 		indexedAttribCount = 0
 		indexedAttribs = utils.StucAttribIndexedArr()
 		if matCount:
-			MatArr = ctypes.c_byte * 64 * matCount
+			if not mats:
+				raise Exception("mats is None")
+			MatArr = ctypes.c_byte * utils.STUC_ATTRIB_STRING_MAX_LEN * matCount
 			matArr = MatArr()
 			i = 0
 			for matName in mats.keys():
-				utils.copyString(matArr[i], matName, 96)
+				utils.copyString(matArr[i], matName, utils.STUC_ATTRIB_NAME_MAX_LEN)
 				i += 1
 			matAttrib = utils.StucAttribIndexed()
 			matAttrib.core.pData =  ctypes.cast(matArr, ctypes.c_void_p)
-			utils.copyString(matAttrib.core.name, "StucMaterials", 96)
-			matAttrib.core.type = 24 #string
+			utils.copyString(matAttrib.core.name, "materials", utils.STUC_ATTRIB_NAME_MAX_LEN)
+			matAttrib.core.type = utils.StucAttribType.STRING.value
 			matAttrib.count = matCount
 			matAttrib.size = matCount
 			indexedAttribCount = 1
@@ -187,22 +188,35 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 	bl_label = "STUC Assign"
 	bl_options = {'REGISTER'}
 
-	def execute(self, context):
-		stuc = context.scene.stuc
+	def execute(self, context: bpy.types.Context) -> set[str]:
 		if len(context.selected_objects) == 0:
 			return {'CANCELLED'}
 		for obj in context.selected_objects:
+			if type(obj.data) != bpy.types.Mesh:
+				continue
 			exists = False
-			for target in context.scene.stucTargets:
+			for target in context.scene.stucTargets: #type:ignore
 				if target.obj == obj:
 					exists = True
 					break
 			if exists:
 				continue
-			newTarget = context.scene.stucTargets.add()
+			newTarget = context.scene.stucTargets.add() #type:ignore
 			newTarget.obj = obj.id_data
-			obj["stucWScale"] = context.scene.stuc.wScale
+			obj["stucWScale"] = context.scene.stuc.wScale #type:ignore
 			obj["stucReceiveLen"] = -1.0
+			newTarget.activeAttribs.add().name = "position"
+			newTarget.activeAttribs.add().name = ""
+			uvEntry = newTarget.activeAttribs.add()
+			for uv in obj.data.uv_layers:
+				if uv.active:
+					uvEntry.name = uv.name
+					break
+			colEntry = newTarget.activeAttribs.add()
+			activeColIdx = obj.data.attributes.active_color_index
+			if activeColIdx and activeColIdx >= 0:
+				colEntry.name = obj.data.color_attributes[activeColIdx].name
+
 		return {'FINISHED'}
 	
 class STUC_OT_StucMatAssign(bpy.types.Operator):
@@ -210,8 +224,8 @@ class STUC_OT_StucMatAssign(bpy.types.Operator):
 	bl_label = "STUC Mat Assign"
 	bl_options = {'REGISTER'}
 
-	def execute(self, context):
-		item = context.scene.stucMats.add()
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		item = context.scene.stucMats.add() #type:ignore
 		return {'FINISHED'}
 	
 class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
@@ -219,9 +233,9 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 	bl_label = "Load STUC File For Edit"
 	bl_options = {"REGISTER"}
 
-	def execute(self, context):
-		filepathUtf8 = self.filepath.encode('utf-8')
-		name = os.path.basename(self.filepath)
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
+		name = os.path.basename(self.filepath) #type:ignore
 		objCount = ctypes.c_int()
 		usgCount = ctypes.c_int()
 		flatCutoffCount = ctypes.c_int()
@@ -246,8 +260,8 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 		i = 0
 		while i < indexedAttribs.count:
 			attribName = ctypes.cast(indexedAttribs.pArr[i].core.name, ctypes.c_char_p).value
-			if attribName == b"StucMaterials":
-				mats = ctypes.pointer(indexedAttribs.pArr[i])
+			if attribName == b"materials":
+				mats = indexedAttribs.pArr[i]
 				break
 			i += 1
 
@@ -255,7 +269,7 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 		context.collection.children.link(col)
 		i = 0
 		while (i < objCount.value):
-			utils.blendObjFromStuc(objArr[i], col, "Stuc", 'TEXTURED', False, mats)
+			utils.blendObjFromStuc(stucLib, objArr[i], col, "Stuc", 'TEXTURED', False, mats)
 			i += 1
 		stucLib.stucBlenderObjArrDestroy(objCount, objArr)
 
@@ -266,12 +280,12 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 		cutoffBlend = []
 		i = 0
 		while (i < flatCutoffCount.value):
-			cutoff = utils.blendObjFromStuc(flatCutoffArr[i], cutoffCol,  "FlatCutoff", 'WIRE', False, None)
+			cutoff = utils.blendObjFromStuc(stucLib, flatCutoffArr[i], cutoffCol,  "FlatCutoff", 'WIRE', False)
 			cutoffBlend.append(cutoff)
 			i += 1
 		i = 0
 		while (i < usgCount.value):
-			usg = utils.blendObjFromStuc(usgArr[i].obj, usgCol, "Usg", 'WIRE', True, None)
+			usg = utils.blendObjFromStuc(stucLib, usgArr[i].obj, usgCol, "Usg", 'WIRE', True)
 			if (usgArr[i].pFlatCutoff):
 				j = 0
 				while (j < flatCutoffCount.value):
@@ -291,16 +305,16 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	bl_label = "Load STUC File"
 	bl_options = {"REGISTER"}
 
-	def execute(self, context):
-		name = os.path.basename(self.filepath)
-		for map in context.scene.stucMaps:
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		name = os.path.basename(self.filepath) #type:ignore
+		for map in context.scene.stucMaps: #type:ignore
 			if (name == map.name):
 				return {'CANCELLED'}
-		filepathUtf8 = self.filepath.encode('utf-8')
-		newMap = context.scene.stucMaps.add()
+		filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
+		newMap = context.scene.stucMaps.add() #type:ignore
 		newMap.name = name
 		nameUtf8 = newMap.name.encode('utf-8')
-		context.scene.stucMapsIndex = len(context.scene.stucMaps)
+		context.scene.stucMapsIndex = len(context.scene.stucMaps) #type:ignore
 		err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
 		if err != 1:
 			self.report({'ERROR'}, "Load failed")
@@ -314,18 +328,18 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 	bl_options = {"REGISTER"}
 
 	@classmethod
-	def poll(cls, context):
+	def poll(cls, context) -> bool:
 		return False
 
-	def execute(self, context):
-		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex] #type:ignore
 		mapUtf8 = ""
 		err = stucLib.stucBlenderMapFileUnload(mapUtf8)
 		if err != 1:
 			self.report({'ERROR'}, "Map reload failed. Couldn't unload existing map")
 		mapStr = mapUtf8.decode()
 		exists = False
-		for map in context.scene.stucMaps:
+		for map in context.scene.stucMaps: #type:ignore
 			if (mapStr == map.filepath):
 				exists = True
 				break
@@ -344,12 +358,12 @@ class STUC_OT_StucPreviewImage(bpy.types.Operator):
 	bl_options = {"REGISTER"}
 
 	@classmethod
-	def poll(cls, context):
+	def poll(cls, context) -> bool:
 		#currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
 		return False
 
-	def execute(self, context):
-		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex] #type:ignore
 		mapUtf8 = ""
 		previewRes = 512
 		dataLen = previewRes * previewRes * 4
@@ -365,7 +379,7 @@ class STUC_OT_StucPreviewImage(bpy.types.Operator):
 		if image:
 			bpy.data.images.remove(image)
 		image = bpy.data.images.new(previewName, previewRes, previewRes)
-		image.pixels.foreach_set(preview)
+		image.pixels.foreach_set(preview) #type:ignore
 		return {'FINISHED'}
 
 class STUC_OT_StucRemove(bpy.types.Operator):
@@ -373,12 +387,12 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 	bl_label = "STUC Remove"
 	bl_options = {"REGISTER"}
 
-	def execute(self, context):
+	def execute(self, context: bpy.types.Context) -> set[str]:
 		scene = context.scene
-		if scene.stucTargetsIndex >= len(scene.stucTargets):
+		if scene.stucTargetsIndex >= len(scene.stucTargets): #type:ignore
 			return {'CANCELLED'}
-		del scene.stucTargets[scene.stucTargetsIndex].obj["stucWScale"]
-		scene.stucTargets.remove(scene.stucTargetsIndex)
+		del scene.stucTargets[scene.stucTargetsIndex].obj["stucWScale"] #type:ignore
+		scene.stucTargets.remove(scene.stucTargetsIndex) #type:ignore
 		return {'FINISHED'}
 
 class STUC_OT_StucMatRemove(bpy.types.Operator):
@@ -386,34 +400,35 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 	bl_label = "STUC Mat Remove"
 	bl_options = {"REGISTER"}
 
-	def execute(self, context):
+	def execute(self, context: bpy.types.Context) -> set[str]:
 		pdb.set_trace()
 		print("hi")
 		return {'FINISHED'}
 
 @persistent
-def stucDepsgraphUpdatePostHandler(dummy):
+def stucDepsgraphUpdatePostHandler(dummy) -> None:
 	scene = bpy.context.scene
 	active = bpy.context.active_object
 	if (active):
-		idx = utils.findObjInCol(active, scene.stucTargets)
-		if idx != None:
-			scene.stucTargetsIndex = idx
+		if type(active.data) == bpy.types.Mesh:
+			idx = utils.findObjInCol(active, cast(Any, scene).stucTargets)
+			if idx != None:
+				scene.stucTargetsIndex = idx #type:ignore
 	depsgraph = bpy.context.evaluated_depsgraph_get()
 	class TargetCache: 
 		done = False
 		def __init__(
-				self,
-				obj,
-				jobHandle,
-				mapArr,
-				inMeshTuple,
-				inIndexedAttribs,
-				outMesh,
-				outIndexedAttribs,
-				commonAttribs,
-				matCount
-			):
+			self,
+			obj,
+			jobHandle,
+			mapArr,
+			inMeshTuple,
+			inIndexedAttribs,
+			outMesh,
+			outIndexedAttribs,
+			commonAttribs,
+			matCount
+		) -> None:
 			self.obj = obj
 			self.jobHandle = jobHandle
 			self.mapArr = mapArr
@@ -423,21 +438,28 @@ def stucDepsgraphUpdatePostHandler(dummy):
 			self.outIndexedAttribs = outIndexedAttribs
 			self.commonAttribs = commonAttribs
 			self.matCount = matCount
+
 	targetCache = []
-	for target in scene.stucTargets:
+	for target in scene.stucTargets: #type:ignore
 		obj = target.obj
 		if obj not in bpy.context.selected_objects and not obj == active:
 			continue
 		elif obj.mode != 'OBJECT':
 			continue
-		commonAttribs = utils.updateCommonAttribs(stucLib, bpy.context, target, depsgraph)
+		commonAttribs = utils.updateCommonAttribs(
+			stucLib,
+			target.activeAttribs,
+			bpy.context,
+			target,
+			depsgraph
+		)
 		#hide_viewport is the moniter icon, and hide_get is the eye
 		if not commonAttribs or obj.hide_viewport or obj.hide_get():
 			continue
 		wScale = obj.get("stucWScale", None)
 		if wScale == None:
 			print("Target obj has no w scale. Setting to default")
-			wScale = scene.stuc.wScale
+			wScale = scene.stuc.wScale #type:ignore
 			obj["stucWScale"] = wScale
 
 		receiveLen = obj.get("stucReceiveLen", None)
@@ -454,6 +476,7 @@ def stucDepsgraphUpdatePostHandler(dummy):
 		mapArr = utils.StucBlenderMapArr()
 		mapArr.ppArr = (ctypes.POINTER(ctypes.c_byte) * matCount)()
 		mapArr.pMatIdxArr = (ctypes.c_byte * matCount)()
+		mapArr.pCommonAttribArr = commonAttribs
 		mapArr.count = matCount
 		mapStrs = []
 		
@@ -462,37 +485,39 @@ def stucDepsgraphUpdatePostHandler(dummy):
 		inIndexedAttribs.pArr = ctypes.pointer(utils.StucAttribIndexed())
 		inMats = inIndexedAttribs.pArr.contents
 		inMats.count = matCount
-		inMats.core.type = 24 #string
-		utils.copyString(inMats.core.name, "StucMaterials", 96)
-		StucString = ctypes.c_byte * 64
+		inMats.core.type = utils.StucAttribType.STRING.value
+		utils.copyString(inMats.core.name, "materials", utils.STUC_ATTRIB_NAME_MAX_LEN)
+		StucString = ctypes.c_byte * utils.STUC_ATTRIB_STRING_MAX_LEN
 		inMatsArr = (StucString * inMats.count)()
 		inMats.core.pData = ctypes.cast(inMatsArr, ctypes.c_void_p)
 		
 		i = 0
 		for mat in targetMats:
-			utils.copyString(inMatsArr[i], mat.mat.name, 64)
+			utils.copyString(inMatsArr[i], mat.mat.name, utils.STUC_ATTRIB_STRING_MAX_LEN)
 			mapStrs.append(mat.map.encode('utf-8'))
 			mapArr.ppArr[i] = ctypes.cast(mapStrs[i], ctypes.POINTER(ctypes.c_byte))
 			mapArr.pMatIdxArr[i] = objEval.material_slots.find(mat.mat.name)
 			i += 1
 		
-		meshTuple = utils.formatAsStucMesh(meshEval, False, True, True)
+		meshTuple = utils.formatAsStucMesh(meshEval, False, True, True, target.activeAttribs)
 		workMesh = utils.StucMesh()
 		stucLib.stucBlenderMapToMesh.argtypes = (
 			ctypes.POINTER(ctypes.c_void_p),
 			ctypes.POINTER(utils.StucBlenderMapArr),
 			ctypes.POINTER(utils.StucMesh), ctypes.POINTER(utils.StucAttribIndexedArr),
 			ctypes.POINTER(utils.StucMesh), ctypes.POINTER(utils.StucAttribIndexedArr),
-			ctypes.POINTER(utils.StucCommonAttribList),
 			ctypes.c_float,
 			ctypes.c_float
 		)
 		i = 0
 		while i < meshTuple[0].faceAttribs.count:
-			StucName = ctypes.c_byte * 96
-			nameCast = ctypes.cast(meshTuple[0].faceAttribs.pArr[i].core.name, ctypes.POINTER(StucName))
+			StucName = ctypes.c_byte * utils.STUC_ATTRIB_NAME_MAX_LEN
+			nameCast = ctypes.cast(
+				meshTuple[0].faceAttribs.pArr[i].core.name,
+				ctypes.POINTER(StucName)
+			)
 			attribName = ctypes.cast(nameCast, ctypes.c_char_p).value.decode()
-			if attribName == "StucMaterialIndices":
+			if attribName == "materials":
 				matIdxArr = ctypes.cast(
 					meshTuple[0].faceAttribs.pArr[i].core.pData,
 					ctypes.POINTER(ctypes.c_byte)
@@ -508,7 +533,6 @@ def stucDepsgraphUpdatePostHandler(dummy):
 			ctypes.pointer(inIndexedAttribs),
 			ctypes.pointer(workMesh),
 			ctypes.pointer(outIndexedAttribs),
-			commonAttribs,
 			wScale,
 			receiveLen
 		)
@@ -560,6 +584,8 @@ def stucDepsgraphUpdatePostHandler(dummy):
 				bpy.context.scene.collection.objects.link(objStuc)
 			else:
 				meshStucOld = objStuc.data
+				if not meshStucOld or type(meshStucOld) != bpy.types.Mesh:
+					raise Exception("old mesh is None or not a mesh")
 				meshStucOld.name += ".Old"
 				meshStuc = bpy.data.meshes.new(nameStuc)
 				objStuc.data = meshStuc
@@ -569,14 +595,13 @@ def stucDepsgraphUpdatePostHandler(dummy):
 				stucLib,
 				meshStuc,
 				item.outMesh,
-				item.outIndexedAttribs,
-				item.commonAttribs
+				item.outIndexedAttribs
 			)
 			stucLib.stucBlenderMeshDestroy(item.outMesh)
 			normalBlendAttrib = meshStuc.attributes.get("normal", None)
 			if (normalBlendAttrib):
 				meshStuc.attributes.remove(normalBlendAttrib)
-			matBlendAttrib = meshStuc.attributes.get("StucMaterialIndices", None)
+			matBlendAttrib = meshStuc.attributes.get("materials", None)
 			if (matBlendAttrib):
 				meshStuc.attributes.remove(matBlendAttrib)
 			
@@ -588,12 +613,12 @@ def stucDepsgraphUpdatePostHandler(dummy):
 		
 
 @persistent
-def stucLoadPostHandler(dummy):
+def stucLoadPostHandler(dummy) -> None:
 	stucLib.stucBlenderInit()
-	bpy.context.scene.stucMaps.clear()
+	bpy.context.scene.stucMaps.clear() #type:ignore
 
 @persistent
-def stucLoadPreHandler(dummy):
+def stucLoadPreHandler(dummy) -> None:
 	stucLib.stucBlenderDestroy()
 
 classes = [
@@ -611,7 +636,7 @@ classes = [
 	STUC_OT_StucPreviewImage
 ]
 
-def register():
+def register() -> None:
 	
 	for cls in classes:
 		bpy.utils.register_class(cls)
@@ -619,7 +644,7 @@ def register():
 	bpy.app.handlers.load_post.append(stucLoadPostHandler)
 	bpy.app.handlers.load_pre.append(stucLoadPreHandler)
 
-def unregister():
+def unregister() -> None:
 	for cls in classes:
 		bpy.utils.unregister_class(cls)
 	bpy.app.handlers.depsgraph_update_post.remove(stucDepsgraphUpdatePostHandler)

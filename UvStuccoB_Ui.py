@@ -1,10 +1,11 @@
 import bpy
+from typing import Any, cast
 from . import Utils as utils
 
-def StucExport(self, context):
+def StucExport(self, context) -> None:
 	self.layout.operator("stuc.export_stuc_file")
 
-def StucLoadForEdit(self, context):
+def StucLoadForEdit(self, context) -> None:
 	self.layout.operator("stuc.load_stuc_file_for_edit")
 
 class StucParentPanel(bpy.types.Panel):
@@ -17,6 +18,12 @@ class STUC_UL_StucTargets(bpy.types.UIList):
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			row0.prop(item, "obj", text = "", emboss = False, icon = 'MESH_CUBE')
+
+class STUC_UL_StucActiveAttribs(bpy.types.UIList):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+		if self.layout_type in {'DEFAULT', 'COMPACT'}:
+			row0 = layout.row(align = True)
+			row0.prop_search(item, "name", data.obj.data, "attributes", text = "", icon = 'SOLO_OFF')
 
 class STUC_UL_StucCommonAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
@@ -36,8 +43,8 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_Stuc"
 	bl_label = "STUC"
 
-	def draw(self, context):
-		stuc = context.scene.stuc
+	def draw(self, context: bpy.types.Context) -> None:
+		stuc = context.scene.stuc #type:ignore
 		layout = self.layout
 		col0 = layout.column()
 		
@@ -48,8 +55,12 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 		col0.label(text = "")
 		col0.label(text = "Materials")
 		row0 = col0.row()
-		row0.template_list("STUC_UL_StucMats", "", context.scene,
-						   "stucMats", context.scene, "stucMatsIndex")
+		row0.template_list(
+			"STUC_UL_StucMats",
+			"",
+			context.scene, "stucMats",
+			context.scene, "stucMatsIndex"
+			)
 		col1 = row0.column(align = True)
 		col1.scale_x = .35
 		col1.operator("stuc.stuc_mat_assign", text = " ", icon = "ADD")
@@ -60,21 +71,29 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 		row1.template_list(
 			"STUC_UL_StucTargets",
 			"",
-			context.scene,
-			"stucTargets",
-			context.scene,
-			"stucTargetsIndex"
+			context.scene, "stucTargets",
+			context.scene, "stucTargetsIndex"
 		)
 		col2 = row1.column(align = True)
 		col2.scale_x = .35
 		col2.operator("stuc.stuc_assign", text = " ", icon = "ADD")
 		col2.operator("stuc.stuc_remove", text = " ", icon = "REMOVE")
 		
-		if (len(context.scene.stucTargets)):
-			target = context.scene.stucTargets[context.scene.stucTargetsIndex]
-			matSlotIdx = target.obj.active_material_index
-			mat = target.obj.material_slots[matSlotIdx]
-			idx = utils.findMatInCol(mat, target.commonAttribTable)
+		if (len(context.scene.stucTargets)): #type:ignore
+			target = context.scene.stucTargets[context.scene.stucTargetsIndex] #type:ignore
+
+			col0.template_list(
+				"STUC_UL_StucActiveAttribs",
+				"",
+				target, "activeAttribs",
+				target, "activeAttribIdx"
+			)
+
+			idx = None
+			if len(target.obj.material_slots):
+				matSlotIdx = target.obj.active_material_index
+				mat = target.obj.material_slots[matSlotIdx]
+				idx = utils.findMatInCol(mat, target.commonAttribTable)
 			if idx != None:
 				commonAttribs = target.commonAttribTable[idx]
 				col0.label(text = "")
@@ -96,10 +115,8 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 				col0.template_list(
 					"STUC_UL_StucCommonAttribs",
 					"",
-					commonAttribs,
-					domain,
-					stuc,
-					"commonAttribIndex"
+					commonAttribs, domain,
+					stuc, "commonAttribIndex"
 				)
 				if len(commonAttrib):
 					match (stuc.commonAttribDomain):
@@ -119,7 +136,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 					col0.prop(commonAttribEntry, "blend")
 					col0.prop(commonAttribEntry, "order")
 		col0.label(text = "")
-		col0.label(text = "Export Options")
+		col0.label(text = "USG")
 		col0.operator("stuc.set_as_usg", icon = "NORMALS_FACE")
 		col0.operator("stuc.unset_usg", icon = "X")
 		col0.label(text = "Flatten Cut-Off")
@@ -134,23 +151,24 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 			)
 		col0.operator("stuc.set_flat_cutoff", text = "Set Sel To Active")
 		col0.label(text = "")
-		col0.prop(context.scene.stuc, "wScale", text = "Default W Scale")
+		col0.prop(cast(Any, context.scene).stuc, "wScale", text = "Default W Scale")
 
 classes = [
 	STUC_PT_Stuc,
 	STUC_UL_StucTargets,
+	STUC_UL_StucActiveAttribs,
 	STUC_UL_StucCommonAttribs,
 	STUC_UL_StucMats
 ]
 
-def register():
+def register() -> None:
 	print("Registering STUC_UI")
 	for cls in classes:
 		bpy.utils.register_class(cls)
 	bpy.types.TOPBAR_MT_file_export.append(StucExport)
 	bpy.types.TOPBAR_MT_file_import.append(StucLoadForEdit)
 
-def unregister():
+def unregister() -> None:
 	for cls in classes:
 		bpy.utils.unregister_class(cls)
 	bpy.types.TOPBAR_MT_file_export.remove(StucExport)

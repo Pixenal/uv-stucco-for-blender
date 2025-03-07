@@ -18,7 +18,8 @@
 typedef struct {
 	char **ppArr;
 	char *pMatIdxArr;
-	int8_t count;
+	StucCommonAttribList *pCommonAttribArr;
+	int32_t count;
 } StucBlenderMapArr;
 
 typedef struct {
@@ -35,7 +36,7 @@ STUC_BLENDER_EXPORT
 void stucBlenderInit();
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileExport(
-	char *pFilepath,
+	const char *pFilepath,
 	int32_t objCount,
 	StucObject *pObjArr,
 	int32_t usgCount,
@@ -45,7 +46,7 @@ StucResult stucBlenderMapFileExport(
 );
 STUC_BLENDER_EXPORT
 StucResult stucBlenderMapFileLoadForEdit(
-	char *pFilepath,
+	const char *pFilepath,
 	int32_t *pObjCount,
 	StucObject **ppObjArr,
 	int32_t *pUsgCount,
@@ -55,9 +56,9 @@ StucResult stucBlenderMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileLoad(char *pFilepath, char *pName);
+StucResult stucBlenderMapFileLoad(const char *pFilepath, const char *pName);
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileUnload(char *pName);
+StucResult stucBlenderMapFileUnload(const char *pName);
 STUC_BLENDER_EXPORT
 int32_t stucBlenderMapToMesh(
 	void **ppJobHandle,
@@ -66,14 +67,13 @@ int32_t stucBlenderMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucCommonAttribList *pCommonAttribs,
 	float wScale,
 	float receiveLen
 );
 STUC_BLENDER_EXPORT
 void stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
-	char *pMapName,
+	const char *pMapName,
 	StucCommonAttribList *pCommonAttribs
 );
 STUC_BLENDER_EXPORT
@@ -89,7 +89,7 @@ StucResult stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
 STUC_BLENDER_EXPORT
 void stucBlenderMeshDestroy(StucMesh *pWorkMesh);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapFileGenPreviewImage(char *pName, int32_t res, float *pImage);
+int32_t stucBlenderMapFileGenPreviewImage(const char *pName, int32_t res, float *pImage);
 STUC_BLENDER_EXPORT
 int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr, StucAttribIndexedArr *pMats);
 STUC_BLENDER_EXPORT

@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-#include <UvStucco.h>
+#include <uv_stucco.h>
 
 #ifdef PLATFORM_LINUX
 	#define STUC_BLENDER_EXPORT

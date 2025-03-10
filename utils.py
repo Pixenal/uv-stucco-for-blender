@@ -68,3 +68,11 @@ def getMatsInStucMats(context: bpy.types.Context, mesh: bpy.types.Mesh) -> list[
 		if idx != None:
 			targetMats.append(cast(Any, context.scene).stucMats[idx])
 	return targetMats
+
+def updateUiTargetIdx(context: bpy.types.Context) -> None:
+	active = context.active_object
+	if (active):
+		if type(active.data) == bpy.types.Mesh:
+					idx = findObjInCol(active, cast(Any, context.scene).stucTargets)
+					if idx != None:
+						context.scene.stucTargetsIndex = idx #type:ignore

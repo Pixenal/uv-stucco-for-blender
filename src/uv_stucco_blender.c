@@ -4,7 +4,7 @@
 #include <string.h>
 #include <limits.h>
 
-#include <UvStuccoBlender.h>
+#include <uv_stucco_blender.h>
 
 
 typedef struct HandleEntry {

@@ -11,7 +11,7 @@ from . import mapping
 @persistent
 def stucLoadPostHandler(dummy) -> None:
 	stucLib.stucBlenderInit()
-	context.scene.stucMaps.clear() #type:ignore
+	bpy.context.scene.stucMaps.clear() #type:ignore
 
 @persistent
 def stucLoadPreHandler(dummy) -> None:

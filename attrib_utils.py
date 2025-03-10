@@ -1,0 +1,363 @@
+import bpy
+import ctypes
+from typing import Any, cast
+import pdb
+
+from . import stuc
+from . import props
+from . import utils
+from . import mesh_utils as meshUtils
+
+def getAttribType(attrib: bpy.types.Attribute) -> tuple[int, Any]:
+	attribType = type(attrib)
+	match attribType:
+		case bpy.types.BoolAttribute:
+			return (stuc.StucAttribType.I8.value, ctypes.c_int8)
+		case bpy.types.ByteColorAttribute:
+			return (stuc.StucAttribType.V4_I8.value, ctypes.c_int8 * 4)
+		case bpy.types.ByteIntAttribute:
+			return (stuc.StucAttribType.I8.value, ctypes.c_int8)
+		case bpy.types.Float2Attribute:
+			return (stuc.StucAttribType.V2_F32.value, ctypes.c_float * 2)
+		case bpy.types.FloatAttribute:
+			return (stuc.StucAttribType.F32.value, ctypes.c_float)
+		case bpy.types.FloatColorAttribute:
+			return (stuc.StucAttribType.V4_F32.value, ctypes.c_float * 4)
+		case bpy.types.FloatVectorAttribute:
+			return (stuc.StucAttribType.V3_F32.value, ctypes.c_float * 3)
+		case bpy.types.Int2Attribute:
+			return (stuc.StucAttribType.V2_I32.value, ctypes.c_int32 * 2)
+		case bpy.types.IntAttribute:
+			return (stuc.StucAttribType.I32.value, ctypes.c_int32)
+		case bpy.types.QuaternionAttribute:
+			return (stuc.StucAttribType.V4_F32.value, ctypes.c_float * 4)
+		case bpy.types.StringAttribute:
+			return (stuc.StucAttribType.STRING.value, ctypes.POINTER(ctypes.c_char))
+		case _:
+			raise Exception("invalid attrib type")
+		
+def getAttribUse(
+	target: bpy.types.Mesh,
+	activeNames: bpy.types.Collection | None,
+	attrib: bpy.types.Attribute
+) -> int:
+	#check overrides first
+	if activeNames:
+		if attrib.name == activeNames[0].name:
+			return stuc.StucAttribUse.POS.value
+		if len(activeNames[1].name) and attrib.name == activeNames[1].name:
+			return stuc.StucAttribUse.NORMAL.value
+		if attrib.name == activeNames[2].name:
+			return stuc.StucAttribUse.UV.value
+		if attrib.name == activeNames[3].name:
+			return stuc.StucAttribUse.COLOR.value
+	else:
+		if attrib.name == "position":
+			return stuc.StucAttribUse.POS.value
+
+	uv = target.uv_layers.get(attrib.name, None)
+	if uv:
+		return stuc.StucAttribUse.UV.value
+	col = target.color_attributes.get(attrib.name, None)
+	if col:
+		return stuc.StucAttribUse.COLOR.value
+	
+	return stuc.StucAttribUse.NONE.value
+
+def getAttribBlenderType(attrib: stuc.StucAttrib) -> str:
+	match attrib.core.type:
+		#TODO add bool type to UVS lib, as semantics are lost here
+		#TODO in general, try include all types, including semantic
+		#types, in Blender, Houdini, and USD. This includes unsigned
+		#ints, quaternions, etc. If someone puts an attribute in, they need to get the
+		#same type out. IMPORTANT: it may be best to split the semantic info off
+		#into a separate enum
+		case stuc.StucAttribType.I8.value:
+			return 'BOOLEAN'
+		case stuc.StucAttribType.V4_I8.value:
+			return 'BYTE_COLOR' 
+		case stuc.StucAttribType.I8.value:
+			return 'INT8'
+		case stuc.StucAttribType.V2_F32.value:
+			return 'FLOAT2'
+		case stuc.StucAttribType.F32.value:
+			return 'FLOAT'
+		case stuc.StucAttribType.V4_F32.value:
+			return 'FLOAT_COLOR'
+		case stuc.StucAttribType.V3_F32.value:
+			return 'FLOAT_VECTOR'
+		case stuc.StucAttribType.V2_I32.value:
+			return 'INT32_2D'
+		case stuc.StucAttribType.I32.value:
+			return 'INT'
+		case stuc.StucAttribType.V4_F32.value:
+			return 'TODO FIX THIS'
+		case stuc.StucAttribType.STRING.value:
+			return 'STRING' 
+		case _:
+			raise Exception("invalid attrib type")
+
+def createSingleAttrib(mesh: bpy.types.Mesh, attrib: stuc.StucAttrib, domain: str) -> None:
+	attribType = getAttribBlenderType(attrib)
+	name = ctypes.cast(attrib.core.name, ctypes.c_char_p).value
+	if not name:
+		raise Exception("attrib name is none")
+	mesh.attributes.new(
+		name = name.decode("utf-8"),
+		type = cast(Any, attribType),
+		domain = cast(Any, domain)
+	)
+
+def createAttribs(mesh: bpy.types.Mesh, attribs: stuc.StucAttrib, domain: str) -> None:
+	i = 0
+	while (i < attribs.count):
+		createSingleAttrib(mesh, attribs.pArr[i], domain)
+		i += 1
+
+def createAllAttribs(mesh: bpy.types.Mesh, stucMesh: stuc.StucMesh) -> None:
+	createAttribs(mesh, stucMesh.faceAttribs, "FACE")
+	createAttribs(mesh, stucMesh.loopAttribs, "CORNER")
+	#createAttribs(mesh, stuc.StucMesh.pEdgeAttribs, stuc.StucMesh.edgeAttribCount, "EDGE")
+	#createAttribs(mesh, stuc.StucMesh.pVertAttribs, stuc.StucMesh.vertAttribCount, "POINT")
+
+def getNormalAttrib(mesh: stuc.StucMesh) -> stuc.StucAttrib:
+	i = 0
+	while (i < mesh.loopAttribs.count):
+		name = ctypes.cast(mesh.loopAttribs.pArr[i].core.name, ctypes.c_char_p).value
+		if not name:
+			raise Exception("normal attrib name is None")
+		if (name.decode("utf-8") == "normal"):
+			return mesh.loopAttribs.pArr[i]
+		i += 1
+	raise Exception("normal attrib not found")
+
+def getAttribCounts(
+	attribCount : dict[str, int],
+	target: bpy.types.Mesh,
+	getNormals: bool
+) -> None:
+	for attrib in target.attributes:
+		if '.' in attrib.name or (getNormals and attrib.name == "normal") or\
+		attrib.name == "material_index":
+			continue
+		match attrib.domain:
+			case 'FACE':
+				attribCount["face"] += 1
+			case 'CORNER':
+				attribCount["loop"] += 1
+			case 'EDGE':
+				attribCount["edge"] += 1
+			case 'POINT':
+				attribCount["vert"] += 1
+			case _:
+				raise Exception("invalid attrib domain")
+			
+def allocAttribs(mesh: stuc.StucMesh, attribCounts: dict[str, int]) -> None:
+	FaceAttribsArray = stuc.StucAttrib * attribCounts["face"]
+	mesh.faceAttribs.pArr = FaceAttribsArray()
+	LoopAttribsArray = stuc.StucAttrib * (attribCounts["loop"] + 3) # +3 for normals, tangents, & tsign
+	mesh.loopAttribs.pArr = LoopAttribsArray()
+	EdgeAttribsArray = stuc.StucAttrib * attribCounts["edge"]
+	mesh.edgeAttribs.pArr = EdgeAttribsArray()
+	VertAttribsArray = stuc.StucAttrib * attribCounts["vert"]
+	mesh.vertAttribs.pArr = VertAttribsArray()
+
+def initAttribEntry(
+		attrib: bpy.types.Attribute,
+		target: bpy.types.Mesh,
+		activeNames: bpy.types.Collection | None,
+		attribEntry: stuc.StucAttrib,
+		metaOnly: bool,
+		interpolate: bool
+) -> None:
+	utils.copyString(attribEntry.core.name, attrib.name, stuc.STUC_ATTRIB_NAME_MAX_LEN)
+	attribEntry.core.type = getAttribType(attrib)[0]
+	attribEntry.core.use = getAttribUse(target, activeNames, attrib)
+	attribEntry.interpolate = interpolate
+	if not(metaOnly):
+		attribData = cast(Any, attrib).data[0].as_pointer()
+		attribEntry.core.pData = ctypes.cast(attribData, ctypes.c_void_p)
+
+def isAttribActive(
+	target: bpy.types.Mesh,
+	attrib: bpy.types.Attribute,
+	activeNames: bpy.types.Collection | None
+) -> bool:
+	if activeNames:
+		if attrib.name == activeNames[0].name:
+			return True
+		if len(activeNames[1].name) and attrib.name == activeNames[1].name:
+			return True
+		if attrib.name == activeNames[2].name:
+			return True
+		if attrib.name == activeNames[3].name:
+			return True
+		
+	if attrib.name == "position":
+		return True
+	for uv in target.uv_layers:
+		if uv.active:
+			if attrib.name == uv.name:
+				return True
+			break
+	activeColIdx = target.attributes.active_color_index
+	if activeColIdx:
+		if activeColIdx >= 0 and\
+			attrib.name == target.color_attributes[activeColIdx].name:
+			return True
+	return False
+
+def initAttribs(
+	mesh: stuc.StucMesh,
+	target: bpy.types.Mesh,
+	activeNames: bpy.types.Collection | None,
+	metaOnly: bool,
+	getNormals: bool
+) -> None:
+	overrideNormal = activeNames and len(activeNames[1].name)
+	for attrib in target.attributes:
+		if '.' in attrib.name or\
+			(getNormals and not overrideNormal and attrib.name == "normal") or\
+			attrib.name == "material_index":
+			continue
+		attribArr = None
+		interpolate = False #TODO setting this uniformly right now
+		match attrib.domain:
+			case 'FACE':
+				attribArr = mesh.faceAttribs
+				interpolate = False
+			case 'CORNER':
+				attribArr = mesh.loopAttribs
+				interpolate = True
+			case 'EDGE':
+				attribArr = mesh.edgeAttribs
+				interpolate = False
+			case 'POINT':
+				attribArr = mesh.vertAttribs
+				interpolate = True
+			case _:
+				raise Exception("invalid attrib domain")
+		attribEntry = attribArr.pArr[attribArr.count]
+		initAttribEntry(
+			attrib,
+			target,
+			activeNames,
+			attribEntry,
+			metaOnly,
+			interpolate
+		)
+		if attribEntry.core.use and isAttribActive(target, attrib, activeNames):
+			mesh.activeAttribs[attribEntry.core.use].active = True
+			mesh.activeAttribs[attribEntry.core.use].idx = attribArr.count
+		attribArr.count += 1
+
+def appendAttrib(
+	attribs: stuc.StucAttribArray,
+	name: str,
+	type: int,
+	use: int,
+	data: ctypes.c_void_p,
+	activeAttribs: ctypes.Array[stuc.StucAttribActive] | None = None
+) -> None:
+	attribEntry = attribs.pArr[attribs.count]
+	utils.copyString(attribEntry.core.name, name, stuc.STUC_ATTRIB_NAME_MAX_LEN)
+	attribEntry.core.type = type
+	attribEntry.core.use = use
+	if activeAttribs:
+		#attrib is active
+		activeAttribs[use].active = True
+		activeAttribs[use].idx = attribs.count
+	attribEntry.core.pData = data
+	attribs.count += 1
+
+def setTargetCommonAttribs(
+	targetAttribs: bpy.types.Collection,
+	attribs: stuc.StucCommonAttribArr
+):
+	i = 0
+	while i < attribs.count:
+		#TODO make this name conversion a generic function
+		name = attribs.pArr[i].name
+		name = ctypes.cast(name, ctypes.c_char_p).value
+		if not name:
+			raise Exception("name is None")
+		name = name.decode("utf-8")
+		entry = targetAttribs.get(name, None)
+		if not entry:
+			entry = targetAttribs.add() #type:ignore
+			entry.name = name
+			entry.blend = str(attribs.pArr[i].blendConfig.blend)
+			entry.opacity = attribs.pArr[i].blendConfig.opacity
+			entry.order = str(int(attribs.pArr[i].blendConfig.order))
+		attribs.pArr[i].blendConfig.blend = int(entry.blend)
+		attribs.pArr[i].blendConfig.opacity = entry.opacity
+		attribs.pArr[i].blendConfig.order = int(entry.order)
+		i += 1
+
+def getAttrib(arr: stuc.StucAttribIndexedArr, name: str) -> stuc.StucAttribIndexed:
+	nameUtf8 = name.encode('utf-8')
+	i = 0
+	while i < arr.count:
+		if ctypes.cast(arr.pArr[i].core.name, ctypes.c_char_p).value == nameUtf8:
+			return arr.pArr[i]
+		i += 1
+	raise
+
+def updateCommonAttribs(
+		stucLib: ctypes.CDLL,
+		activeNames: bpy.types.Collection,
+		context: bpy.types.Context,
+		target: props.StucTarget,
+		depsgraph: bpy.types.Depsgraph
+) -> ctypes.Array[stuc.StucCommonAttribList] | None:
+	objEval = cast(bpy.types.Object, target.obj).evaluated_get(depsgraph)
+	meshEval = objEval.data
+	if type(meshEval) != bpy.types.Mesh:
+		raise Exception("target object isn't a mesh")
+	#clean common attrib entries for mat's no longer assigned to obj
+	for entry in target.commonAttribTable: #type:ignore
+		mat = meshEval.materials.get(entry.mat.name, None)
+		if not mat:
+			target.commonAttribTable.remove(entry) #type:ignore
+			
+	targetMats = utils.getMatsInStucMats(context, meshEval)
+	targetMatCount = len(targetMats)
+	if targetMatCount == 0:
+		return None
+	CommonAttribList = stuc.StucCommonAttribList * targetMatCount
+	commonAttribList = CommonAttribList()
+	meshTuple = meshUtils.formatAsStucMesh(meshEval, True, False, True, activeNames)
+	i = 0
+	for mat in targetMats:
+		if not len(mat.map):
+			continue
+		idx = utils.findMatInCol(mat.mat, cast(Any, target).commonAttribTable)
+		if idx != None:
+			entry = target.commonAttribTable[idx] #type:ignore
+		else:
+			entry = target.commonAttribTable.add() #type:ignore
+			entry.mat = mat.mat
+		mapUtf8 = mat.map.encode('utf-8')
+		stucLib.stucBlenderQueryCommonAttribs(
+			meshTuple[0],
+			mapUtf8,
+			ctypes.pointer(commonAttribList[i])
+		)
+		setTargetCommonAttribs(
+			entry.faces,
+			commonAttribList[i].face,
+		)
+		setTargetCommonAttribs(
+			entry.corners,
+			commonAttribList[i].corner,
+		)
+		setTargetCommonAttribs(
+			entry.edges,
+			commonAttribList[i].edge,
+		)
+		setTargetCommonAttribs(
+			entry.verts,
+			commonAttribList[i].vert,
+		)
+		i += 1
+	return commonAttribList

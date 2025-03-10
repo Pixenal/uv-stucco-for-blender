@@ -1,6 +1,8 @@
-import bpy
 from typing import Any, cast
-from . import Utils as utils
+
+import bpy
+
+from . import utils
 
 def StucExport(self, context) -> None:
 	self.layout.operator("stuc.export_stuc_file")

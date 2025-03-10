@@ -1,0 +1,216 @@
+import bpy
+import ctypes
+import numpy
+from numpy._typing import NDArray
+from typing import Any, cast
+import pdb
+
+from . import stuc
+from . import utils
+from . import attrib_utils as attribUtils
+
+#returns a tuple containing the mesh, and the edges numpy array.
+#in order to prevent the reference tot he edge array from becoming invalid
+#after the function returns
+def formatAsStucMesh(
+	target: bpy.types.Mesh,
+	metaOnly: bool,
+	getNormals: bool,
+	mats: bool = False,
+	activeNames: bpy.types.Collection | None = None
+) -> tuple[stuc.StucMesh, NDArray[Any], ctypes.c_void_p | None, NDArray[Any] | None]:
+	mesh = stuc.StucMesh()
+	mesh.type.type = stuc.StucObjectType.MESH.value
+
+	mesh.faceCount = len(target.polygons)
+	mesh.loopCount = len(target.loops)
+	mesh.edgeCount = len(target.edges)
+	mesh.vertCount = len(target.vertices)
+
+	facesPtr = target.polygons[0].as_pointer()
+	mesh.pFaces = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int32))
+
+	loopsPtr = target.loops[0].as_pointer()
+	mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int32))
+
+	edges = numpy.empty(mesh.loopCount, dtype = numpy.int32)
+	target.loops.foreach_get("edge_index", cast(Any, edges))
+	mesh.pEdges = edges.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
+
+	attribCount = {"face" : 0, "loop" : 0, "edge" : 0, "vert" : 0}
+	attribUtils.getAttribCounts(attribCount, target, getNormals)
+	if mats:
+		attribCount["face"] += 1 #for material indices
+	attribUtils.allocAttribs(mesh, attribCount)
+	attribUtils.initAttribs(mesh, target, activeNames, metaOnly, getNormals)
+
+	matIndices = None
+	if mats:
+		matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int8)
+		target.polygons.foreach_get("material_index", cast(Any, matIndices))
+		attribUtils.appendAttrib(
+			mesh.faceAttribs,
+			"materials",
+			0,
+			stuc.StucAttribUse.IDX.value,
+			matIndices.ctypes.data_as(ctypes.c_void_p),
+			mesh.activeAttribs
+		)
+
+	if not getNormals:
+			return (mesh, edges, None, None)
+	normals = None
+	if not mesh.activeAttribs[stuc.StucAttribUse.NORMAL.value].active:
+		#normal attrib wasn't overriden, so we need to add it
+		
+		#afaik, normals are not accessable as an attribute.
+		#atleast not at the time of writing.
+		if bpy.app.version < (4, 1, 0) and not len(target.corner_normals):
+			target.calc_normals_split() #type:ignore
+		normalsPtr = target.corner_normals[0].as_pointer()
+		normals = ctypes.cast(normalsPtr, ctypes.c_void_p)
+			
+		attribUtils.appendAttrib(
+			mesh.loopAttribs,
+			"normal",
+			stuc.StucAttribType.V3_F32.value,
+			stuc.StucAttribUse.NORMAL.value,
+			normals,
+			mesh.activeAttribs
+		)
+
+	#to avoid garbage collection, edges, normals, & matIndices are returned as well
+	#is there a better way to do this? TODO maybe make edges, normals, & matIndices
+	#out params, so there's a reference in the calling function. Probably cleaner than this.
+	return (mesh, edges, normals, matIndices)
+
+def copyStucMeshToBlenderMesh(
+		stucLib: ctypes.CDLL,
+		mesh: bpy.types.Mesh,
+		workMesh: stuc.StucMesh,
+		outIndexedAttribs: stuc.StucAttribIndexedArr | None = None
+) -> None:
+	if (outIndexedAttribs):
+		#TODO this should be done on the c side, in uv-stucco, not uv-stucco-blender.
+		#this will make it easier to merge duplicate materials.
+		#pass inMesh materials to stucMapToMesh, and it will pass back
+		#an outMesh mat arr (in a separate out param), which contains
+		#the final material slots, and their mat names.
+		outMats = attribUtils.getAttrib(outIndexedAttribs, "materials")
+		StucString = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN
+		outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
+		i = 0
+		while i < outMats.count:
+			matName = ctypes.cast(outMatsCast[i], ctypes.c_char_p).value.decode()
+			mat = bpy.data.materials.get(matName, None)
+			if not mat:
+				#this should throw an error of some kind, or a warning
+				#there shouldn't be any dups
+				mat = bpy.data.materials.new(name = matName)
+			mesh.materials.append(mat)
+			i += 1
+
+	mesh.vertices.add(workMesh.vertCount)
+	mesh.loops.add(workMesh.loopCount)
+	mesh.polygons.add(workMesh.faceCount)
+	attribUtils.createAllAttribs(mesh, workMesh)
+	meshStucFormat = formatAsStucMesh(mesh, False, False)
+
+	stucLib.stucBlenderCopyMeshCore(
+		ctypes.pointer(meshStucFormat[0]),
+		ctypes.pointer(workMesh)
+	)
+
+	matIndices = None
+	i = 0
+	while i < workMesh.faceAttribs.count:
+		name = ctypes.cast(workMesh.faceAttribs.pArr[i].core.name, ctypes.c_char_p).value
+		if name == b"StucMaterialIndices":
+			matIndices = workMesh.faceAttribs.pArr[i]
+			break
+		i += 1
+	if matIndices:
+		matIndicesNumpy = numpy.ctypeslib.as_array(
+			ctypes.cast(matIndices.core.pData,
+			ctypes.POINTER(ctypes.c_byte)),
+			shape = [workMesh.faceCount]
+		)
+		mesh.polygons.foreach_set("material_index", cast(Any, matIndicesNumpy))
+
+	#meshStuc.uv_layers.new(name="uvmap")
+	#uvPtr = meshStuc.uv_layers[0].data[0].as_pointer()
+	#stucMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(StucVec2))
+	mesh.update()
+	meshStucFormat = formatAsStucMesh(mesh, False, False)
+	stucLib.stucBlenderCopyMeshAttribs(
+		ctypes.pointer(meshStucFormat[0]),
+		ctypes.pointer(workMesh)
+	)
+	normalAttrib = attribUtils.getNormalAttrib(workMesh)
+	normalsNumpy = numpy.ctypeslib.as_array(
+		ctypes.cast(normalAttrib.core.pData,
+		ctypes.POINTER(ctypes.c_float)),
+		shape = [workMesh.loopCount, 3]
+	)
+	mesh.normals_split_custom_set(cast(Any, normalsNumpy))
+	if (bpy.app.version < (4, 1, 0)):
+		mesh.use_auto_smooth = True #type:ignore
+
+def formatAsStucObj(
+	obj: bpy.types.Object,
+	depsgraph: bpy.types.Depsgraph,
+	mats: bool = False,
+	matDict: dict[str, int] | None = None,
+	matTable: stuc.StucBlenderMatTableArr | None = None,
+	activeNames: bpy.types.Collection | None = None
+) -> tuple[stuc.StucObject, tuple[stuc.StucMesh, NDArray[Any], ctypes.c_void_p | None, NDArray[Any] | None]]:
+	stucObj = stuc.StucObject()
+	objEval = obj.evaluated_get(depsgraph)
+	meshEval = objEval.data
+	if type(meshEval) != bpy.types.Mesh:
+		raise Exception("object is not a mesh")
+	meshTuple = formatAsStucMesh(meshEval, False, True, mats, activeNames)
+	if matTable and matDict:
+		matTable.count = len(meshEval.materials)
+		MatSlots = ctypes.c_byte * matTable.count
+		matTable.pArr = MatSlots()
+		#list global indices of materials in current object,
+		#this will be used as a lookup table, as per face mat indices are obj local
+		i = 0
+		while i < matTable.count:
+			mat = meshEval.materials[i]
+			if not mat:
+				raise Exception("material in matTable is None")
+			matTable.pArr[i] = list(matDict.keys()).index(mat.name)
+			i += 1
+	stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(stuc.StucObjectData))
+	utils.setStucMatrix(stucObj.transform, obj.matrix_world)
+	#the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
+	return (stucObj, meshTuple)
+
+def blendObjFromStuc(
+		stucLib: ctypes.CDLL,
+		stucObj: stuc.StucObject,
+		col: bpy.types.Collection,
+		name: str, displayType: str,
+		isUsg: bool,
+		mats: stuc.StucAttribIndexedArr | None = None
+) -> bpy.types.Object:
+	mesh = bpy.data.meshes.new(f"{name}Mesh")
+	obj = bpy.data.objects.new(name, mesh)
+	col.objects.link(obj)
+	meshStuc = ctypes.cast(stucObj.pData, ctypes.POINTER(stuc.StucMesh))
+	copyStucMeshToBlenderMesh(stucLib, mesh, meshStuc.contents, mats)
+	utils.setBlenderMatrix(obj.matrix_world, stucObj.transform)
+	obj.display_type = cast(Any, displayType)
+	if isUsg:
+		obj['StucUsg'] = isUsg
+	return obj
+
+def getUsgCountInSelObjs(context: bpy.types.Context) -> int:
+	count = 0
+	for obj in context.selected_objects:
+		isUsg = obj.get("StucUsg", None)
+		if isUsg:
+			count += 1
+	return count

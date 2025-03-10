@@ -11,23 +11,31 @@ bl_info = {
 import importlib
 
 if ("bpy" in locals()):
-	importlib.reload(UvStuccoB_Props)
-	importlib.reload(UvStuccoB_Ops)
-	importlib.reload(UvStuccoB_Ui)
+	importlib.reload(props)
+	importlib.reload(ops)
+	importlib.reload(io_ops)
+	importlib.reload(handlers)
+	importlib.reload(ui)
 else:
-	from . import UvStuccoB_Props
-	from . import UvStuccoB_Ops
-	from . import UvStuccoB_Ui
+	from . import props
+	from . import ops
+	from . import io_ops
+	from . import handlers
+	from . import ui
 
 def register() -> None:
 	print("Registering UvStuccoB")
-	UvStuccoB_Props.register()
-	UvStuccoB_Ops.register()
-	UvStuccoB_Ui.register()
+	props.register()
+	ops.register()
+	io_ops.register()
+	handlers.register()
+	ui.register()
 
 def unregister() -> None:
 	print("Unregistering UvStuccoB")
-	UvStuccoB_Props.unregister()
-	UvStuccoB_Ops.unregister()
-	UvStuccoB_Ui.unregister()
+	props.unregister()
+	ops.unregister()
+	io_ops.register()
+	handlers.register()
+	ui.unregister()
 

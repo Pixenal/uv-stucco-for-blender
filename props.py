@@ -1,8 +1,9 @@
-import bpy
 import pdb
-import ctypes
-from . import UvStuccoB_CLib
-stucLib = UvStuccoB_CLib.stucLib
+
+import bpy
+
+from . import c_lib
+stucLib = c_lib.stucLib
 
 def targetObjUpdate(self, context) -> None:
 	print(f"updating name from {self.name} to {self.obj.name}")

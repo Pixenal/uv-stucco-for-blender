@@ -25,7 +25,7 @@ class STUC_UL_StucActiveAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
-			row0.prop_search(item, "name", data.obj.data, "attributes", text = "", icon = 'SOLO_OFF')
+			row0.prop_search(item, "name", data.obj.data, "attributes", text = item.use, icon = 'SOLO_OFF')
 
 class STUC_UL_StucCommonAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
@@ -88,7 +88,8 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 				"STUC_UL_StucActiveAttribs",
 				"",
 				target, "activeAttribs",
-				target, "activeAttribIdx"
+				target, "activeAttribIdx",
+				rows = 7, maxrows = 7
 			)
 
 			idx = None

@@ -203,6 +203,7 @@ def waitForAndCopyOutMeshes(
 			doneCount += 1
 			if result != 0:
 				print(f"Stuc python, map to mesh failed on obj {item.obj.name}, skipping")
+				continue
 			print(f"---------------------------------------------------------------Stuc python, map to mesh returned success on obj {item.obj.name}")
 			
 			addOrUpdateBlendMesh(context, item)

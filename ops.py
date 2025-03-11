@@ -95,17 +95,29 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 			newTarget.obj = obj.id_data
 			obj["stucWScale"] = context.scene.stuc.wScale #type:ignore
 			obj["stucReceiveLen"] = -1.0
-			newTarget.activeAttribs.add().name = "position"
-			newTarget.activeAttribs.add().name = ""
+			posEntry = newTarget.activeAttribs.add()
+			posEntry.use = "position"
+			posEntry.name = "position"
+			normalEntry = newTarget.activeAttribs.add()
+			normalEntry.use = "normal"
+			normalEntry.name = ""
 			uvEntry = newTarget.activeAttribs.add()
+			uvEntry.use = "UV"
 			for uv in obj.data.uv_layers:
 				if uv.active:
 					uvEntry.name = uv.name
 					break
 			colEntry = newTarget.activeAttribs.add()
+			colEntry.use = "Color"
 			activeColIdx = obj.data.attributes.active_color_index
 			if activeColIdx and activeColIdx >= 0:
 				colEntry.name = obj.data.color_attributes[activeColIdx].name
+			preserveEdgeEntry = newTarget.activeAttribs.add()
+			preserveEdgeEntry.use = "Preserve Edge"
+			preserveVertEntry = newTarget.activeAttribs.add()
+			preserveVertEntry.use = "Preserve Vert"
+			receiveEntry = newTarget.activeAttribs.add()
+			receiveEntry.use = "Receive Edge"
 
 		return {'FINISHED'}
 	
@@ -157,7 +169,14 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 		scene = context.scene
 		if scene.stucTargetsIndex >= len(scene.stucTargets): #type:ignore
 			return {'CANCELLED'}
-		del scene.stucTargets[scene.stucTargetsIndex].obj["stucWScale"] #type:ignore
+		target: props.StucTarget = scene.stucTargets[scene.stucTargetsIndex] #type:ignore
+		if target.obj:
+			objProp = target.obj.get("stucWScale", None)
+			if objProp:
+				del objProp
+			objProp = target.obj.get("stucReceiveLen", None)
+			if objProp:
+				del objProp
 		scene.stucTargets.remove(scene.stucTargetsIndex) #type:ignore
 		return {'FINISHED'}
 

@@ -51,6 +51,13 @@ def getAttribUse(
 			return stuc.StucAttribUse.UV.value
 		if attrib.name == activeNames[3].name:
 			return stuc.StucAttribUse.COLOR.value
+		if attrib.name == activeNames[4].name:
+			return stuc.StucAttribUse.PRESERVE_EDGE.value
+		if attrib.name == activeNames[5].name:
+			return stuc.StucAttribUse.PRESERVE_VERT.value
+		if attrib.name == activeNames[6].name:
+			return stuc.StucAttribUse.RECEIVE.value
+
 	else:
 		if attrib.name == "position":
 			return stuc.StucAttribUse.POS.value
@@ -192,7 +199,13 @@ def isAttribActive(
 			return True
 		if attrib.name == activeNames[3].name:
 			return True
-		
+		if attrib.name == activeNames[4].name:
+			return True
+		if attrib.name == activeNames[5].name:
+			return True
+		if attrib.name == activeNames[6].name:
+			return True
+
 	if attrib.name == "position":
 		return True
 	for uv in target.uv_layers:
@@ -246,7 +259,9 @@ def initAttribs(
 			metaOnly,
 			interpolate
 		)
-		if attribEntry.core.use and isAttribActive(target, attrib, activeNames):
+		if attribEntry.core.use != stuc.StucAttribUse.NONE.value and\
+			isAttribActive(target, attrib, activeNames):
+
 			mesh.activeAttribs[attribEntry.core.use].active = True
 			mesh.activeAttribs[attribEntry.core.use].idx = attribArr.count
 		attribArr.count += 1

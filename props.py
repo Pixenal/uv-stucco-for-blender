@@ -32,6 +32,7 @@ class StucTarget(bpy.types.PropertyGroup):
 
 class StucActiveAttrib(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()
+	use : bpy.props.StringProperty()
 	
 class StucMat(bpy.types.PropertyGroup):
 	mat : bpy.props.PointerProperty(type = bpy.types.Material, poll = stucMatPoll,

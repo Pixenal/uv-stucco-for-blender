@@ -61,7 +61,8 @@ class StucAttribUse(Enum):
 	COLOR = 18
 	MASK = 19
 	SCALAR = 20
-	ENUM_COUNT = 21
+	MISC = 21
+	ENUM_COUNT = 22
 
 class StucBlendMode(Enum):
 	REPLACE = 0

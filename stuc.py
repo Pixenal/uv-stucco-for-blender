@@ -85,6 +85,10 @@ class StucDomain(Enum):
 	EDGE = 3
 	VERT = 4
 
+class StucAttribCopyOpt(Enum):
+	COPY = 0
+	DONT_COPY = 1
+
 class StucVec2(ctypes.Structure):
 	_fields_ = [
 		("x", ctypes.c_float),
@@ -150,23 +154,20 @@ class StucAttribActive(ctypes.Structure):
 		("active", ctypes.c_bool)
 	]
 
-#TODO rename loop attribs here as well
-#when working with stuc geo of course. Use loop when
-#referncing blender geometry of course
 class StucMesh(ctypes.Structure):
 	_fields_ = [
 		("type", StucObjectData),
 		("activeAttribs", StucAttribActive * StucAttribUse.ENUM_COUNT.value),
 		("pFaces", ctypes.POINTER(ctypes.c_int32)),
-		("pLoops", ctypes.POINTER(ctypes.c_int32)),
+		("pCorners", ctypes.POINTER(ctypes.c_int32)),
 		("pEdges", ctypes.POINTER(ctypes.c_int32)),
 		("meshAttribs", StucAttribArray),
 		("faceAttribs", StucAttribArray),
-		("loopAttribs", StucAttribArray),
+		("cornerAttribs", StucAttribArray),
 		("edgeAttribs", StucAttribArray),
 		("vertAttribs", StucAttribArray),
 		("faceCount", ctypes.c_int32),
-		("loopCount", ctypes.c_int32),
+		("cornerCount", ctypes.c_int32),
 		("edgeCount", ctypes.c_int32),
 		("vertCount", ctypes.c_int32)
 	]

@@ -207,7 +207,7 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 		newMap = context.scene.stucMaps.add() #type:ignore
 		newMap.name = name
 		nameUtf8 = newMap.name.encode('utf-8')
-		context.scene.stucMapsIndex = len(context.scene.stucMaps) #type:ignore
+		context.scene.stucMapsIdx = len(context.scene.stucMaps) #type:ignore
 		err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
 		if err != 1:
 			self.report({'ERROR'}, "Load failed")
@@ -225,7 +225,7 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 		return False
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
-		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex] #type:ignore
+		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIdx] #type:ignore
 		mapUtf8 = ""
 		err = stucLib.stucBlenderMapFileUnload(mapUtf8)
 		if err != 1:

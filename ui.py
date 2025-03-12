@@ -61,7 +61,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 			"STUC_UL_StucMats",
 			"",
 			context.scene, "stucMats",
-			context.scene, "stucMatsIndex"
+			context.scene, "stucMatsIdx"
 			)
 		col1 = row0.column(align = True)
 		col1.scale_x = .35
@@ -74,7 +74,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 			"STUC_UL_StucTargets",
 			"",
 			context.scene, "stucTargets",
-			context.scene, "stucTargetsIndex"
+			context.scene, "stucTargetsIdx"
 		)
 		col2 = row1.column(align = True)
 		col2.scale_x = .35
@@ -82,7 +82,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 		col2.operator("stuc.stuc_remove", text = " ", icon = "REMOVE")
 		
 		if (len(context.scene.stucTargets)): #type:ignore
-			target = context.scene.stucTargets[context.scene.stucTargetsIndex] #type:ignore
+			target = context.scene.stucTargets[context.scene.stucTargetsIdx] #type:ignore
 
 			col0.template_list(
 				"STUC_UL_StucActiveAttribs",
@@ -119,22 +119,22 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 					"STUC_UL_StucCommonAttribs",
 					"",
 					commonAttribs, domain,
-					stuc, "commonAttribIndex"
+					stuc, "commonAttribIdx"
 				)
 				if len(commonAttrib):
 					match (stuc.commonAttribDomain):
 						case "FACE":
 							commonAttribEntry =\
-								commonAttribs.faces[stuc.commonAttribIndex]
+								commonAttribs.faces[stuc.commonAttribIdx]
 						case "CORNER":
 							commonAttribEntry =\
-								commonAttribs.corners[stuc.commonAttribIndex]
+								commonAttribs.corners[stuc.commonAttribIdx]
 						case "EDGE":
 							commonAttribEntry =\
-								commonAttribs.edges[stuc.commonAttribIndex]
+								commonAttribs.edges[stuc.commonAttribIdx]
 						case "POINT":
 							commonAttribEntry =\
-								commonAttribs.verts[stuc.commonAttribIndex]
+								commonAttribs.verts[stuc.commonAttribIdx]
 					col0.prop(commonAttribEntry, "opacity")
 					col0.prop(commonAttribEntry, "blend")
 					col0.prop(commonAttribEntry, "order")

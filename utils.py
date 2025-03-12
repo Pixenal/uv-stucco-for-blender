@@ -23,8 +23,8 @@ def setStucMatrix(dest: ctypes.Array[ctypes.c_float], src: mathutils.Matrix) -> 
 	while j < 4:
 		k = 0
 		while k < 4:
-			linearIndex = k + j * 4
-			dest[linearIndex] = matWorld[j][k]
+			linearIdx = k + j * 4
+			dest[linearIdx] = matWorld[j][k]
 			k += 1
 		j += 1
 
@@ -33,8 +33,8 @@ def setBlenderMatrix(dest: mathutils.Matrix, src: ctypes.Array[ctypes.c_float]) 
 	while j < 4:
 		k = 0
 		while k < 4:
-			linearIndex = k + j * 4
-			dest[j][k] = src[linearIndex]
+			linearIdx = k + j * 4
+			dest[j][k] = src[linearIdx]
 			k += 1
 		j += 1
 	dest.transpose()
@@ -75,4 +75,4 @@ def updateUiTargetIdx(context: bpy.types.Context) -> None:
 		if type(active.data) == bpy.types.Mesh:
 					idx = findObjInCol(active, cast(Any, context.scene).stucTargets)
 					if idx != None:
-						context.scene.stucTargetsIndex = idx #type:ignore
+						context.scene.stucTargetsIdx = idx #type:ignore

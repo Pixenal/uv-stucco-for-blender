@@ -137,11 +137,11 @@ class STUC_OT_StucPreviewImage(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context) -> bool:
-		#currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex]
+		#currentTarget = context.scene.stucTargets[context.scene.stucTargetsIdx]
 		return False
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
-		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIndex] #type:ignore
+		currentTarget = context.scene.stucTargets[context.scene.stucTargetsIdx] #type:ignore
 		mapUtf8 = ""
 		previewRes = 512
 		dataLen = previewRes * previewRes * 4
@@ -167,9 +167,9 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		scene = context.scene
-		if scene.stucTargetsIndex >= len(scene.stucTargets): #type:ignore
+		if scene.stucTargetsIdx >= len(scene.stucTargets): #type:ignore
 			return {'CANCELLED'}
-		target: props.StucTarget = scene.stucTargets[scene.stucTargetsIndex] #type:ignore
+		target: props.StucTarget = scene.stucTargets[scene.stucTargetsIdx] #type:ignore
 		if target.obj:
 			objProp = target.obj.get("stucWScale", None)
 			if objProp:
@@ -177,7 +177,7 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 			objProp = target.obj.get("stucReceiveLen", None)
 			if objProp:
 				del objProp
-		scene.stucTargets.remove(scene.stucTargetsIndex) #type:ignore
+		scene.stucTargets.remove(scene.stucTargetsIdx) #type:ignore
 		return {'FINISHED'}
 
 class STUC_OT_StucMatRemove(bpy.types.Operator):

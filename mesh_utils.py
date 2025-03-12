@@ -23,7 +23,7 @@ def formatAsStucMesh(
 	mesh.type.type = stuc.StucObjectType.MESH.value
 
 	mesh.faceCount = len(target.polygons)
-	mesh.loopCount = len(target.loops)
+	mesh.cornerCount = len(target.loops)
 	mesh.edgeCount = len(target.edges)
 	mesh.vertCount = len(target.vertices)
 
@@ -31,13 +31,13 @@ def formatAsStucMesh(
 	mesh.pFaces = ctypes.cast(facesPtr, ctypes.POINTER(ctypes.c_int32))
 
 	loopsPtr = target.loops[0].as_pointer()
-	mesh.pLoops = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int32))
+	mesh.pCorners = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int32))
 
-	edges = numpy.empty(mesh.loopCount, dtype = numpy.int32)
+	edges = numpy.empty(mesh.cornerCount, dtype = numpy.int32)
 	target.loops.foreach_get("edge_index", cast(Any, edges))
 	mesh.pEdges = edges.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
 
-	attribCount = {"face" : 0, "loop" : 0, "edge" : 0, "vert" : 0}
+	attribCount = {"face" : 0, "corner" : 0, "edge" : 0, "vert" : 0}
 	attribUtils.getAttribCounts(attribCount, target, getNormals)
 	if mats:
 		attribCount["face"] += 1 #for material indices
@@ -71,7 +71,7 @@ def formatAsStucMesh(
 		normals = ctypes.cast(normalsPtr, ctypes.c_void_p)
 			
 		attribUtils.appendAttrib(
-			mesh.loopAttribs,
+			mesh.cornerAttribs,
 			"normal",
 			stuc.StucAttribType.V3_F32.value,
 			stuc.StucAttribUse.NORMAL.value,
@@ -111,7 +111,7 @@ def copyStucMeshToBlenderMesh(
 			i += 1
 
 	mesh.vertices.add(workMesh.vertCount)
-	mesh.loops.add(workMesh.loopCount)
+	mesh.loops.add(workMesh.cornerCount)
 	mesh.polygons.add(workMesh.faceCount)
 	attribUtils.createAllAttribs(mesh, workMesh)
 	meshStucFormat = formatAsStucMesh(mesh, False, False)
@@ -150,7 +150,7 @@ def copyStucMeshToBlenderMesh(
 	normalsNumpy = numpy.ctypeslib.as_array(
 		ctypes.cast(normalAttrib.core.pData,
 		ctypes.POINTER(ctypes.c_float)),
-		shape = [workMesh.loopCount, 3]
+		shape = [workMesh.cornerCount, 3]
 	)
 	mesh.normals_split_custom_set(cast(Any, normalsNumpy))
 	if (bpy.app.version < (4, 1, 0)):

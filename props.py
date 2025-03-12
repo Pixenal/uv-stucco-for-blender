@@ -79,7 +79,7 @@ class StucProperties(bpy.types.PropertyGroup):
 		('EDGE', "Edge", ""),
 		('POINT', "Vertex", "")
 	])
-	commonAttribIndex : bpy.props.IntProperty(default = 0)
+	commonAttribIdx : bpy.props.IntProperty(default = 0)
 	wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
@@ -106,11 +106,11 @@ def register() -> None:
 	)
 	bpy.types.Scene.stuc = bpy.props.PointerProperty(type = StucProperties)
 	bpy.types.Scene.stucTargets = bpy.props.CollectionProperty(name = "Targets", type = StucTarget)
-	bpy.types.Scene.stucTargetsIndex = bpy.props.IntProperty(name = "Targets Index")
+	bpy.types.Scene.stucTargetsIdx = bpy.props.IntProperty(name = "Targets Index")
 	bpy.types.Scene.stucMaps = bpy.props.CollectionProperty(name = "Maps", type = StucMap)
-	bpy.types.Scene.stucMapsIndex = bpy.props.IntProperty(name = "Maps Index")
+	bpy.types.Scene.stucMapsIdx = bpy.props.IntProperty(name = "Maps Index")
 	bpy.types.Scene.stucMats = bpy.props.CollectionProperty(name = "Mats", type = StucMat)
-	bpy.types.Scene.stucMatsIndex = bpy.props.IntProperty(name = "Mats Index")
+	bpy.types.Scene.stucMatsIdx = bpy.props.IntProperty(name = "Mats Index")
 	StucCommonAttribTableEntry.mesh = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucCommonAttribTableEntry.faces = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucCommonAttribTableEntry.corners = bpy.props.CollectionProperty(type = StucCommonAttrib)

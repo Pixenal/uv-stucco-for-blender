@@ -123,18 +123,18 @@ def createAttribs(mesh: bpy.types.Mesh, attribs: stuc.StucAttrib, domain: str) -
 
 def createAllAttribs(mesh: bpy.types.Mesh, stucMesh: stuc.StucMesh) -> None:
 	createAttribs(mesh, stucMesh.faceAttribs, "FACE")
-	createAttribs(mesh, stucMesh.loopAttribs, "CORNER")
+	createAttribs(mesh, stucMesh.cornerAttribs, "CORNER")
 	#createAttribs(mesh, stuc.StucMesh.pEdgeAttribs, stuc.StucMesh.edgeAttribCount, "EDGE")
 	#createAttribs(mesh, stuc.StucMesh.pVertAttribs, stuc.StucMesh.vertAttribCount, "POINT")
 
 def getNormalAttrib(mesh: stuc.StucMesh) -> stuc.StucAttrib:
 	i = 0
-	while (i < mesh.loopAttribs.count):
-		name = ctypes.cast(mesh.loopAttribs.pArr[i].core.name, ctypes.c_char_p).value
+	while (i < mesh.cornerAttribs.count):
+		name = ctypes.cast(mesh.cornerAttribs.pArr[i].core.name, ctypes.c_char_p).value
 		if not name:
 			raise Exception("normal attrib name is None")
 		if (name.decode("utf-8") == "normal"):
-			return mesh.loopAttribs.pArr[i]
+			return mesh.cornerAttribs.pArr[i]
 		i += 1
 	raise Exception("normal attrib not found")
 
@@ -151,7 +151,7 @@ def getAttribCounts(
 			case 'FACE':
 				attribCount["face"] += 1
 			case 'CORNER':
-				attribCount["loop"] += 1
+				attribCount["corner"] += 1
 			case 'EDGE':
 				attribCount["edge"] += 1
 			case 'POINT':
@@ -162,8 +162,8 @@ def getAttribCounts(
 def allocAttribs(mesh: stuc.StucMesh, attribCounts: dict[str, int]) -> None:
 	FaceAttribsArray = stuc.StucAttrib * attribCounts["face"]
 	mesh.faceAttribs.pArr = FaceAttribsArray()
-	LoopAttribsArray = stuc.StucAttrib * (attribCounts["loop"] + 3) # +3 for normals, tangents, & tsign
-	mesh.loopAttribs.pArr = LoopAttribsArray()
+	CornerAttribsArray = stuc.StucAttrib * (attribCounts["corner"] + 3) # +3 for normals, tangents, & tsign
+	mesh.cornerAttribs.pArr = CornerAttribsArray()
 	EdgeAttribsArray = stuc.StucAttrib * attribCounts["edge"]
 	mesh.edgeAttribs.pArr = EdgeAttribsArray()
 	VertAttribsArray = stuc.StucAttrib * attribCounts["vert"]
@@ -180,6 +180,7 @@ def initAttribEntry(
 	utils.copyString(attribEntry.core.name, attrib.name, stuc.STUC_ATTRIB_NAME_MAX_LEN)
 	attribEntry.core.type = getAttribType(attrib)[0]
 	attribEntry.core.use = getAttribUse(target, activeNames, attrib)
+	attribEntry.copyOpt = stuc.StucAttribCopyOpt.COPY.value
 	attribEntry.interpolate = interpolate
 	if not(metaOnly):
 		attribData = cast(Any, attrib).data[0].as_pointer()
@@ -240,7 +241,7 @@ def initAttribs(
 				attribArr = mesh.faceAttribs
 				interpolate = False
 			case 'CORNER':
-				attribArr = mesh.loopAttribs
+				attribArr = mesh.cornerAttribs
 				interpolate = True
 			case 'EDGE':
 				attribArr = mesh.edgeAttribs

@@ -331,10 +331,13 @@ def updateCommonAttribs(
 	if type(meshEval) != bpy.types.Mesh:
 		raise Exception("target object isn't a mesh")
 	#clean common attrib entries for mat's no longer assigned to obj
+	i = 0
 	for entry in target.commonAttribTable: #type:ignore
 		mat = meshEval.materials.get(entry.mat.name, None)
 		if not mat:
-			target.commonAttribTable.remove(entry) #type:ignore
+			target.commonAttribTable.remove(i) #type:ignore
+			i -= 1
+		i += 1
 			
 	targetMats = utils.getMatsInStucMats(context, meshEval)
 	targetMatCount = len(targetMats)
@@ -353,12 +356,22 @@ def updateCommonAttribs(
 		else:
 			entry = target.commonAttribTable.add() #type:ignore
 			entry.mat = mat.mat
+			entry.map = mat.map
+
 		mapUtf8 = mat.map.encode('utf-8')
 		stucLib.stucBlenderQueryCommonAttribs(
 			meshTuple[0],
 			mapUtf8,
 			ctypes.pointer(commonAttribList[i])
 		)
+
+		if (entry.map != mat.map):
+			#map has changed. clear common attrib configs
+			entry.map = mat.map
+			entry.faces.clear()
+			entry.corners.clear()
+			entry.edges.clear()
+			entry.verts.clear()
 		setTargetCommonAttribs(
 			entry.faces,
 			commonAttribList[i].face,

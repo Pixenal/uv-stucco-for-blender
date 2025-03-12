@@ -11,9 +11,6 @@ def targetObjUpdate(self, context) -> None:
 def usgFlatCutoffPoll(self, obj: bpy.types.Object) -> bool | None:
 	return self != obj and not obj.get("StucUsg", None)
 
-def stucMatPoll(self, obj) -> bool:
-	return not obj.get("StucMat", None)
-
 def stucMatUpdate(self, context) -> None:
 	if self.matCpy and self.mat != self.matCpy:
 		del self.matCpy["StucMat"]
@@ -34,8 +31,7 @@ class StucActiveAttrib(bpy.types.PropertyGroup):
 	use : bpy.props.StringProperty()
 	
 class StucMat(bpy.types.PropertyGroup):
-	mat : bpy.props.PointerProperty(type = bpy.types.Material, poll = stucMatPoll,
-									update = stucMatUpdate)
+	mat : bpy.props.PointerProperty(type = bpy.types.Material, update = stucMatUpdate)
 	#matCpy exists to allow stucMatUpdate to see the mat a material pointed to before
 	#it was changed (there doesn't seem to be a pre-update callback).
 	#(Map property needs to be a string it seems for the prop_search
@@ -83,6 +79,7 @@ class StucProperties(bpy.types.PropertyGroup):
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
 	mat : bpy.props.PointerProperty(type = bpy.types.Material)
+	map : bpy.props.StringProperty()
 
 classes = [
 	StucProperties,

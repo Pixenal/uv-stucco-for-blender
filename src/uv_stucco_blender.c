@@ -235,7 +235,6 @@ void stucBlenderQueryCommonAttribs(
 ) {
 	HandleEntry *pEntry, *pPrevEntry;
 	if (getHandle(&pEntry, &pPrevEntry, pMap) != 4) {
-		printf("Stuc query common attribs failed, specified map not loaded\n");
 		return;
 	}
 	stucQueryCommonAttribs(pStucCtx, pEntry->handle, pMesh, pCommonAttribs);
@@ -253,7 +252,6 @@ int32_t makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
 	for (int32_t i = 0; i < pMapArr->count; ++i) {
 		HandleEntry *pEntry, *pPrevEntry;
 		if (getHandle(&pEntry, &pPrevEntry, pBlendMapArr->ppArr[i]) != 4) {
-			printf("Stuc blender map to mesh failed, specified map not loaded\n");
 			return 1;
 		}
 		pMapArr->ppArr[i] = pEntry->handle;
@@ -275,7 +273,7 @@ int32_t stucBlenderMapToMesh(
 	StucMapArr *pMapArr = calloc(1, sizeof(StucMapArr));
 	int32_t err = makeMapArr(pMapArrPy, pMapArr);
 	if (err) {
-		return err;
+		return 2;
 	}
 	//TODO if multiple objects are selected, see if dispatching them all at once on multiple threads
 	// improves perf. Probably not a good idea for high res meshes or maps, given the memory use.

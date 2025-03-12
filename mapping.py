@@ -126,6 +126,8 @@ def pushMappingJobToQueue(
 		wScale,
 		receiveLen
 	)
+	if result == 2:
+		return #no jobs pushed
 	if result != 0:
 		raise Exception("error pushing job to queue")
 	targetCache.append(TargetCache(

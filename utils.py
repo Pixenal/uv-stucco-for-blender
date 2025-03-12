@@ -7,9 +7,7 @@ import pdb
 def copyString(dest: bytes, src: str, maxLen: int) -> None:
 	length = len(src)
 	if (length > maxLen):
-		#TODO add proper exception handling in general
-		print("string length exceeds max")
-		return
+		raise Exception("string length exceeds max")
 	srcUtf8 = src.encode('utf-8')
 	i = 0
 	while (i < length):

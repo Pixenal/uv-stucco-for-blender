@@ -1,4 +1,5 @@
 from typing import Any, cast
+import pdb
 
 import bpy
 from bpy.app.handlers import persistent
@@ -20,11 +21,9 @@ def stucLoadPreHandler(dummy) -> None:
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:
 	context = bpy.context
-	try:
-		utils.updateUiTargetIdx(context)
-		mapping.mapToSelTargets(context)
-	except:
-		print("STUC PYTHON ERROR in update post handler")
+	#pdb.set_trace()
+	utils.updateUiTargetIdx(context)
+	mapping.mapToSelTargets(context)
 	
 
 def register() -> None:

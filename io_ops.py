@@ -17,14 +17,14 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
 	bl_options = {'REGISTER'}
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
-		if (len(context.selected_objects) == 0):
-			print("STUC export failed, no objects selected.")
-			return {'CANCELLED'}
-		
-		filepath = self.filepath #type:ignore
-		filePathUtf8 = filepath.encode('utf-8')
-		
 		try:
+			if (len(context.selected_objects) == 0):
+				self.report({'WARNING'}, "Nothing was exported, no objects selected")
+				return {'CANCELLED'}
+			
+			filepath = self.filepath #type:ignore
+			filePathUtf8 = filepath.encode('utf-8')
+		
 			depsgraph = context.evaluated_depsgraph_get()
 			ObjArr = stuc.StucObject * len(context.selected_objects)
 			UsgArr = stuc.StucUsg * len(context.selected_objects)
@@ -130,9 +130,9 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
 			)
 			if err != 1:
 				raise Exception("stuc map file export returned error")
-		except:
+		except Exception as e:
 			self.report({'ERROR'}, "Export failed")
-			return {'CANCELLED'}
+			raise e
 		return {'FINISHED'}
 	
 class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
@@ -204,9 +204,9 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 				i += 1
 			stucLib.stucBlenderUsgArrDestroy(usgCount.value, usgArr)
 			stucLib.stucBlenderObjArrDestroy(flatCutoffCount.value, flatCutoffArr)
-		except:
+		except Exception as e:
 			self.report({'ERROR'}, "Load failed")
-			return {'CANCELLED'}
+			raise e
 		return {'FINISHED'}
 
 class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
@@ -215,22 +215,25 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	bl_options = {"REGISTER"}
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
-		name = os.path.basename(self.filepath) #type:ignore
-		for map in context.scene.stucMaps: #type:ignore
-			if (name == map.name):
-				return {'CANCELLED'}
-		filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
-		newMap = context.scene.stucMaps.add() #type:ignore
-		newMap.name = name
-		nameUtf8 = newMap.name.encode('utf-8')
-		context.scene.stucMapsIdx = len(context.scene.stucMaps) #type:ignore
-		err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
-		if err != 1:
+		try:
+			name = os.path.basename(self.filepath) #type:ignore
+			for map in context.scene.stucMaps: #type:ignore
+				if (name == map.name):
+					return {'CANCELLED'}
+			filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
+			newMap = context.scene.stucMaps.add() #type:ignore
+			newMap.name = name
+			nameUtf8 = newMap.name.encode('utf-8')
+			context.scene.stucMapsIdx = len(context.scene.stucMaps) #type:ignore
+			err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
+			if err != 1:
+				raise Exception("stuc map file load returned error")
+		except Exception as e:
 			self.report({'ERROR'}, "Load failed")
-			return {'CANCELLED'}
+			raise e
 		return {'FINISHED'}
 
-#fix this
+#TODO fix this
 class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 	bl_idname = "stuc.reload_stuc_file"
 	bl_label = "Reload STUC File"
@@ -260,9 +263,9 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 			err = stucLib.stucBlenderMapFileLoad(mapUtf8)
 			if err != 1:
 				raise Exception("stuc blender map file load returned error")
-		except:
+		except Exception as e:
 			self.report({'ERROR'}, "Load failed")
-			return {'CANCELLED'}
+			raise e
 		return {'FINISHED'}
 	
 classes = [

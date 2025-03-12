@@ -43,7 +43,6 @@ def pushMappingJobToQueue(
 	targetCache: list[TargetCache]
 ) -> None:
 	obj = target.obj
-	active = context.view_layer.objects.active
 	if obj not in context.selected_objects:
 		return
 	elif obj.mode != 'OBJECT':
@@ -60,7 +59,6 @@ def pushMappingJobToQueue(
 		return
 	wScale = obj.get("stucWScale", None)
 	if wScale == None:
-		print("Target obj has no w scale. Setting to default")
 		wScale = context.scene.stuc.wScale #type:ignore
 		obj["stucWScale"] = wScale
 
@@ -129,8 +127,7 @@ def pushMappingJobToQueue(
 		receiveLen
 	)
 	if result != 0:
-		print("Stuc python map to mesh failed, error pushing job to queue")
-		return
+		raise Exception("error pushing job to queue")
 	targetCache.append(TargetCache(
 		objEval,
 		jobHandle,

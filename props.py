@@ -6,7 +6,6 @@ from . import c_lib
 stucLib = c_lib.stucLib
 
 def targetObjUpdate(self, context) -> None:
-	print(f"updating name from {self.name} to {self.obj.name}")
 	self.name = self.obj.name
 
 def usgFlatCutoffPoll(self, obj: bpy.types.Object) -> bool | None:

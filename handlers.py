@@ -20,8 +20,11 @@ def stucLoadPreHandler(dummy) -> None:
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:
 	context = bpy.context
-	utils.updateUiTargetIdx(context)
-	mapping.mapToSelTargets(context)
+	try:
+		utils.updateUiTargetIdx(context)
+		mapping.mapToSelTargets(context)
+	except:
+		print("STUC PYTHON ERROR in update post handler")
 	
 
 def register() -> None:

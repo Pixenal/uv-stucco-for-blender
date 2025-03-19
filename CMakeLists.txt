@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 Caleb Dawson
+# SPDX-License-Identifier: GPL-3.0-only
+
 cmake_minimum_required(VERSION 3.2)
 cmake_policy(SET CMP0091 NEW)
 project(UvStuccoBlender)

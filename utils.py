@@ -1,3 +1,8 @@
+'''
+SPDX-FileCopyrightText: 2025 Caleb Dawson
+SPDX-License-Identifier: GPL-3.0-only
+'''
+
 import bpy
 import ctypes
 import mathutils

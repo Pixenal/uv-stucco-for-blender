@@ -1,3 +1,8 @@
+/* 
+SPDX-FileCopyrightText: 2025 Caleb Dawson
+SPDX-License-Identifier: GPL-3.0-only
+*/
+
 #define HANDLE_TABLE_SIZE 64
 #include <stdlib.h>
 #include <stdio.h>

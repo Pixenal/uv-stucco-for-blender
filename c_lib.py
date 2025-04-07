@@ -19,7 +19,7 @@ if initPath:
 	if sys.platform == "win32":
 		stucLibPath = f"{initDir}\\lib\\win\\UvStuccoBlender.dll"
 	elif sys.platform == "darwin":
-		stucLibPath = f"{initDir}/lib/macos/libUvStuccoBBlender.dylib"
+		stucLibPath = f"{initDir}/lib/macos/libUvStuccoBlender.dylib"
 	elif sys.platform == "linux" or "linux2":
 		stucLibPath = f"{initDir}/lib/linux/libStucBlender.so"
 	stucLib = ctypes.cdll.LoadLibrary(stucLibPath)

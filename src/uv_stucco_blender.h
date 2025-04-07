@@ -8,11 +8,10 @@ SPDX-License-Identifier: GPL-3.0-only
 
 #include <uv_stucco.h>
 
-#ifdef PLATFORM_LINUX
-	#define STUC_BLENDER_EXPORT
-#endif
-#ifdef PLATFORM_WINDOWS
+#ifdef WIN32 
 	#define STUC_BLENDER_EXPORT __declspec(dllexport)
+#else
+	#define STUC_BLENDER_EXPORT __attribute__((visibility("default")))
 #endif
 
 //TODO replace these mat structs with a generic per obj offset table for all indexedAttribs,
@@ -22,7 +21,7 @@ SPDX-License-Identifier: GPL-3.0-only
 
 typedef struct {
 	char **ppArr;
-	char *pMatIdxArr;
+	int8_t *pMatIdxArr;
 	StucCommonAttribList *pCommonAttribArr;
 	int32_t count;
 } StucBlenderMapArr;

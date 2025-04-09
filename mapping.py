@@ -169,7 +169,7 @@ def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
 		item.outMesh,
 		item.outIndexedAttribs
 	)
-	stucLib.stucBlenderMeshDestroy(item.outMesh)
+	stucLib.stucBlenderMeshDestroy(ctypes.pointer(item.outMesh))
 	normalBlendAttrib = meshStuc.attributes.get("normal", None)
 	if (normalBlendAttrib):
 		meshStuc.attributes.remove(normalBlendAttrib)

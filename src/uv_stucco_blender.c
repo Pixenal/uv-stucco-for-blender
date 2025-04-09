@@ -280,9 +280,6 @@ int32_t stucBlenderMapToMesh(
 	if (err) {
 		return 2;
 	}
-	//TODO if multiple objects are selected, see if dispatching them all at once on multiple threads
-	// improves perf. Probably not a good idea for high res meshes or maps, given the memory use.
-	// maybe selectivly do it based on the mesh and map res?
 	StucResult result = stucQueueMapToMesh(
 		pStucCtx,
 		ppJobHandle,

@@ -210,7 +210,8 @@ def waitForAndCopyOutMeshes(
 				continue
 			print(f"---------------------------------------------------------------Stuc python, map to mesh returned success on obj {item.obj.name}")
 			
-			addOrUpdateBlendMesh(context, item)
+			if item.outMesh.faceCount:
+				addOrUpdateBlendMesh(context, item)
 			print("FinishedUpdating")
 
 def mapToSelTargets(context: bpy.types.Context) -> None:

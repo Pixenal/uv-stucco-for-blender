@@ -86,7 +86,7 @@ void mapFileDestroy(const char *pName) {
 }
 
 static
-StucResult handleTableDestroy() {
+StucErr handleTableDestroy() {
 	for (int32_t i = 0; i < HANDLE_TABLE_SIZE; ++i) {
 		HandleEntry *pEntry = handleTable + i;
 		if (pEntry->handle) {
@@ -102,7 +102,7 @@ StucResult handleTableDestroy() {
 			pEntry = pNext;
 		};
 	}
-	return STUC_SUCCESS;
+	return PIX_ERR_SUCCESS;
 }
 
 void stucBlenderInit() {
@@ -129,7 +129,7 @@ void correctMatIndices(
 	}
 }
 
-StucResult stucBlenderMapFileExport(
+StucErr stucBlenderMapFileExport(
 	const char *pFilepath,
 	int32_t objCount,
 	StucObject *pObjArr,
@@ -155,7 +155,7 @@ StucResult stucBlenderMapFileExport(
 		pIndexedAttribs
 	);
 }
-StucResult stucBlenderMapFileLoadForEdit(
+StucErr stucBlenderMapFileLoadForEdit(
 	const char *pName,
 	int32_t *pObjCount,
 	StucObject **ppObjArr,
@@ -178,7 +178,7 @@ StucResult stucBlenderMapFileLoadForEdit(
 	);
 }
 
-StucResult stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
+StucErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
 	HandleEntry *pEntry = NULL;
 	HandleEntry *pPrevEntry = NULL;
 	int32_t result = getHandle(&pEntry, &pPrevEntry, pName);
@@ -189,27 +189,27 @@ StucResult stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
 		}
 		case 2: {
 			printf("Handle table entry has valid filepath, but invalid handle\n");
-			return STUC_ERROR;
+			return PIX_ERR_ERROR;
 		}
 		case 3: {
 			printf("No match in handle table\n");
-			return STUC_ERROR;
+			return PIX_ERR_ERROR;
 		}
 	}
 	if (!pEntry) {
-		return STUC_ERROR;
+		return PIX_ERR_ERROR;
 	}
-	StucResult err = stucMapFileLoad(pStucCtx, &pEntry->handle, pFilepath);
-	if (err != STUC_SUCCESS) {
+	StucErr err = stucMapFileLoad(pStucCtx, &pEntry->handle, pFilepath);
+	if (err != PIX_ERR_SUCCESS) {
 		return err;
 	}
 	int32_t nameLength = (int32_t)strlen(pName) + 1;
 	pEntry->pName = (char *)calloc(nameLength, 1);
 	memcpy(pEntry->pName, pName, nameLength);
-	return STUC_SUCCESS;
+	return PIX_ERR_SUCCESS;
 }
 
-StucResult stucBlenderMapFileUnload(const char *pName) {
+StucErr stucBlenderMapFileUnload(const char *pName) {
 	HandleEntry *pEntry = NULL;
 	HandleEntry *pPrevEntry = NULL;
 	int32_t result = getHandle(&pEntry, &pPrevEntry, pName);
@@ -220,15 +220,15 @@ StucResult stucBlenderMapFileUnload(const char *pName) {
 	}
 	case 2: {
 		printf("Handle table entry has valid filepath, but invalid handle\n");
-		return STUC_ERROR;
+		return PIX_ERR_ERROR;
 	}
 	case 3: {
 		printf("No match in handle table\n");
-		return STUC_ERROR;
+		return PIX_ERR_ERROR;
 	}
 	}
 	if (!pEntry) {
-		return STUC_ERROR;
+		return PIX_ERR_ERROR;
 	}
 	return stucMapFileUnload(pStucCtx, pEntry->handle);
 }
@@ -280,7 +280,7 @@ int32_t stucBlenderMapToMesh(
 	if (err) {
 		return 2;
 	}
-	StucResult result = stucQueueMapToMesh(
+	StucErr result = stucQueueMapToMesh(
 		pStucCtx,
 		ppJobHandle,
 		pMapArr,
@@ -291,7 +291,7 @@ int32_t stucBlenderMapToMesh(
 		wScale,
 		receiveLen
 	);
-	return result != STUC_SUCCESS;
+	return result != PIX_ERR_SUCCESS;
 }
 
 void stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs) {
@@ -305,7 +305,7 @@ void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
 	       stucMesh->cornerCount);
 	memcpy(stucMesh->vertAttribs.pArr[0].core.pData,
 	       workMesh->vertAttribs.pArr[0].core.pData,
-	       sizeof(StucVec3) * stucMesh->vertCount);
+	       sizeof(Stuc_V3_F32) * stucMesh->vertCount);
 	//memcpy(stucMesh->pEdges, workMesh->pEdges, sizeof(int32_t) *
 	//       stucMesh->cornerCount);
 }
@@ -341,11 +341,11 @@ void stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh) {
 	//            workMesh->vertAttribCount, workMesh->vertCount);
 }
 
-StucResult stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr) {
+StucErr stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr) {
 	return stucObjArrDestroy(pStucCtx, objCount, pObjArr);
 }
 
-StucResult stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr) {
+StucErr stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr) {
 	return stucUsgArrDestroy(pStucCtx, count, pUsgArr);
 }
 
@@ -391,14 +391,14 @@ int32_t stucBlenderWaitForJobs(
 	bool wait,
 	bool *pDone
 ) {
-	StucResult err = stucWaitForJobs(pStucCtx, count, ppJobHandles, wait, pDone);
-	if (err != STUC_SUCCESS) {
+	StucErr err = stucWaitForJobs(pStucCtx, count, ppJobHandles, wait, pDone);
+	if (err != PIX_ERR_SUCCESS) {
 		return 1;
 	}
 	if (wait || *pDone) {
 		err = stucJobGetErrs(pStucCtx, count, &ppJobHandles);
 		stucJobDestroyHandles(pStucCtx, count, ppJobHandles);
-		if (err != STUC_SUCCESS) {
+		if (err != PIX_ERR_SUCCESS) {
 			return 1;
 		}
 	}

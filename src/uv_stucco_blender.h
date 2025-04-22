@@ -39,7 +39,7 @@ typedef struct {
 STUC_BLENDER_EXPORT
 void stucBlenderInit();
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileExport(
+StucErr stucBlenderMapFileExport(
 	const char *pFilepath,
 	int32_t objCount,
 	StucObject *pObjArr,
@@ -49,7 +49,7 @@ StucResult stucBlenderMapFileExport(
 	StucBlenderMatTableArr *pMatTable
 );
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileLoadForEdit(
+StucErr stucBlenderMapFileLoadForEdit(
 	const char *pFilepath,
 	int32_t *pObjCount,
 	StucObject **ppObjArr,
@@ -60,9 +60,9 @@ StucResult stucBlenderMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileLoad(const char *pFilepath, const char *pName);
+StucErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName);
 STUC_BLENDER_EXPORT
-StucResult stucBlenderMapFileUnload(const char *pName);
+StucErr stucBlenderMapFileUnload(const char *pName);
 STUC_BLENDER_EXPORT
 int32_t stucBlenderMapToMesh(
 	void **ppJobHandle,
@@ -87,9 +87,9 @@ void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh);
 STUC_BLENDER_EXPORT
 void stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh);
 STUC_BLENDER_EXPORT
-StucResult stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr);
+StucErr stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr);
 STUC_BLENDER_EXPORT
-StucResult stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
+StucErr stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
 STUC_BLENDER_EXPORT
 void stucBlenderMeshDestroy(StucMesh *pWorkMesh);
 STUC_BLENDER_EXPORT

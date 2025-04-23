@@ -93,8 +93,6 @@ StucErr stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
 STUC_BLENDER_EXPORT
 void stucBlenderMeshDestroy(StucMesh *pWorkMesh);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapFileGenPreviewImage(const char *pName, int32_t res, float *pImage);
-STUC_BLENDER_EXPORT
 int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr, StucAttribIndexedArr *pMats);
 STUC_BLENDER_EXPORT
 int32_t stucBlenderWaitForJobs(

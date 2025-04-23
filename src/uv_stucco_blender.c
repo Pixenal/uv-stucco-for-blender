@@ -353,18 +353,6 @@ void stucBlenderMeshDestroy(StucMesh *pMesh) {
 	stucMeshDestroy(pStucCtx, pMesh);
 }
 
-int32_t stucBlenderMapFileGenPreviewImage(const char *pName, int32_t res, float *pImage) {
-	HandleEntry *pEntry, *pPrevEntry;
-	if (getHandle(&pEntry, &pPrevEntry, pName) != 4) {
-		printf("Stuc blender map to mesh failed, specified map not loaded\n");
-		return 1;
-	}
-	StucImage image = {.res = res, .type = STUC_IMAGE_F32};
-	stucMapFileGenPreviewImage(pStucCtx, pEntry->handle, &image);
-	memcpy(pImage, image.pData, res * res * 4 * sizeof(float));
-	return 0;
-}
-
 int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr, StucAttribIndexedArr *pMats) {
 	StucMapArr mapArr;
 	int32_t err = makeMapArr(pMapArr, &mapArr);

@@ -191,40 +191,6 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 			self.report({'ERROR'}, "Failed to remove mat")
 			raise e
 		return {'FINISHED'}
-	
-class STUC_OT_StucPreviewImage(bpy.types.Operator):
-	bl_idname = "stuc.stuc_preview_image"
-	bl_label = "Preview Image"
-	bl_options = {"REGISTER"}
-
-	@classmethod
-	def poll(cls, context) -> bool:
-		#currentTarget = context.scene.stucTargets[context.scene.stucTargetsIdx]
-		return False
-
-	def execute(self, context: bpy.types.Context) -> set[str]:
-		try:
-			currentTarget = context.scene.stucTargets[context.scene.stucTargetsIdx] #type:ignore
-			mapUtf8 = ""
-			previewRes = 512
-			dataLen = previewRes * previewRes * 4
-			preview = numpy.empty(dataLen, dtype = numpy.float32)
-			previewCtypes = preview.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-			stucLib.stucBlenderMapFileGenPreviewImage(
-				mapUtf8,
-				previewRes,
-				previewCtypes
-			)
-			previewName = "Stuc_" + currentTarget.map
-			image = bpy.data.images.get(previewName, None)
-			if image:
-				bpy.data.images.remove(image)
-			image = bpy.data.images.new(previewName, previewRes, previewRes)
-			image.pixels.foreach_set(preview) #type:ignore
-		except Exception as e:
-			self.report({'ERROR'}, "Failed to make preview image")
-			raise e
-		return {'FINISHED'}
 
 classes = [
 	STUC_OT_StucSetAsUsg,
@@ -233,8 +199,7 @@ classes = [
 	STUC_OT_StucAssign,
 	STUC_OT_StucRemove,
 	STUC_OT_StucMatAssign,
-	STUC_OT_StucMatRemove,
-	STUC_OT_StucPreviewImage
+	STUC_OT_StucMatRemove
 ]
 
 def register() -> None:

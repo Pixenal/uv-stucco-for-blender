@@ -86,18 +86,21 @@ void mapFileDestroy(const char *pName) {
 }
 
 static
+void handleDestroy(HandleEntry *pEntry) {
+	if (pEntry->handle) {
+		stucMapFileUnload(pStucCtx, pEntry->handle);
+	}
+	*pEntry = (HandleEntry) {0};
+}
+
+static
 StucErr handleTableDestroy() {
 	for (int32_t i = 0; i < HANDLE_TABLE_SIZE; ++i) {
-		HandleEntry *pEntry = handleTable + i;
-		if (pEntry->handle) {
-			stucMapFileUnload(pStucCtx, pEntry->handle);
-		}
-		pEntry = pEntry->pNext;
+		HandleEntry *pEntry = handleTable[i].pNext;
+		handleDestroy(handleTable + i);
 		while (pEntry) {
-			if (pEntry->handle) {
-				stucMapFileUnload(pStucCtx, pEntry->handle);
-			}
 			HandleEntry *pNext = pEntry->pNext;
+			handleDestroy(pEntry);
 			free(pEntry);
 			pEntry = pNext;
 		};

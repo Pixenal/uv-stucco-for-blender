@@ -10,7 +10,7 @@ from typing import Any, cast
 import pdb
 
 import bpy
-from bpy_extras.io_utils import ImportHelper
+from bpy_extras.io_utils import ImportHelper, ExportHelper
 
 from . import c_lib
 stucLib = c_lib.stucLib
@@ -18,10 +18,14 @@ from . import utils
 from . import mesh_utils as meshUtils
 from . import stuc
 
-class STUC_OT_StucExportStucFile(bpy.types.Operator, ImportHelper):
+class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 	bl_idname = "stuc.export_stuc_file"
 	bl_label = "STUC Export"
 	bl_options = {'REGISTER'}
+
+	filename_ext = ".stuc"
+	filter_glob :\
+		bpy.props.StringProperty(default = "*.stuc", options = {'HIDDEN'}) #type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
@@ -147,6 +151,10 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 	bl_label = "Load STUC File For Edit"
 	bl_options = {"REGISTER"}
 
+	filename_ext = ".stuc"
+	filter_glob :\
+		bpy.props.StringProperty(default = "*.stuc", options = {'HIDDEN'}) #type:ignore
+
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
@@ -220,6 +228,10 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	bl_idname = "stuc.load_stuc_file"
 	bl_label = "Load STUC File"
 	bl_options = {"REGISTER"}
+
+	filename_ext = ".stuc"
+	filter_glob :\
+		bpy.props.StringProperty(default = "*.stuc", options = {'HIDDEN'}) #type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:

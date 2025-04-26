@@ -4,27 +4,42 @@ SPDX-License-Identifier: GPL-3.0-only
 */
 
 #define HANDLE_TABLE_SIZE 64
-#include <stdlib.h>
-#include <stdio.h>
+
 #include <string.h>
-#include <limits.h>
 
 #include <uv_stucco_blender.h>
 
+typedef int8_t I8;
+typedef int16_t I16;
+typedef int32_t I32;
+typedef int64_t I64;
+
+typedef uint8_t U8;
+typedef uint16_t U16;
+typedef uint32_t U32;
+typedef uint64_t U64;
+
+typedef float F32;
+typedef double F64;
 
 typedef struct HandleEntry {
 	struct HandleEntry *pNext;
-	StucMap handle;
+	struct HandleEntry *pPrev;
+	StucMap pHandle;
 	char *pName;
 } HandleEntry;
-static HandleEntry handleTable[HANDLE_TABLE_SIZE];
+
+typedef struct HandleBucket {
+	HandleEntry *pList;
+} HandleBucket;
 
 static StucContext pStucCtx;
+static HandleBucket handleTable[HANDLE_TABLE_SIZE];
 
 static
-uint32_t fnvHash(unsigned char *value, int32_t valueSize, uint32_t size) {
-	uint32_t hash = 2166136261;
-	for (int32_t i = 0; i < valueSize; ++i) {
+U32 fnvHash(unsigned char *value, I32 valueSize, U32 size) {
+	U32 hash = 2166136261;
+	for (I32 i = 0; i < valueSize; ++i) {
 		hash ^= value[i];
 		hash *= 16777619;
 	}
@@ -32,80 +47,51 @@ uint32_t fnvHash(unsigned char *value, int32_t valueSize, uint32_t size) {
 	return hash;
 }
 
+//returns null if doesn't exist
 static
-int32_t getHandle(HandleEntry **pEntry, HandleEntry **pPrevEntry, const char *pName) {
-	int32_t pathLength = (int32_t)strlen(pName);
-	int32_t hash = fnvHash((unsigned char *)pName, pathLength, HANDLE_TABLE_SIZE);
-	*pEntry = handleTable + hash;
-	*pPrevEntry = NULL;
-	do {
-		if (!(*pEntry)->pName) {
-			return 0;
-		}
-		int32_t samePath = !strcmp(pName, (*pEntry)->pName);
-		if (samePath) {
-			if ((*pEntry)->handle == NULL) {
-				return 2;
-			}
-			return 4;
+HandleEntry *getHandle(HandleBucket **pOutBucket, const char *pName) {
+	I32 pathLength = (I32)strlen(pName);
+	I32 hash = fnvHash((unsigned char *)pName, pathLength, HANDLE_TABLE_SIZE);
+	HandleBucket *pBucket = handleTable + hash;
+	if (pOutBucket) {
+		*pOutBucket = pBucket;
+	}
+	HandleEntry *pEntry = pBucket->pList;
+	while (pEntry) {
+		if (!pEntry->pName) {
 			break;
 		}
-		if (!(*pEntry)->pNext) {
-			return 1;
+		if (!strcmp(pName, pEntry->pName)) {
+			return pEntry;
 		}
-		*pPrevEntry = *pEntry;
-		*pEntry = (*pEntry)->pNext;
-	} while(1);
-	return 3;
-}
-
-static
-void mapFileDestroy(const char *pName) {
-	HandleEntry *pEntry, *pPrevEntry;
-	getHandle(&pEntry, &pPrevEntry, pName);
-	stucMapFileUnload(pStucCtx, pEntry->handle);
-	if (pEntry->pName) {
-		free(pEntry->pName);
-		pEntry->pName = NULL;
+		pEntry = pEntry->pNext;
 	}
-	if (!pPrevEntry) {
-		if (pEntry->pNext) {
-			HandleEntry *pNext = pEntry->pNext;
-			*pEntry = *pNext;
-			free(pNext);
-		}
-		else {
-			HandleEntry empty = {0};
-			*pEntry = empty;
-		}
-	}
-	else {
-		pPrevEntry->pNext = pEntry->pNext;
-		free(pEntry);
-	}
+	return NULL;
 }
 
 static
 void handleDestroy(HandleEntry *pEntry) {
-	if (pEntry->handle) {
-		stucMapFileUnload(pStucCtx, pEntry->handle);
+	if (pEntry->pName) {
+		free(pEntry->pName);
+	}
+	if (pEntry->pHandle) {
+		stucMapFileUnload(pStucCtx, pEntry->pHandle);
 	}
 	*pEntry = (HandleEntry) {0};
 }
 
 static
-StucErr handleTableDestroy() {
-	for (int32_t i = 0; i < HANDLE_TABLE_SIZE; ++i) {
-		HandleEntry *pEntry = handleTable[i].pNext;
-		handleDestroy(handleTable + i);
+void handleTableDestroy() {
+	for (I32 i = 0; i < HANDLE_TABLE_SIZE; ++i) {
+		HandleEntry *pEntry = handleTable[i].pList;
 		while (pEntry) {
 			HandleEntry *pNext = pEntry->pNext;
 			handleDestroy(pEntry);
 			free(pEntry);
 			pEntry = pNext;
 		};
+		handleTable[i].pList = NULL;
 	}
-	return PIX_ERR_SUCCESS;
 }
 
 void stucBlenderInit() {
@@ -114,41 +100,43 @@ void stucBlenderInit() {
 
 static
 void correctMatIndices(
-	int32_t objCount,
+	I32 objCount,
 	StucObject *pObjArr,
 	StucBlenderMatTableArr *pMatTable
 ) {
-	for (int32_t i = 0; i < objCount; ++i) {
+	for (I32 i = 0; i < objCount; ++i) {
 		StucMesh *pMesh = (StucMesh *)pObjArr[i].pData;
 		StucAttrib *pAttrib = NULL;
 		stucGetAttrib("StucMaterialIndices", &pMesh->faceAttribs, &pAttrib);
 		if (!pAttrib) {
 			continue;
 		}
-		int8_t *pIndices = pAttrib->core.pData;
-		for (int32_t j = 0; j < pMesh->faceCount; ++j) {
+		I8 *pIndices = pAttrib->core.pData;
+		for (I32 j = 0; j < pMesh->faceCount; ++j) {
 			pIndices[j] = pMatTable->pArr[i].pArr[pIndices[j]];
 		}
 	}
 }
 
-StucErr stucBlenderMapFileExport(
+PixErr stucBlenderMapFileExport(
 	const char *pFilepath,
-	int32_t objCount,
+	I32 objCount,
 	StucObject *pObjArr,
-	int32_t usgCount,
+	I32 usgCount,
 	StucUsg *pUsgArr,
 	StucAttribIndexedArr *pIndexedAttribs,
 	StucBlenderMatTableArr *pMatTable
 ) {
+	PixErr err = PIX_ERR_SUCCESS;
 	StucAttribIndexed *pAttrib = NULL;
 	if (pIndexedAttribs->count) {
-		stucGetAttribIndexed("StucMaterials", pIndexedAttribs, &pAttrib);
+		err = stucGetAttribIndexed("StucMaterials", pIndexedAttribs, &pAttrib);
+		PIX_ERR_RETURN_IFNOT(err, "");
 	}
 	if (pAttrib) {
 		correctMatIndices(objCount, pObjArr, pMatTable);
 	}
-	return stucMapFileExport(
+	err = stucMapFileExport(
 		pStucCtx,
 		pFilepath,
 		objCount,
@@ -157,18 +145,21 @@ StucErr stucBlenderMapFileExport(
 		pUsgArr,
 		pIndexedAttribs
 	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
-StucErr stucBlenderMapFileLoadForEdit(
+
+PixErr stucBlenderMapFileLoadForEdit(
 	const char *pName,
-	int32_t *pObjCount,
+	I32 *pObjCount,
 	StucObject **ppObjArr,
-	int32_t *pUsgCount,
+	I32 *pUsgCount,
 	StucUsg **ppUsgArr,
-	int32_t *pFlatCutoffCount,
+	I32 *pFlatCutoffCount,
 	StucObject **ppFlatCutoffArr,
 	StucAttribIndexedArr *pIndexedAttribs
 ) {
-	return stucMapFileLoadForEdit(
+	PixErr err = stucMapFileLoadForEdit(
 		pStucCtx,
 		pName,
 		pObjCount,
@@ -179,96 +170,118 @@ StucErr stucBlenderMapFileLoadForEdit(
 		ppFlatCutoffArr,
 		pIndexedAttribs
 	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
-StucErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
-	HandleEntry *pEntry = NULL;
-	HandleEntry *pPrevEntry = NULL;
-	int32_t result = getHandle(&pEntry, &pPrevEntry, pName);
-	switch (result) {
-		case 1: {
-			pEntry = pEntry->pNext = (HandleEntry *)calloc(1, sizeof(HandleEntry));
-			break;
-		}
-		case 2: {
-			printf("Handle table entry has valid filepath, but invalid handle\n");
-			return PIX_ERR_ERROR;
-		}
-		case 3: {
-			printf("No match in handle table\n");
-			return PIX_ERR_ERROR;
-		}
+//returns null if handle already exists for this map
+static
+HandleEntry *handleAdd(const char *pName) {
+	HandleBucket *pBucket = NULL;
+	HandleEntry *pEntry = getHandle(&pBucket, pName);
+	if (pEntry) {
+		return NULL;
 	}
+	pEntry = pBucket->pList;
 	if (!pEntry) {
-		return PIX_ERR_ERROR;
+		pBucket->pList = calloc(1, sizeof(HandleEntry));
+		return pBucket->pList;
 	}
-	StucErr err = stucMapFileLoad(pStucCtx, &pEntry->handle, pFilepath);
-	if (err != PIX_ERR_SUCCESS) {
+	while (pEntry->pNext) {
+		pEntry = pEntry->pNext;
+	}
+	pEntry->pNext = calloc(1, sizeof(HandleEntry));
+	pEntry->pNext->pPrev = pEntry;
+	return pEntry->pNext;
+}
+
+PixErr stucBlenderMapFileUnload(const char *pName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	HandleBucket *pBucket = NULL;
+	HandleEntry *pEntry = getHandle(&pBucket, pName);
+	if (!pEntry) {
 		return err;
 	}
-	int32_t nameLength = (int32_t)strlen(pName) + 1;
-	pEntry->pName = (char *)calloc(nameLength, 1);
-	memcpy(pEntry->pName, pName, nameLength);
-	return PIX_ERR_SUCCESS;
+	HandleEntry *pNext = pEntry->pNext;
+	HandleEntry *pPrev = pEntry->pPrev;
+	handleDestroy(pEntry);
+	if (pPrev) {
+		pPrev->pNext = pNext;
+		pNext->pPrev = pPrev;
+	}
+	else {
+		pBucket->pList = pNext;
+		if (pNext) {
+			pNext->pPrev = NULL;
+		}
+	}
+	free(pEntry);
+	return err;
 }
 
-StucErr stucBlenderMapFileUnload(const char *pName) {
-	HandleEntry *pEntry = NULL;
-	HandleEntry *pPrevEntry = NULL;
-	int32_t result = getHandle(&pEntry, &pPrevEntry, pName);
-	switch (result) {
-	case 1: {
-		pEntry = pEntry->pNext = (HandleEntry *)calloc(1, sizeof(HandleEntry));
-		break;
-	}
-	case 2: {
-		printf("Handle table entry has valid filepath, but invalid handle\n");
-		return PIX_ERR_ERROR;
-	}
-	case 3: {
-		printf("No match in handle table\n");
-		return PIX_ERR_ERROR;
-	}
-	}
+PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	HandleEntry *pEntry = handleAdd(pName);
 	if (!pEntry) {
-		return PIX_ERR_ERROR;
+		stucBlenderMapFileReload(pFilepath, pName);
+		return err;
 	}
-	return stucMapFileUnload(pStucCtx, pEntry->handle);
+	err = stucMapFileLoad(pStucCtx, &pEntry->pHandle, pFilepath);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	I32 nameLength = (I32)strlen(pName) + 1;
+	pEntry->pName = calloc(nameLength, 1);
+	memcpy(pEntry->pName, pName, nameLength);
+	PIX_ERR_CATCH(0, err,
+		stucBlenderMapFileUnload(pName);
+	);
+	return err;
 }
 
-void stucBlenderQueryCommonAttribs(
+PixErr stucBlenderMapFileReload(const char *pFilepath, const char *pName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	HandleEntry *pEntry = getHandle(NULL, pName);
+	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
+	stucBlenderMapFileUnload(pName);
+	stucBlenderMapFileLoad(pFilepath, pName);
+	return err;
+}
+
+PixErr stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
 	const char *pMap,
 	StucCommonAttribList *pCommonAttribs
 ) {
-	HandleEntry *pEntry, *pPrevEntry;
-	if (getHandle(&pEntry, &pPrevEntry, pMap) != 4) {
-		return;
+	PixErr err = PIX_ERR_SUCCESS;
+	HandleEntry *pEntry = getHandle(NULL, pMap);
+	if (!pEntry) {
+		return err;
 	}
-	stucQueryCommonAttribs(pStucCtx, pEntry->handle, pMesh, pCommonAttribs);
+	err = stucQueryCommonAttribs(pStucCtx, pEntry->pHandle, pMesh, pCommonAttribs);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
+//returns true if empty
 static
-int32_t makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
+bool makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
 	if (!pBlendMapArr->count) {
 		return 1;
 	}
-	pMapArr->size = pBlendMapArr->count;
-	pMapArr->count = pBlendMapArr->count;
+	pMapArr->size = pMapArr->count = pBlendMapArr->count;
 	pMapArr->pMatArr = pBlendMapArr->pMatIdxArr;
 	pMapArr->ppArr = calloc(pMapArr->size, sizeof(void *));
-	for (int32_t i = 0; i < pMapArr->count; ++i) {
-		HandleEntry *pEntry, *pPrevEntry;
-		if (getHandle(&pEntry, &pPrevEntry, pBlendMapArr->ppArr[i]) != 4) {
+	for (I32 i = 0; i < pMapArr->count; ++i) {
+		HandleEntry *pEntry = getHandle(NULL, pBlendMapArr->ppArr[i]);
+		if (!pEntry) {
 			return 1;
 		}
-		pMapArr->ppArr[i] = pEntry->handle;
+		pMapArr->ppArr[i] = pEntry->pHandle;
 	}
 	pMapArr->pCommonAttribArr = pBlendMapArr->pCommonAttribArr;
 	return 0;
 }
 
-int32_t stucBlenderMapToMesh(
+PixErr stucBlenderMapToMesh(
 	void **ppJobHandle,
 	StucBlenderMapArr *pMapArrPy,
 	StucMesh *pMesh,
@@ -276,128 +289,141 @@ int32_t stucBlenderMapToMesh(
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
-	float receiveLen
+	float receiveLen,
+	I32 *pPushedJobs,
+	void **ppMemA,
+	void **ppMemB
+
 ) {
+	PixErr err = PIX_ERR_SUCCESS;
 	StucMapArr *pMapArr = calloc(1, sizeof(StucMapArr));
-	int32_t err = makeMapArr(pMapArrPy, pMapArr);
-	if (err) {
-		return 2;
-	}
-	StucErr result = stucQueueMapToMesh(
-		pStucCtx,
-		ppJobHandle,
-		pMapArr,
-		pMesh,
-		pInIndexedAttribs,
-		pOutMesh,
-		pOutIndexedAttribs,
-		wScale,
-		receiveLen
-	);
-	return result != PIX_ERR_SUCCESS;
-}
-
-void stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs) {
-	stucDestroyCommonAttribs(pStucCtx, pCommonAttribs);
-}
-
-void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
-	memcpy(stucMesh->pFaces, workMesh->pFaces, sizeof(int32_t) *
-	       (stucMesh->faceCount + 1));
-	memcpy(stucMesh->pCorners, workMesh->pCorners, sizeof(int32_t) *
-	       stucMesh->cornerCount);
-	memcpy(stucMesh->vertAttribs.pArr[0].core.pData,
-	       workMesh->vertAttribs.pArr[0].core.pData,
-	       sizeof(Stuc_V3_F32) * stucMesh->vertCount);
-	//memcpy(stucMesh->pEdges, workMesh->pEdges, sizeof(int32_t) *
-	//       stucMesh->cornerCount);
-}
-
-static
-void copyAttribs(StucAttribArray *pA, StucAttribArray *pB, int32_t dataLen) {
-	if (!pA || !pB) {
-		return;
-	}
-	for (int32_t i = 0; i < pA->count; ++i) {
-		StucAttrib* pBEntry;
-		stucGetAttrib(pA->pArr[i].core.name, pB, &pBEntry);
-		if (!pBEntry) {
-			printf("Mismatch in workmesh and stucmesh attribs\n");
-			abort();
+	bool empty = makeMapArr(pMapArrPy, pMapArr);
+	if (empty) {
+		*pPushedJobs = false;
+		if (pMapArr->ppArr) {
+			free(pMapArr->ppArr);
 		}
-		int32_t attribSize;
-		stucGetAttribSize(&pA->pArr[i].core, &attribSize);
-		memcpy(pBEntry->core.pData, pA->pArr[i].core.pData, attribSize * dataLen);
+		free(pMapArr);
 	}
-}
-
-void stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh) {
-	//copyAttribs(workMesh->pMeshAttribs, stucMesh->pMeshAttribs,
-	//            workMesh->meshAttribCount, 1);
-	copyAttribs(&workMesh->faceAttribs, &stucMesh->faceAttribs,
-	            workMesh->faceCount);
-	copyAttribs(&workMesh->cornerAttribs, &stucMesh->cornerAttribs,
-	            workMesh->cornerCount);
-	//copyAttribs(workMesh->pEdgeAttribs, stucMesh->pEdgeAttribs,
-	//            workMesh->edgeAttribCount, workMesh->edgeCount);
-	//copyAttribs(workMesh->pVertAttribs, stucMesh->pVertAttribs,
-	//            workMesh->vertAttribCount, workMesh->vertCount);
-}
-
-StucErr stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr) {
-	return stucObjArrDestroy(pStucCtx, objCount, pObjArr);
-}
-
-StucErr stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr) {
-	return stucUsgArrDestroy(pStucCtx, count, pUsgArr);
-}
-
-void stucBlenderMeshDestroy(StucMesh *pMesh) {
-	stucMeshDestroy(pStucCtx, pMesh);
-}
-
-int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr, StucAttribIndexedArr *pMats) {
-	StucMapArr mapArr;
-	int32_t err = makeMapArr(pMapArr, &mapArr);
-	if (err) {
-		return err;
-	}
-	for (int32_t i = 0; i < mapArr.count; ++i) {
-		StucAttribIndexedArr indexedAttribs = {0};
-		stucMapIndexedAttribsGet(pStucCtx, mapArr.ppArr[i], &indexedAttribs);
-		for (int32_t j = 0; j < indexedAttribs.count; ++j) {
-			StucAttribIndexed *pAttrib = indexedAttribs.pArr + j;
-			if (!strncmp("StucMaterials", pAttrib->core.name, STUC_ATTRIB_NAME_MAX_LEN)) {
-				pMats->pArr[i] = *pAttrib;
-				break;
-			}
-		}
+	else {
+		*ppMemA = pMapArr;
+		*ppMemB = pMapArr->ppArr;
+		PixErr result = stucQueueMapToMesh(
+			pStucCtx,
+			ppJobHandle,
+			pMapArr,
+			pMesh, pInIndexedAttribs,
+			pOutMesh, pOutIndexedAttribs,
+			wScale,
+			receiveLen
+		);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		*pPushedJobs = true;
 	}
 	return err;
 }
 
-int32_t stucBlenderWaitForJobs(
-	int32_t count,
+PixErr stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs) {
+	PixErr err = stucDestroyCommonAttribs(pStucCtx, pCommonAttribs);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
+	memcpy(
+		stucMesh->pFaces,
+		workMesh->pFaces,
+		sizeof(I32) * (stucMesh->faceCount + 1)
+	);
+	memcpy(
+		stucMesh->pCorners,
+		workMesh->pCorners,
+		sizeof(I32) * stucMesh->cornerCount
+	);
+	memcpy(
+		stucMesh->vertAttribs.pArr[0].core.pData,
+		workMesh->vertAttribs.pArr[0].core.pData,
+		sizeof(Stuc_V3_F32) * stucMesh->vertCount
+	);
+}
+
+static
+PixErr copyAttribs(StucAttribArray *pA, StucAttribArray *pB, I32 dataLen) {
+	PixErr err = PIX_ERR_SUCCESS;
+	if (!pA || !pB) {
+		return err;
+	}
+	for (I32 i = 0; i < pA->count; ++i) {
+		StucAttrib* pBEntry;
+		stucGetAttrib(pA->pArr[i].core.name, pB, &pBEntry);
+		PIX_ERR_RETURN_IFNOT_COND(err, pBEntry, "missing attrib");
+		I32 attribSize = 0;
+		stucGetAttribSize(&pA->pArr[i].core, &attribSize);
+		memcpy(pBEntry->core.pData, pA->pArr[i].core.pData, attribSize * dataLen);
+	}
+	return err;
+}
+
+PixErr stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = copyAttribs(
+		&workMesh->faceAttribs,
+		&stucMesh->faceAttribs,
+		workMesh->faceCount
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = copyAttribs(
+		&workMesh->cornerAttribs,
+		&stucMesh->cornerAttribs,
+		workMesh->cornerCount
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	//TODO re-add copying of vert attribs
+	return err;
+}
+
+PixErr stucBlenderObjArrDestroy(I32 objCount, StucObject *pObjArr) {
+	PixErr err = stucObjArrDestroy(pStucCtx, objCount, pObjArr);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderUsgArrDestroy(I32 count, StucUsg *pUsgArr) {
+	PixErr err = stucUsgArrDestroy(pStucCtx, count, pUsgArr);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderMeshDestroy(StucMesh *pMesh) {
+	PixErr err = stucMeshDestroy(pStucCtx, pMesh);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderWaitForJobs(
+	I32 count,
 	void **ppJobHandles,
 	bool wait,
 	bool *pDone
 ) {
-	StucErr err = stucWaitForJobs(pStucCtx, count, ppJobHandles, wait, pDone);
-	if (err != PIX_ERR_SUCCESS) {
-		return 1;
-	}
+	PixErr err = stucWaitForJobs(pStucCtx, count, ppJobHandles, wait, pDone);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	if (wait || *pDone) {
 		err = stucJobGetErrs(pStucCtx, count, &ppJobHandles);
 		stucJobDestroyHandles(pStucCtx, count, ppJobHandles);
-		if (err != PIX_ERR_SUCCESS) {
-			return 1;
-		}
+		PIX_ERR_RETURN_IFNOT(err, "");
 	}
-	return 0;
+	return err;
 }
 
 void stucBlenderDestroy() {
 	handleTableDestroy();
 	stucContextDestroy(pStucCtx);
 	return;
+}
+
+void stucBlenderCallFree(void *pData) {
+	if (pData) {
+		free(pData);
+	}
 }

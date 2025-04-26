@@ -4,8 +4,6 @@ SPDX-License-Identifier: GPL-3.0-only
 */
 
 #pragma once
-#include <stdint.h>
-
 #include <uv_stucco.h>
 
 #ifdef WIN32 
@@ -39,7 +37,7 @@ typedef struct {
 STUC_BLENDER_EXPORT
 void stucBlenderInit();
 STUC_BLENDER_EXPORT
-StucErr stucBlenderMapFileExport(
+PixErr stucBlenderMapFileExport(
 	const char *pFilepath,
 	int32_t objCount,
 	StucObject *pObjArr,
@@ -49,7 +47,7 @@ StucErr stucBlenderMapFileExport(
 	StucBlenderMatTableArr *pMatTable
 );
 STUC_BLENDER_EXPORT
-StucErr stucBlenderMapFileLoadForEdit(
+PixErr stucBlenderMapFileLoadForEdit(
 	const char *pFilepath,
 	int32_t *pObjCount,
 	StucObject **ppObjArr,
@@ -60,11 +58,13 @@ StucErr stucBlenderMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_BLENDER_EXPORT
-StucErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName);
+PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName);
 STUC_BLENDER_EXPORT
-StucErr stucBlenderMapFileUnload(const char *pName);
+PixErr stucBlenderMapFileUnload(const char *pName);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapToMesh(
+PixErr stucBlenderMapFileReload(const char *pFilepath, const char *pName);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderMapToMesh(
 	void **ppJobHandle,
 	StucBlenderMapArr *pMapArr,
 	StucMesh *pMesh,
@@ -72,30 +72,33 @@ int32_t stucBlenderMapToMesh(
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
-	float receiveLen
+	float receiveLen,
+	int32_t *pPushedJobs,
+	//TODO TEMP structs arn't mirrored in python atm, so allocing in c and passing back ptrs for now.
+	//remove these
+	void **ppMemA,
+	void **ppMemB
 );
 STUC_BLENDER_EXPORT
-void stucBlenderQueryCommonAttribs(
+PixErr stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
 	const char *pMapName,
 	StucCommonAttribList *pCommonAttribs
 );
 STUC_BLENDER_EXPORT
-void stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs);
+PixErr stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs);
 STUC_BLENDER_EXPORT
 void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh);
 STUC_BLENDER_EXPORT
-void stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh);
+PixErr stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh);
 STUC_BLENDER_EXPORT
-StucErr stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr);
+PixErr stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr);
 STUC_BLENDER_EXPORT
-StucErr stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
+PixErr stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
 STUC_BLENDER_EXPORT
-void stucBlenderMeshDestroy(StucMesh *pWorkMesh);
+PixErr stucBlenderMeshDestroy(StucMesh *pWorkMesh);
 STUC_BLENDER_EXPORT
-int32_t stucBlenderMapMatsGet(StucBlenderMapArr *pMapArr, StucAttribIndexedArr *pMats);
-STUC_BLENDER_EXPORT
-int32_t stucBlenderWaitForJobs(
+PixErr stucBlenderWaitForJobs(
 	int32_t count,
 	void **ppJobHandles,
 	bool wait,
@@ -103,3 +106,5 @@ int32_t stucBlenderWaitForJobs(
 );
 STUC_BLENDER_EXPORT
 void stucBlenderDestroy();
+STUC_BLENDER_EXPORT
+void stucBlenderCallFree(void *pData);

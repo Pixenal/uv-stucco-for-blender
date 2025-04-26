@@ -29,7 +29,9 @@ class TargetCache:
 		outMesh,
 		outIndexedAttribs,
 		commonAttribs,
-		matCount
+		matCount,
+		memA,
+		memB
 	) -> None:
 		self.obj = obj
 		self.jobHandle = jobHandle
@@ -40,6 +42,8 @@ class TargetCache:
 		self.outIndexedAttribs = outIndexedAttribs
 		self.commonAttribs = commonAttribs
 		self.matCount = matCount
+		self.memA = memA
+		self.memB = memB
 
 def pushMappingJobToQueue(
 	context: bpy.types.Context,
@@ -111,16 +115,11 @@ def pushMappingJobToQueue(
 		cast(Any, target).activeAttribs
 	)
 	workMesh = stuc.StucMesh()
-	stucLib.stucBlenderMapToMesh.argtypes = (
-		ctypes.POINTER(ctypes.c_void_p),
-		ctypes.POINTER(stuc.StucBlenderMapArr),
-		ctypes.POINTER(stuc.StucMesh), ctypes.POINTER(stuc.StucAttribIndexedArr),
-		ctypes.POINTER(stuc.StucMesh), ctypes.POINTER(stuc.StucAttribIndexedArr),
-		ctypes.c_float,
-		ctypes.c_float
-	)
 	outIndexedAttribs = stuc.StucAttribIndexedArr()
 	jobHandle = ctypes.c_void_p()
+	pushedJobs = ctypes.c_bool()
+	memA = ctypes.c_void_p()
+	memB = ctypes.c_void_p()
 	result = stucLib.stucBlenderMapToMesh(
 		ctypes.pointer(jobHandle),
 		ctypes.pointer(mapArr),
@@ -128,12 +127,15 @@ def pushMappingJobToQueue(
 		ctypes.pointer(inIndexedArr),
 		ctypes.pointer(workMesh),
 		ctypes.pointer(outIndexedAttribs),
-		wScale,
-		receiveLen
+		ctypes.c_float(wScale),
+		ctypes.c_float(receiveLen),
+		ctypes.pointer(pushedJobs),
+		ctypes.pointer(memA),
+		ctypes.pointer(memB)
 	)
-	if result == 2:
-		return #no jobs pushed
-	if result != 0:
+	if not pushedJobs:
+		return
+	if result != 1:
 		raise Exception("error pushing job to queue")
 	targetCache.append(TargetCache(
 		objEval,
@@ -144,8 +146,10 @@ def pushMappingJobToQueue(
 		workMesh,
 		outIndexedAttribs,
 		commonAttribs,
-		matCount)
-	)
+		matCount,
+		memA,
+		memB
+	))
 
 def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
 	nameStuc = item.obj.name + ".Stuc"
@@ -205,7 +209,9 @@ def waitForAndCopyOutMeshes(
 				continue
 			item.done = True
 			doneCount += 1
-			if result != 0:
+			stucLib.stucBlenderCallFree(item.memA)
+			stucLib.stucBlenderCallFree(item.memB)
+			if result != 1:
 				print(f"Stuc python, map to mesh failed on obj {item.obj.name}, skipping")
 				continue
 			print(f"---------------------------------------------------------------Stuc python, map to mesh returned success on obj {item.obj.name}")

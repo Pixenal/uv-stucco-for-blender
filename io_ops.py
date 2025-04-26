@@ -5,7 +5,9 @@ SPDX-License-Identifier: GPL-3.0-only
 
 import ctypes
 import os
+import math
 from typing import Any, cast
+import pdb
 
 import bpy
 from bpy_extras.io_utils import ImportHelper
@@ -222,13 +224,21 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			name = os.path.basename(self.filepath) #type:ignore
+			dir = os.path.relpath(os.path.dirname(self.filepath)) #type:ignore
+			filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
+			nameUtf8 = name.encode('utf-8')
+			timestamp = ctypes.c_float(os.path.getmtime(self.filepath)).value #type:ignore
 			for map in context.scene.stucMaps: #type:ignore
 				if (name == map.name):
-					return {'CANCELLED'}
-			filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
+					if (timestamp == map.timestamp):
+						continue
+					map.timestamp = timestamp
+					stucLib.stucBlenderMapFileReload(filepathUtf8, nameUtf8)
+					return {'FINISHED'}
 			newMap = context.scene.stucMaps.add() #type:ignore
 			newMap.name = name
-			nameUtf8 = newMap.name.encode('utf-8')
+			newMap.dir = dir
+			newMap.timestamp = timestamp
 			context.scene.stucMapsIdx = len(context.scene.stucMaps) #type:ignore
 			err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
 			if err != 1:
@@ -238,7 +248,6 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 			raise e
 		return {'FINISHED'}
 
-#TODO fix this
 class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 	bl_idname = "stuc.reload_stuc_file"
 	bl_label = "Reload STUC File"
@@ -246,30 +255,23 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context) -> bool:
-		return False
+		return len(context.scene.stucMaps) > 0 #type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			currentTarget = context.scene.stucTargets[context.scene.stucTargetsIdx] #type:ignore
-			mapUtf8 = ""
-			err = stucLib.stucBlenderMapFileUnload(mapUtf8)
-			if err != 1:
-				self.report({'ERROR'}, "Map reload failed. Couldn't unload existing map")
-			mapStr = mapUtf8.decode()
-			exists = False
 			for map in context.scene.stucMaps: #type:ignore
-				if (mapStr == map.filepath):
-					exists = True
-					break
-			if not exists:
-				raise Exception(
-					"Cannot reload map which is not loaded. How did this get called?"
-				)
-			err = stucLib.stucBlenderMapFileLoad(mapUtf8)
-			if err != 1:
-				raise Exception("stuc blender map file load returned error")
+				filepath = os.path.join(map.dir, map.name)
+				timestamp = ctypes.c_float(os.path.getmtime(filepath)).value #type:ignore
+				if (timestamp == map.timestamp):
+					continue
+				map.timestamp = timestamp
+				filepathUtf8 = filepath.encode('utf-8')
+				nameUtf8 = map.name.encode('utf-8')
+				err = stucLib.stucBlenderMapFileReload(filepathUtf8, nameUtf8)
+				if err != 1:
+					self.report({'ERROR'}, "Failed to reload map file")
 		except Exception as e:
-			self.report({'ERROR'}, "Load failed")
+			self.report({'ERROR'}, "Reload failed")
 			raise e
 		return {'FINISHED'}
 	

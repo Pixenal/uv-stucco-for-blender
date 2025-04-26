@@ -55,8 +55,8 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 		layout = self.layout
 		col0 = layout.column()
 		
-		col0.operator("stuc.load_stuc_file", text = "Open Map", icon = "MESH_PLANE")
-		col0.operator("stuc.reload_stuc_file", text = "Reload Map", icon = 'FILE_REFRESH')
+		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
+		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
 
 		col0.label(text = "")
 		col0.label(text = "Materials")

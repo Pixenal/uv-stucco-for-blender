@@ -25,6 +25,8 @@ def stucMatUpdate(self, context) -> None:
 
 class StucMap(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()
+	dir : bpy.props.StringProperty(subtype = 'DIR_PATH')
+	timestamp : bpy.props.FloatProperty()
 
 class StucTarget(bpy.types.PropertyGroup):
 	obj : bpy.props.PointerProperty(type = bpy.types.Object,

@@ -236,21 +236,23 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			name = os.path.basename(self.filepath) #type:ignore
-			dir = os.path.relpath(os.path.dirname(self.filepath)) #type:ignore
 			filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
 			nameUtf8 = name.encode('utf-8')
-			timestamp = ctypes.c_float(os.path.getmtime(self.filepath)).value #type:ignore
+			timestamp = os.path.getmtime(self.filepath) #type:ignore
 			for map in context.scene.stucMaps: #type:ignore
 				if (name == map.name):
-					if (timestamp == map.timestamp):
+					if (timestamp == float(map.timestamp)):
 						continue
-					map.timestamp = timestamp
+					map.timestamp = str(timestamp)
 					stucLib.stucBlenderMapFileReload(filepathUtf8, nameUtf8)
 					return {'FINISHED'}
 			newMap = context.scene.stucMaps.add() #type:ignore
 			newMap.name = name
-			newMap.dir = dir
-			newMap.timestamp = timestamp
+			newMap.dir = os.path.dirname(self.filepath) #type:ignore
+			if len(bpy.data.filepath) and context.scene.stuc.relPaths: #type:ignore
+				newMap.dir = bpy.path.relpath(newMap.dir)
+			print(f"saving map dir as {newMap.dir}")
+			newMap.timestamp = str(timestamp)
 			context.scene.stucMapsIdx = len(context.scene.stucMaps) #type:ignore
 			err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
 			if err != 1:
@@ -272,11 +274,14 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			for map in context.scene.stucMaps: #type:ignore
-				filepath = os.path.join(map.dir, map.name)
-				timestamp = ctypes.c_float(os.path.getmtime(filepath)).value #type:ignore
-				if (timestamp == map.timestamp):
+				print(f"refreshing in {map.dir}")
+				filepath = os.path.join(bpy.path.abspath(map.dir), map.name)
+				print(f"filepath {filepath}")
+				timestamp = os.path.getmtime(filepath)
+				print(f"timestamp {timestamp}, map-timestamp {float(map.timestamp)}")
+				if (timestamp == float(map.timestamp)):
 					continue
-				map.timestamp = timestamp
+				map.timestamp = str(timestamp)
 				filepathUtf8 = filepath.encode('utf-8')
 				nameUtf8 = map.name.encode('utf-8')
 				err = stucLib.stucBlenderMapFileReload(filepathUtf8, nameUtf8)

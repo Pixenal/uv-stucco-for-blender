@@ -159,6 +159,9 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 		col0.operator("stuc.set_flat_cutoff", text = "Set Sel To Active")
 		col0.label(text = "")
 		col0.prop(cast(Any, context.scene).stuc, "wScale", text = "Default W Scale")
+		col0.label(text = "")
+		col0.prop(context.scene.stuc, "relPaths", text = "Relative paths") #type:ignore
+
 
 classes = [
 	STUC_PT_Stuc,

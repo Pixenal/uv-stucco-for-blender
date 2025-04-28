@@ -4,7 +4,6 @@ SPDX-License-Identifier: GPL-3.0-only
 '''
 
 from typing import Any, cast
-import pdb
 
 import bpy
 from bpy.app.handlers import persistent
@@ -25,18 +24,25 @@ def stucLoadPreHandler(dummy) -> None:
 
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:
-	context = bpy.context
-	#pdb.set_trace()
-	utils.updateUiTargetIdx(context)
-	mapping.mapToSelTargets(context)
+	utils.updateUiTargetIdx(bpy.context)
+	mapping.mapToSelTargets(bpy.context)
 	
+@persistent
+def stucSavePostHandler(dummy) -> None:
+	if not len(bpy.data.filepath) or not bpy.context.scene.stuc.relPaths: #type:ignore
+		#this shouldn't be possible right?
+		return
+	for map in bpy.context.scene.stucMaps: #type:ignore
+		map.dir = bpy.path.relpath(map.dir)
 
 def register() -> None:
 	bpy.app.handlers.depsgraph_update_post.append(stucDepsgraphUpdatePostHandler)
 	bpy.app.handlers.load_post.append(stucLoadPostHandler)
 	bpy.app.handlers.load_pre.append(stucLoadPreHandler)
+	bpy.app.handlers.save_post.append(stucSavePostHandler)
 
 def unregister() -> None:
 	bpy.app.handlers.depsgraph_update_post.remove(stucDepsgraphUpdatePostHandler)
 	bpy.app.handlers.load_post.remove(stucLoadPostHandler)
 	bpy.app.handlers.load_pre.remove(stucLoadPreHandler)
+	bpy.app.handlers.save_post.remove(stucSavePostHandler)

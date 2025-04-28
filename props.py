@@ -23,10 +23,22 @@ def stucMatUpdate(self, context) -> None:
 	if self.mat:
 		self.mat["StucMat"] = True
 
+def relPathsUpdate(self, context) -> None:
+	if not bpy.data.filepath:
+		return
+	if self.relPaths:
+		for map in context.scene.stucMaps:
+			map.dir = bpy.path.relpath(map.dir)
+	else:
+		for map in context.scene.stucMaps:
+			map.dir = bpy.path.abspath(map.dir)
+
+
 class StucMap(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()
 	dir : bpy.props.StringProperty(subtype = 'DIR_PATH')
-	timestamp : bpy.props.FloatProperty()
+	#storing as a string, value too large for Int or Float prop
+	timestamp : bpy.props.StringProperty()
 
 class StucTarget(bpy.types.PropertyGroup):
 	obj : bpy.props.PointerProperty(type = bpy.types.Object,
@@ -83,6 +95,7 @@ class StucProperties(bpy.types.PropertyGroup):
 	])
 	commonAttribIdx : bpy.props.IntProperty(default = 0)
 	wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)
+	relPaths : bpy.props.BoolProperty(default = True, update = relPathsUpdate)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
 	mat : bpy.props.PointerProperty(type = bpy.types.Material)

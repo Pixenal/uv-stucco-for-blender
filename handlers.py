@@ -16,11 +16,13 @@ from . import mapping
 @persistent
 def stucLoadPostHandler(dummy) -> None:
 	stucLib.stucBlenderInit()
-	bpy.context.scene.stucMaps.clear() #type:ignore
+	for map in bpy.context.scene.stucMaps: #type:ignore
+		map.timestamp = ".0"
 
 @persistent
 def stucLoadPreHandler(dummy) -> None:
 	stucLib.stucBlenderDestroy()
+	bpy.context.scene.stucMaps.clear() #type:ignore
 
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:

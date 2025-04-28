@@ -239,9 +239,9 @@ PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
 
 PixErr stucBlenderMapFileReload(const char *pFilepath, const char *pName) {
 	PixErr err = PIX_ERR_SUCCESS;
-	HandleEntry *pEntry = getHandle(NULL, pName);
-	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
-	stucBlenderMapFileUnload(pName);
+	if (getHandle(NULL, pName)) {
+		stucBlenderMapFileUnload(pName);
+	}
 	stucBlenderMapFileLoad(pFilepath, pName);
 	return err;
 }

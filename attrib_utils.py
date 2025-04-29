@@ -62,7 +62,6 @@ def getAttribUse(
 			return stuc.StucAttribUse.PRESERVE_VERT.value
 		if attrib.name == activeNames[6].name:
 			return stuc.StucAttribUse.RECEIVE.value
-
 	else:
 		if attrib.name == "position":
 			return stuc.StucAttribUse.POS.value
@@ -171,7 +170,7 @@ def allocAttribs(mesh: stuc.StucMesh, attribCounts: dict[str, int]) -> None:
 	mesh.cornerAttribs.pArr = CornerAttribsArray()
 	EdgeAttribsArray = stuc.StucAttrib * attribCounts["edge"]
 	mesh.edgeAttribs.pArr = EdgeAttribsArray()
-	VertAttribsArray = stuc.StucAttrib * attribCounts["vert"]
+	VertAttribsArray = stuc.StucAttrib * (attribCounts["vert"] + 1) # +1 for vert normals
 	mesh.vertAttribs.pArr = VertAttribsArray()
 
 def initAttribEntry(

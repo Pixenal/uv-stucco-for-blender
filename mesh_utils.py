@@ -23,7 +23,7 @@ def formatAsStucMesh(
 	getNormals: bool,
 	mats: bool = False,
 	activeNames: bpy.types.Collection | None = None
-) -> tuple[stuc.StucMesh, NDArray[Any], ctypes.c_void_p | None, NDArray[Any] | None]:
+) -> tuple[stuc.StucMesh, NDArray[Any], ctypes.c_void_p | None, NDArray[Any] | None, ctypes.c_void_p | None]:
 	mesh = stuc.StucMesh()
 	mesh.type.type = stuc.StucObjectType.MESH.value
 
@@ -63,7 +63,17 @@ def formatAsStucMesh(
 		)
 
 	if not getNormals:
-			return (mesh, edges, None, None)
+			return (mesh, edges, None, None, None)
+	vertNormalsPtr = target.vertex_normals[0].as_pointer()
+	vertNormals = ctypes.cast(vertNormalsPtr, ctypes.c_void_p)
+	attribUtils.appendAttrib(
+		mesh.vertAttribs,
+		"vertNormals",
+		stuc.StucAttribType.V3_F32.value,
+		stuc.StucAttribUse.NORMALS_VERT.value,
+		vertNormals,
+		mesh.activeAttribs
+	)
 	normals = None
 	if not mesh.activeAttribs[stuc.StucAttribUse.NORMAL.value].active:
 		#normal attrib wasn't overriden, so we need to add it
@@ -87,7 +97,7 @@ def formatAsStucMesh(
 	#to avoid garbage collection, edges, normals, & matIndices are returned as well
 	#is there a better way to do this? TODO maybe make edges, normals, & matIndices
 	#out params, so there's a reference in the calling function. Probably cleaner than this.
-	return (mesh, edges, normals, matIndices)
+	return (mesh, edges, normals, matIndices, vertNormals)
 
 def copyStucMeshToBlenderMesh(
 		stucLib: ctypes.CDLL,
@@ -168,7 +178,7 @@ def formatAsStucObj(
 	matDict: dict[str, int] | None = None,
 	matTable: stuc.StucBlenderMatTableArr | None = None,
 	activeNames: bpy.types.Collection | None = None
-) -> tuple[stuc.StucObject, tuple[stuc.StucMesh, NDArray[Any], ctypes.c_void_p | None, NDArray[Any] | None]]:
+) -> tuple[stuc.StucObject, tuple[stuc.StucMesh, NDArray[Any], ctypes.c_void_p | None, NDArray[Any] | None, ctypes.c_void_p | None]]:
 	stucObj = stuc.StucObject()
 	objEval = obj.evaluated_get(depsgraph)
 	meshEval = objEval.data

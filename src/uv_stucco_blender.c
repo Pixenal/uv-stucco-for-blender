@@ -329,21 +329,26 @@ PixErr stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs) {
 	return err;
 }
 
-void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh) {
+void stucBlenderCopyMeshCore(StucMesh *pDest, StucMesh *pSrc) {
 	memcpy(
-		stucMesh->pFaces,
-		workMesh->pFaces,
-		sizeof(I32) * (stucMesh->faceCount + 1)
+		pDest->pFaces,
+		pSrc->pFaces,
+		sizeof(I32) * (pDest->faceCount + 1)
 	);
 	memcpy(
-		stucMesh->pCorners,
-		workMesh->pCorners,
-		sizeof(I32) * stucMesh->cornerCount
+		pDest->pCorners,
+		pSrc->pCorners,
+		sizeof(I32) * pDest->cornerCount
 	);
+	//TODO this is unsafe,
+	// assuming pos is idx 0 in dest, & not checking if src active is valid
+	StucAttrib *pSrcPos =
+		pSrc->vertAttribs.pArr +
+		pSrc->activeAttribs[STUC_ATTRIB_USE_POS].idx;
 	memcpy(
-		stucMesh->vertAttribs.pArr[0].core.pData,
-		workMesh->vertAttribs.pArr[0].core.pData,
-		sizeof(Stuc_V3_F32) * stucMesh->vertCount
+		pDest->vertAttribs.pArr[0].core.pData,
+		pSrcPos->core.pData,
+		sizeof(Stuc_V3_F32) * pDest->vertCount
 	);
 }
 
@@ -364,18 +369,18 @@ PixErr copyAttribs(StucAttribArray *pA, StucAttribArray *pB, I32 dataLen) {
 	return err;
 }
 
-PixErr stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh) {
+PixErr stucBlenderCopyMeshAttribs(StucMesh *pDest, StucMesh *pSrc) {
 	PixErr err = PIX_ERR_SUCCESS;
 	err = copyAttribs(
-		&workMesh->faceAttribs,
-		&stucMesh->faceAttribs,
-		workMesh->faceCount
+		&pSrc->faceAttribs,
+		&pDest->faceAttribs,
+		pSrc->faceCount
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = copyAttribs(
-		&workMesh->cornerAttribs,
-		&stucMesh->cornerAttribs,
-		workMesh->cornerCount
+		&pSrc->cornerAttribs,
+		&pDest->cornerAttribs,
+		pSrc->cornerCount
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	//TODO re-add copying of vert attribs

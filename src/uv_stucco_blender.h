@@ -88,15 +88,15 @@ PixErr stucBlenderQueryCommonAttribs(
 STUC_BLENDER_EXPORT
 PixErr stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs);
 STUC_BLENDER_EXPORT
-void stucBlenderCopyMeshCore(StucMesh *stucMesh, StucMesh *workMesh);
+void stucBlenderCopyMeshCore(StucMesh *pDest, StucMesh *pSrc);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderCopyMeshAttribs(StucMesh *stucMesh, StucMesh *workMesh);
+PixErr stucBlenderCopyMeshAttribs(StucMesh *pDest, StucMesh *pSrc);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMeshDestroy(StucMesh *pWorkMesh);
+PixErr stucBlenderMeshDestroy(StucMesh *pMesh);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderWaitForJobs(
 	int32_t count,

@@ -62,6 +62,8 @@ def getAttribUse(
 			return stuc.StucAttribUse.PRESERVE_VERT.value
 		if attrib.name == activeNames[6].name:
 			return stuc.StucAttribUse.RECEIVE.value
+		if attrib.name == activeNames[7].name:
+			return stuc.StucAttribUse.WSCALE.value
 	else:
 		if attrib.name == "position":
 			return stuc.StucAttribUse.POS.value
@@ -209,6 +211,8 @@ def isAttribActive(
 		if attrib.name == activeNames[5].name:
 			return True
 		if attrib.name == activeNames[6].name:
+			return True
+		if attrib.name == activeNames[7].name:
 			return True
 
 	if attrib.name == "position":

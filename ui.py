@@ -93,7 +93,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 				"",
 				target, "activeAttribs",
 				target, "activeAttribIdx",
-				rows = 7, maxrows = 7
+				rows = 8, maxrows = 8
 			)
 
 			idx = None

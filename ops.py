@@ -137,6 +137,8 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 				preserveVertEntry.use = "Preserve Vert"
 				receiveEntry = newTarget.activeAttribs.add()
 				receiveEntry.use = "Receive Edge"
+				wScaleEntry = newTarget.activeAttribs.add()
+				wScaleEntry.use = "WScale"
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to add target")
 			raise e

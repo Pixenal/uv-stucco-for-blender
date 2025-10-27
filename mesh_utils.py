@@ -140,7 +140,7 @@ def copyStucMeshToBlenderMesh(
 	i = 0
 	while i < workMesh.faceAttribs.count:
 		name = ctypes.cast(workMesh.faceAttribs.pArr[i].core.name, ctypes.c_char_p).value
-		if name == b"StucMaterialIndices":
+		if name == b"materials":
 			matIndices = workMesh.faceAttribs.pArr[i]
 			break
 		i += 1

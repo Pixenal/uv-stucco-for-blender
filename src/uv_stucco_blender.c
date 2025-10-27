@@ -106,8 +106,9 @@ void correctMatIndices(
 ) {
 	for (I32 i = 0; i < objCount; ++i) {
 		StucMesh *pMesh = (StucMesh *)pObjArr[i].pData;
+		pMesh->activeAttribs[STUC_ATTRIB_USE_IDX].domain = STUC_DOMAIN_FACE;
 		StucAttrib *pAttrib = NULL;
-		stucGetAttrib("StucMaterialIndices", &pMesh->faceAttribs, &pAttrib);
+		stucAttribActiveGet(pStucCtx, pMesh, STUC_ATTRIB_USE_IDX, &pAttrib);
 		if (!pAttrib) {
 			continue;
 		}
@@ -130,8 +131,15 @@ PixErr stucBlenderMapFileExport(
 	PixErr err = PIX_ERR_SUCCESS;
 	StucAttribIndexed *pAttrib = NULL;
 	if (pIndexedAttribs->count) {
-		err = stucGetAttribIndexed("StucMaterials", pIndexedAttribs, &pAttrib);
+		err = stucGetAttribIndexed("materials", pIndexedAttribs, &pAttrib);
 		PIX_ERR_RETURN_IFNOT(err, "");
+		for (I32 i = 0; i < objCount; ++i) {
+			StucMesh *pMesh = (StucMesh *)pObjArr[i].pData;
+			if (!pAttrib ^ !pMesh->activeAttribs[STUC_ATTRIB_USE_IDX].active) {
+				//TODO this shouldn't cause issues for user, handle and export anyway
+				PIX_ERR_RETURN(err, "objects must either all have mats, or all have none");
+			}
+		}
 	}
 	if (pAttrib) {
 		correctMatIndices(objCount, pObjArr, pMatTable);
@@ -340,13 +348,14 @@ void stucBlenderCopyMeshCore(StucMesh *pDest, StucMesh *pSrc) {
 		pSrc->pCorners,
 		sizeof(I32) * pDest->cornerCount
 	);
-	//TODO this is unsafe,
-	// assuming pos is idx 0 in dest, & not checking if src active is valid
 	StucAttrib *pSrcPos =
 		pSrc->vertAttribs.pArr +
 		pSrc->activeAttribs[STUC_ATTRIB_USE_POS].idx;
+	StucAttrib *pDestPos= 
+		pDest->vertAttribs.pArr +
+		pDest->activeAttribs[STUC_ATTRIB_USE_POS].idx;
 	memcpy(
-		pDest->vertAttribs.pArr[0].core.pData,
+		pDestPos->core.pData,
 		pSrcPos->core.pData,
 		sizeof(Stuc_V3_F32) * pDest->vertCount
 	);

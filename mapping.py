@@ -4,6 +4,7 @@ SPDX-License-Identifier: GPL-3.0-only
 '''
 
 import ctypes
+from numpy._typing import NDArray
 from typing import Any, cast
 import pdb
 
@@ -17,45 +18,92 @@ from . import mesh_utils as meshUtils
 from . import props
 from . import stuc
 
+class MappingInfo:
+	def __init__(
+		self,
+		mapArr : stuc.StucMapArr,
+		commonAttribs : ctypes.Array[stuc.StucCommonAttribList],
+		objEval : bpy.types.Object,
+		stucObj : meshUtils.StucObjData,
+		inIndexedArr : stuc.StucAttribIndexedArr,
+		wScale : float,
+		receiveLen : float
+	) -> None:
+		self.mapArr = mapArr
+		self.commonAttribs = commonAttribs
+		self.objEval = objEval
+		self.stucObj = stucObj,
+		self.inIndexedArr = inIndexedArr
+		self.wScale = wScale
+		self.receiveLen = receiveLen
+
 class TargetCache: 
 	done = False
 	def __init__(
 		self,
-		obj,
-		jobHandle,
-		mapArr,
-		inMeshTuple,
-		inIndexedArr,
-		outMesh,
-		outIndexedAttribs,
-		commonAttribs,
-		matCount,
-		memA,
-		memB
+		info : MappingInfo,
+		jobHandle : ctypes.c_void_p,
+		outMesh : stuc.StucMesh,
+		outIndexedAttribs : stuc.StucAttribIndexedArr
 	) -> None:
-		self.obj = obj
+		self.info = info
 		self.jobHandle = jobHandle
-		self.mapArr = mapArr
-		self.inMeshTuple = inMeshTuple
-		self.inIndexedArr = inIndexedArr
 		self.outMesh = outMesh
 		self.outIndexedAttribs = outIndexedAttribs
-		self.commonAttribs = commonAttribs
-		self.matCount = matCount
-		self.memA = memA
-		self.memB = memB
 
-def pushMappingJobToQueue(
+def createMatIdxAttrib(
+	mesh : bpy.types.Mesh
+)-> stuc.StucAttribIndexedArr:
+	idxAttribs = stuc.StucAttribIndexedArr()
+	idxAttribs.count = 1
+	idxAttribs.pArr = ctypes.pointer(stuc.StucAttribIndexed())
+	inMats = idxAttribs.pArr.contents
+	inMats.count = len(mesh.materials)
+	inMats.core.type = stuc.StucAttribType.STRING.value
+	utils.copyString(inMats.core.name, "materials", stuc.STUC_ATTRIB_NAME_MAX_LEN)
+	StucString = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN
+	inMatsArr = (StucString * inMats.count)()
+	inMats.core.pData = ctypes.cast(inMatsArr, ctypes.c_void_p)
+	i = 0
+	for mat in mesh.materials:
+		utils.copyString(inMatsArr[i], mat.name, stuc.STUC_ATTRIB_STRING_MAX_LEN)
+	return idxAttribs
+
+def createMapArr(
+	context : bpy.types.Context,
+	objEval : bpy.types.Object,
+	meshEval : bpy.types.Mesh,
+	commonAttribs : ctypes.Array[stuc.StucCommonAttribList]
+) -> stuc.StucMapArr | None:
+	targetMats = utils.getMatsInStucMats(context, meshEval)
+	targetMatCount = len(targetMats)
+	if not targetMatCount:
+		return None
+	mapArr = stuc.StucMapArr()
+	mapArr.pArr = (stuc.StucMapArrEntry * targetMatCount)()
+	mapArr.pCommonAttribArr = commonAttribs
+	mapArr.count = targetMatCount
+	i = 0
+	for mat in targetMats:
+		pMap = stucLib.stucBlenderMapHandleGet(ctypes.pointer(mat.map.encode('utf-8')))
+		if not pMap.value:
+			return None #map for this material isn't loaded
+		mapArr.pArr[i].pMap = pMap
+		mapArr.pArr[i].matIdx = objEval.material_slots.find(mat.mat.name)
+		i += 1
+	return mapArr
+
+#returns None if aborted
+def prepTargetForMapping(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
-	target: props.StucTarget,
-	targetCache: list[TargetCache]
-) -> None:
+	target: props.StucTarget
+) -> MappingInfo | None:
 	obj = target.obj
 	if obj not in context.selected_objects:
-		return
+		return None
 	elif obj.mode != 'OBJECT':
-		return
+		return None
 	commonAttribs = attribUtils.updateCommonAttribs(
 		stucLib,
 		target.activeAttribs, #type:ignore
@@ -65,7 +113,7 @@ def pushMappingJobToQueue(
 	)
 	#hide_viewport is the moniter icon, and hide_get is the eye
 	if not commonAttribs or obj.hide_viewport or obj.hide_get():
-		return
+		return None
 	wScale = obj.get("stucWScale", None)
 	if wScale == None:
 		wScale = context.scene.stuc.wScale #type:ignore
@@ -78,81 +126,64 @@ def pushMappingJobToQueue(
 	objEval = obj.evaluated_get(depsgraph)
 	meshEval = objEval.data
 	
-	targetMats = utils.getMatsInStucMats(context, meshEval)
-	matCount = len(targetMats)
-	if not matCount:
-		return
-	mapArr = stuc.StucBlenderMapArr()
-	inIndexedArr = stuc.StucAttribIndexedArr()
-	mapArr.ppArr = (ctypes.POINTER(ctypes.c_byte) * matCount)()
-	mapArr.pMatIdxArr = (ctypes.c_byte * matCount)()
-	mapArr.pCommonAttribArr = commonAttribs
-	mapArr.count = matCount
-	mapStrs = []
-	
-	inIndexedArr.count = 1
-	inIndexedArr.pArr = ctypes.pointer(stuc.StucAttribIndexed())
-	inMats = inIndexedArr.pArr.contents
-	inMats.count = matCount
-	inMats.core.type = stuc.StucAttribType.STRING.value
-	utils.copyString(inMats.core.name, "materials", stuc.STUC_ATTRIB_NAME_MAX_LEN)
-	StucString = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN
-	inMatsArr = (StucString * inMats.count)()
-	inMats.core.pData = ctypes.cast(inMatsArr, ctypes.c_void_p)
-	
-	i = 0
-	for mat in targetMats:
-		utils.copyString(inMatsArr[i], mat.mat.name, stuc.STUC_ATTRIB_STRING_MAX_LEN)
-		mapStrs.append(mat.map.encode('utf-8'))
-		mapArr.ppArr[i] = ctypes.cast(mapStrs[i], ctypes.POINTER(ctypes.c_byte))
-		mapArr.pMatIdxArr[i] = objEval.material_slots.find(mat.mat.name)
-		i += 1
-	meshTuple = meshUtils.formatAsStucMesh(
+	mapArr = createMapArr(context, objEval, meshEval, commonAttribs)
+	if not mapArr:
+		return None
+	inIndexedArr = createMatIdxAttrib(meshEval)
+	stucObj = meshUtils.formatAsStucObj(
 		meshEval,
-		False,
 		True,
+		depsgraph,
 		True,
 		cast(Any, target).activeAttribs
 	)
+	return MappingInfo(
+		mapArr,
+		commonAttribs,
+		objEval,
+		stucObj,
+		inIndexedArr,
+		wScale,
+		receiveLen
+	)
+
+def pushMappingJobToQueue(
+	context: bpy.types.Context,
+	depsgraph: bpy.types.Depsgraph,
+	target: props.StucTarget,
+	targetCache: list[TargetCache]
+) -> None:
+	info = prepTargetForMapping(context, depsgraph, target)
+	if not info:
+		return
 	workMesh = stuc.StucMesh()
 	outIndexedAttribs = stuc.StucAttribIndexedArr()
 	jobHandle = ctypes.c_void_p()
 	pushedJobs = ctypes.c_bool()
-	memA = ctypes.c_void_p()
-	memB = ctypes.c_void_p()
 	result = stucLib.stucBlenderMapToMesh(
 		ctypes.pointer(jobHandle),
-		ctypes.pointer(mapArr),
-		ctypes.pointer(meshTuple[0]),
-		ctypes.pointer(inIndexedArr),
+		ctypes.pointer(info.mapArr),
+		ctypes.pointer(info.stucObj.meshData.mesh), #type:ignore
+		ctypes.pointer(info.inIndexedArr),
 		ctypes.pointer(workMesh),
 		ctypes.pointer(outIndexedAttribs),
-		ctypes.c_float(wScale),
-		ctypes.c_float(receiveLen),
-		ctypes.pointer(pushedJobs),
-		ctypes.pointer(memA),
-		ctypes.pointer(memB)
+		ctypes.c_float(info.wScale),
+		ctypes.c_float(info.receiveLen),
+		ctypes.pointer(pushedJobs)
 	)
 	if not pushedJobs:
 		return
 	if result != 1:
 		raise Exception("error pushing job to queue")
 	targetCache.append(TargetCache(
-		objEval,
+		info,
 		jobHandle,
-		mapArr,
-		meshTuple,
-		inIndexedArr,
 		workMesh,
-		outIndexedAttribs,
-		commonAttribs,
-		matCount,
-		memA,
-		memB
+		outIndexedAttribs
 	))
 
 def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
-	nameStuc = item.obj.name + ".Stuc"
+	nameStuc = item.info.objEval.name + ".Stuc"
 	objStuc = bpy.data.objects.get(nameStuc, None)
 	if not(objStuc):
 		meshStuc = bpy.data.meshes.new(nameStuc)
@@ -182,8 +213,8 @@ def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
 		meshStuc.attributes.remove(matBlendAttrib)
 	
 	i = 0
-	while i < item.matCount:
-		stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(item.commonAttribs[i]))
+	while i < item.info.mapArr.count:
+		stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(item.info.commonAttribs[i]))
 		i += 1
 
 def waitForAndCopyOutMeshes(
@@ -209,12 +240,10 @@ def waitForAndCopyOutMeshes(
 				continue
 			item.done = True
 			doneCount += 1
-			stucLib.stucBlenderCallFree(item.memA)
-			stucLib.stucBlenderCallFree(item.memB)
 			if result != 1:
-				print(f"Stuc python, map to mesh failed on obj {item.obj.name}, skipping")
+				print(f"Stuc python, map to mesh failed on obj {item.info.objEval.name}, skipping")
 				continue
-			print(f"---------------------------------------------------------------Stuc python, map to mesh returned success on obj {item.obj.name}")
+			print(f"Stuc python, map to mesh returned success on obj {item.info.objEval.name}")
 			
 			if item.outMesh.faceCount:
 				addOrUpdateBlendMesh(context, item)
@@ -228,5 +257,5 @@ def mapToSelTargets(context: bpy.types.Context) -> None:
 	cacheCount = len(targetCache)
 	if not cacheCount:
 		return
-	print("-----------------------------------------------waiting for finished jobs")
+	print("waiting for finished jobs")
 	waitForAndCopyOutMeshes(context, targetCache, cacheCount)

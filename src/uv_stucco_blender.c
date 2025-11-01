@@ -98,63 +98,52 @@ void stucBlenderInit() {
 	stucContextInit(&pStucCtx, NULL, NULL, NULL, NULL, NULL);
 }
 
-static
-void correctMatIndices(
-	I32 objCount,
-	StucObject *pObjArr,
-	StucBlenderMatTableArr *pMatTable
+StucErr stucBlenderMapExportInit(
+	void **ppHandle,
+	const char *pPath
 ) {
-	for (I32 i = 0; i < objCount; ++i) {
-		StucMesh *pMesh = (StucMesh *)pObjArr[i].pData;
-		pMesh->activeAttribs[STUC_ATTRIB_USE_IDX].domain = STUC_DOMAIN_FACE;
-		StucAttrib *pAttrib = NULL;
-		stucAttribActiveGet(pStucCtx, pMesh, STUC_ATTRIB_USE_IDX, &pAttrib);
-		if (!pAttrib) {
-			continue;
-		}
-		I8 *pIndices = pAttrib->core.pData;
-		for (I32 j = 0; j < pMesh->faceCount; ++j) {
-			pIndices[j] = pMatTable->pArr[i].pArr[pIndices[j]];
-		}
-	}
+	return stucMapExportInit(pStucCtx, (StucMapExport **)ppHandle, pPath);
 }
 
-PixErr stucBlenderMapFileExport(
-	const char *pFilepath,
-	I32 objCount,
-	StucObject *pObjArr,
-	I32 usgCount,
-	StucUsg *pUsgArr,
-	StucAttribIndexedArr *pIndexedAttribs,
-	StucBlenderMatTableArr *pMatTable
+StucErr stucBlenderMapExportEnd(void **ppHandle) {
+	return stucMapExportEnd((StucMapExport **)ppHandle);
+}
+
+StucErr stucBlenderMapExportTargetAdd(
+	void *pHandle,
+	StucMapArr *pMapArr,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs,
+	float wScale,
+	float receiveLen
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	StucAttribIndexed *pAttrib = NULL;
-	if (pIndexedAttribs->count) {
-		err = stucGetAttribIndexed("materials", pIndexedAttribs, &pAttrib);
-		PIX_ERR_RETURN_IFNOT(err, "");
-		for (I32 i = 0; i < objCount; ++i) {
-			StucMesh *pMesh = (StucMesh *)pObjArr[i].pData;
-			if (!pAttrib ^ !pMesh->activeAttribs[STUC_ATTRIB_USE_IDX].active) {
-				//TODO this shouldn't cause issues for user, handle and export anyway
-				PIX_ERR_RETURN(err, "objects must either all have mats, or all have none");
-			}
-		}
-	}
-	if (pAttrib) {
-		correctMatIndices(objCount, pObjArr, pMatTable);
-	}
-	err = stucMapFileExport(
-		pStucCtx,
-		pFilepath,
-		objCount,
-		pObjArr,
-		usgCount,
-		pUsgArr,
-		pIndexedAttribs
+	err = stucMapExportTargetAdd(
+		pHandle,
+		pMapArr,
+		pObj,
+		pIndexedAttribs,
+		wScale,
+		receiveLen
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
+}
+
+StucErr stucBlenderMapExportObjAdd(
+	void *pHandle,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs
+) {
+	return stucMapExportObjAdd(pHandle, pObj, pIndexedAttribs);
+}
+
+StucErr stucBlenderMapExportUsgAdd(void *pHandle, StucUsg *pUsg) {
+	return stucMapExportUsgAdd(pHandle, pUsg);
+}
+
+StucErr stucBlenderMapExportUsgCutoffAdd(void *pHandle, StucObject *pFlatCutoff) {
+	return stucMapExportUsgCutoffAdd(pHandle, pFlatCutoff);
 }
 
 PixErr stucBlenderMapFileLoadForEdit(
@@ -269,65 +258,30 @@ PixErr stucBlenderQueryCommonAttribs(
 	return err;
 }
 
-//returns true if empty
-static
-bool makeMapArr(StucBlenderMapArr *pBlendMapArr, StucMapArr *pMapArr) {
-	if (!pBlendMapArr->count) {
-		return 1;
-	}
-	pMapArr->size = pMapArr->count = pBlendMapArr->count;
-	pMapArr->pMatArr = pBlendMapArr->pMatIdxArr;
-	pMapArr->ppArr = calloc(pMapArr->size, sizeof(void *));
-	for (I32 i = 0; i < pMapArr->count; ++i) {
-		HandleEntry *pEntry = getHandle(NULL, pBlendMapArr->ppArr[i]);
-		if (!pEntry) {
-			return 1;
-		}
-		pMapArr->ppArr[i] = pEntry->pHandle;
-	}
-	pMapArr->pCommonAttribArr = pBlendMapArr->pCommonAttribArr;
-	return 0;
-}
-
 PixErr stucBlenderMapToMesh(
 	void **ppJobHandle,
-	StucBlenderMapArr *pMapArrPy,
+	StucMapArr *pMapArr,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
 	float receiveLen,
-	I32 *pPushedJobs,
-	void **ppMemA,
-	void **ppMemB
+	I32 *pPushedJobs
 
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	StucMapArr *pMapArr = calloc(1, sizeof(StucMapArr));
-	bool empty = makeMapArr(pMapArrPy, pMapArr);
-	if (empty) {
-		*pPushedJobs = false;
-		if (pMapArr->ppArr) {
-			free(pMapArr->ppArr);
-		}
-		free(pMapArr);
-	}
-	else {
-		*ppMemA = pMapArr;
-		*ppMemB = pMapArr->ppArr;
-		PixErr result = stucQueueMapToMesh(
-			pStucCtx,
-			ppJobHandle,
-			pMapArr,
-			pMesh, pInIndexedAttribs,
-			pOutMesh, pOutIndexedAttribs,
-			wScale,
-			receiveLen
-		);
-		PIX_ERR_RETURN_IFNOT(err, "");
-		*pPushedJobs = true;
-	}
+	err = stucQueueMapToMesh(
+		pStucCtx,
+		ppJobHandle,
+		pMapArr,
+		pMesh, pInIndexedAttribs,
+		pOutMesh, pOutIndexedAttribs,
+		wScale,
+		receiveLen
+	);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	*pPushedJobs = true;
 	return err;
 }
 
@@ -440,4 +394,8 @@ void stucBlenderCallFree(void *pData) {
 	if (pData) {
 		free(pData);
 	}
+}
+
+void *stucBlenderMapHandleGet(const char *pName) {
+	return getHandle(NULL, pName);
 }

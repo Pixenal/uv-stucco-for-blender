@@ -220,18 +220,29 @@ class StucCommonAttribList(ctypes.Structure):
 		("vert", StucCommonAttribArr),
 	]
 
-class StucBlenderMapArr(ctypes.Structure):
+class StucMapArrEntry(ctypes.Structure):
 	_fields_ = [
-		("ppArr", ctypes.POINTER(ctypes.POINTER(ctypes.c_byte))),
-		("pMatIdxArr", ctypes.POINTER(ctypes.c_byte)),
+		("pMap", ctypes.c_void_p),
+		("matIdx", ctypes.c_byte)
+	]
+
+class StucMapArr(ctypes.Structure):
+	_fields_ = [
+		("pArr", ctypes.POINTER(StucMapArrEntry)),
 		("pCommonAttribArr", ctypes.POINTER(StucCommonAttribList)),
 		("count", ctypes.c_int32)
+	]
+
+class StucFlatCutoffIdx(ctypes.Structure):
+	_fields_ = [
+		("idx", ctypes.c_int32),
+		("enabled", ctypes.c_bool)
 	]
 	
 class StucUsg(ctypes.Structure):
 	_fields_ = [
 		("obj", StucObject),
-		("pFlatCutoff", ctypes.POINTER(StucObject))
+		("flatCutoff", StucFlatCutoffIdx)
 	]
 	
 class StucBlenderMatTable(ctypes.Structure):

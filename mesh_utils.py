@@ -14,6 +14,26 @@ from . import stuc
 from . import utils
 from . import attrib_utils as attribUtils
 
+class StucMeshData:
+	def __init__(
+		self,
+		mesh : stuc.StucMesh,
+		edges : NDArray[Any],
+		normals : ctypes.c_void_p | None,
+		matIdx : NDArray[Any] | None,
+		vertNormals : ctypes.c_void_p | None
+	) -> None:
+		self.mesh = mesh
+		self.edges = edges
+		self.normals = normals
+		self.matIdx = matIdx
+		self.vertNormals = vertNormals
+
+class StucObjData:
+	def __init__(self, obj : stuc.StucObject, meshData : StucMeshData) -> None:
+		self.obj = obj
+		self.meshData = meshData
+
 #returns a tuple containing the mesh, and the edges numpy array.
 #in order to prevent the reference tot he edge array from becoming invalid
 #after the function returns
@@ -23,7 +43,7 @@ def formatAsStucMesh(
 	getNormals: bool,
 	mats: bool = False,
 	activeNames: bpy.types.Collection | None = None
-) -> tuple[stuc.StucMesh, NDArray[Any], ctypes.c_void_p | None, NDArray[Any] | None, ctypes.c_void_p | None]:
+) -> StucMeshData:
 	mesh = stuc.StucMesh()
 	mesh.type.type = stuc.StucObjectType.MESH.value
 
@@ -63,7 +83,7 @@ def formatAsStucMesh(
 		)
 
 	if not getNormals:
-			return (mesh, edges, None, None, None)
+			return StucMeshData(mesh, edges, None, None, None)
 	vertNormalsPtr = target.vertex_normals[0].as_pointer()
 	vertNormals = ctypes.cast(vertNormalsPtr, ctypes.c_void_p)
 	attribUtils.appendAttrib(
@@ -97,7 +117,7 @@ def formatAsStucMesh(
 	#to avoid garbage collection, edges, normals, & matIndices are returned as well
 	#is there a better way to do this? TODO maybe make edges, normals, & matIndices
 	#out params, so there's a reference in the calling function. Probably cleaner than this.
-	return (mesh, edges, normals, matIndices, vertNormals)
+	return StucMeshData(mesh, edges, normals, matIndices, vertNormals)
 
 def copyStucMeshToBlenderMesh(
 		stucLib: ctypes.CDLL,
@@ -116,7 +136,10 @@ def copyStucMeshToBlenderMesh(
 		outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
 		i = 0
 		while i < outMats.count:
-			matName = ctypes.cast(outMatsCast[i], ctypes.c_char_p).value.decode()
+			namePtr = ctypes.cast(outMatsCast[i], ctypes.c_char_p)
+			if not namePtr.value:
+				raise Exception("invalid material name")
+			matName = namePtr.value.decode()
 			mat = bpy.data.materials.get(matName, None)
 			if not mat:
 				#this should throw an error of some kind, or a warning
@@ -132,7 +155,7 @@ def copyStucMeshToBlenderMesh(
 	meshStucFormat = formatAsStucMesh(mesh, False, False)
 
 	stucLib.stucBlenderCopyMeshCore(
-		ctypes.pointer(meshStucFormat[0]),
+		ctypes.pointer(meshStucFormat.mesh),
 		ctypes.pointer(workMesh)
 	)
 
@@ -158,7 +181,7 @@ def copyStucMeshToBlenderMesh(
 	mesh.update()
 	meshStucFormat = formatAsStucMesh(mesh, False, False)
 	stucLib.stucBlenderCopyMeshAttribs(
-		ctypes.pointer(meshStucFormat[0]),
+		ctypes.pointer(meshStucFormat.mesh),
 		ctypes.pointer(workMesh)
 	)
 	normalAttrib = attribUtils.getNormalAttrib(workMesh)
@@ -173,35 +196,24 @@ def copyStucMeshToBlenderMesh(
 
 def formatAsStucObj(
 	obj: bpy.types.Object,
+	isEval : bool,
 	depsgraph: bpy.types.Depsgraph,
 	mats: bool = False,
-	matDict: dict[str, int] | None = None,
-	matTable: stuc.StucBlenderMatTableArr | None = None,
 	activeNames: bpy.types.Collection | None = None
-) -> tuple[stuc.StucObject, tuple[stuc.StucMesh, NDArray[Any], ctypes.c_void_p | None, NDArray[Any] | None, ctypes.c_void_p | None]]:
+) -> StucObjData:
 	stucObj = stuc.StucObject()
-	objEval = obj.evaluated_get(depsgraph)
+	if isEval:
+		objEval = obj
+	else:
+		objEval = obj.evaluated_get(depsgraph)
 	meshEval = objEval.data
 	if type(meshEval) != bpy.types.Mesh:
 		raise Exception("object is not a mesh")
 	meshTuple = formatAsStucMesh(meshEval, False, True, mats, activeNames)
-	if matTable and matDict:
-		matTable.count = len(meshEval.materials)
-		MatSlots = ctypes.c_byte * matTable.count
-		matTable.pArr = MatSlots()
-		#list global indices of materials in current object,
-		#this will be used as a lookup table, as per face mat indices are obj local
-		i = 0
-		while i < matTable.count:
-			mat = meshEval.materials[i]
-			if not mat:
-				raise Exception("material in matTable is None")
-			matTable.pArr[i] = list(matDict.keys()).index(mat.name)
-			i += 1
-	stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple[0]), ctypes.POINTER(stuc.StucObjectData))
+	stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple.mesh), ctypes.POINTER(stuc.StucObjectData))
 	utils.setStucMatrix(stucObj.transform, obj.matrix_world)
 	#the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
-	return (stucObj, meshTuple)
+	return StucObjData(stucObj, meshTuple)
 
 def blendObjFromStuc(
 		stucLib: ctypes.CDLL,

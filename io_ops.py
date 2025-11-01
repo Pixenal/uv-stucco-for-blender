@@ -6,6 +6,7 @@ SPDX-License-Identifier: GPL-3.0-only
 import ctypes
 import os
 import math
+from pickletools import int4
 from typing import Any, cast
 import pdb
 
@@ -17,6 +18,79 @@ stucLib = c_lib.stucLib
 from . import utils
 from . import mesh_utils as meshUtils
 from . import stuc
+from . import mapping
+
+def addFlatCutoff(
+	handle : ctypes.c_void_p,
+	depsgraph : bpy.types.Depsgraph,
+	cutoffTable : dict,
+	cutoffCount : int,
+	flatCutoff : bpy.types.Object
+) -> int:
+	if flatCutoff.type != 'MESH':
+		raise Exception("flat-cutoff object is not a mesh")
+	cutoffIdx = cutoffTable.get(flatCutoff.name, None)
+	if not cutoffIdx:
+		cutoffObj = meshUtils.formatAsStucObj(flatCutoff, True, depsgraph, False)
+		err = stucLib.stucBlenderMapExportCutoffAdd(handle, ctypes.pointer(cutoffObj.obj))
+		if err != 1:
+			raise Exception("stuc map export usg-cutoff add failed")
+		cutoffIdx = cutoffCount
+		cutoffCount += 1
+		cutoffTable.update({flatCutoff.name : cutoffIdx})
+	return cutoffIdx
+
+def addToMapExport(context : bpy.types.Context, handle : ctypes.c_void_p) -> None:
+	depsgraph = context.evaluated_depsgraph_get()
+	cutoffTable = {}
+	cutoffCount = 0
+
+	for obj in context.selected_objects:
+		objEval = obj.evaluated_get(depsgraph)
+		if objEval.type != 'MESH':
+			continue
+		isUsg = obj.get("StucUsg", None)
+		if isUsg:
+			stucObj = meshUtils.formatAsStucObj(objEval, True, depsgraph, False)
+			usg = stuc.StucUsg()
+			usg.obj = stucObj.obj
+			usg.flatCutoff = -1
+			flatCutoff = obj.get("stucUsgFlatCutoff", None).evaluated_get(depsgraph)
+			if (flatCutoff):
+				usg.flatCutoff =\
+					addFlatCutoff(handle, depsgraph, cutoffTable, cutoffCount, flatCutoff)
+			err = stucLib.stucBlenderMapExportUsgAdd(handle, ctypes.pointer(usg))
+			if err != 1:
+				raise Exception("stuc map export usg add failed")
+		else:
+			target = None
+			for item in context.scene.stucTargets: #type:ignore
+				if (item.obj == obj):
+					target = item
+					break
+			if target:
+				info = mapping.prepTargetForMapping(context, depsgraph, target)
+				if info:
+					err = stucLib.stucBlenderMapExportTargetAdd(
+						handle,
+						ctypes.pointer(info.mapArr),
+						ctypes.pointer(info.stucObj.obj),
+						ctypes.pointer(info.inIndexedArr),
+						info.wScale,
+						info.receiveLen
+					)
+					if err != 1:
+						raise Exception("stuc map export target add failed")
+					return
+			idxAttribs = mapping.createMatIdxAttrib(objEval.data) #type:ignore
+			stucObj = meshUtils.formatAsStucObj(objEval, True, depsgraph, True)
+			err = stucLib.stucBlenderMapExportObjAdd(
+				handle,
+				ctypes.pointer(stucObj.obj),
+				ctypes.pointer(idxAttribs)
+			)
+			if err != 1:
+				raise Exception("stuc map export obj add failed")
 
 class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 	bl_idname = "stuc.export_stuc_file"
@@ -29,118 +103,23 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
+			pdb.set_trace()
 			if (len(context.selected_objects) == 0):
 				self.report({'WARNING'}, "Nothing was exported, no objects selected")
 				return {'CANCELLED'}
 			
 			filepath = self.filepath #type:ignore
 			filePathUtf8 = filepath.encode('utf-8')
-		
-			depsgraph = context.evaluated_depsgraph_get()
-			ObjArr = stuc.StucObject * len(context.selected_objects)
-			UsgArr = stuc.StucUsg * len(context.selected_objects)
-			objArr = ObjArr()
-			usgArr = UsgArr()
-			objCount = 0
-			usgCount = 0
-			cutoffs = {}
-			mats = {}
-			tuples = []
-			objCount = 0
-			for obj in context.selected_objects:
-				if obj.type != 'MESH':
-					continue
-				isUsg = obj.get("StucUsg", None)
-				if not isUsg:
-					objCount += 1
-			matTable = stuc.StucBlenderMatTableArr()
-			matTable.count = objCount
-			MatTableArr = stuc.StucBlenderMatTable * matTable.count
-			matTable.pArr = MatTableArr()
-			
-			for obj in context.selected_objects:
-				if obj.type != 'MESH':
-					continue
-				isUsg = obj.get("StucUsg", None)
-				if not isUsg:
-					for slot in obj.material_slots:
-						entry = mats.get(slot.name, None)
-						if not entry:
-							mats[slot.name] = True
-			matCount = len(mats)
-			if not matCount:
-				mats = None
-							
-			objIdx = 0
-			for obj in context.selected_objects:
-				if obj.type != 'MESH':
-					continue
-				isUsg = obj.get("StucUsg", None)
-				if not isUsg:
-					objTuple = meshUtils.formatAsStucObj(
-						obj,
-						depsgraph,
-						True,
-						mats,
-						matTable.pArr[objIdx]
-					)
-					objArr[objIdx] = objTuple[0]
-					tuples.append(objTuple)
-					objIdx += 1
-					continue
-				objTuple = meshUtils.formatAsStucObj(obj, depsgraph, False)
-				usgArr[usgCount].obj = objTuple[0]
-				tuples.append(objTuple)
-				flatCutoff = obj.get("stucUsgFlatCutoff", None)
-				if (flatCutoff):
-					if flatCutoff.type == 'MESH':
-						cutoffPtr = cutoffs.get(flatCutoff.name, None)
-						if not cutoffPtr:
-							cutoffObjTuple =\
-								meshUtils.formatAsStucObj(flatCutoff, depsgraph, False)
-							cutoffPtr = ctypes.pointer(cutoffObjTuple[0])
-							cutoffs.update({flatCutoff.name : cutoffPtr})
-							tuples.append(cutoffObjTuple)
-						usgArr[usgCount].pFlatCutoff = cutoffPtr
-				usgCount += 1
-			
-			indexedAttribCount = 0
-			indexedAttribs = stuc.StucAttribIndexedArr()
-			if matCount:
-				if not mats:
-					raise Exception("mats is None")
-				MatArr = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN * matCount
-				matArr = MatArr()
-				i = 0
-				for matName in mats.keys():
-					utils.copyString(matArr[i], matName, stuc.STUC_ATTRIB_NAME_MAX_LEN)
-					i += 1
-				matAttrib = stuc.StucAttribIndexed()
-				matAttrib.core.pData =  ctypes.cast(matArr, ctypes.c_void_p)
-				utils.copyString(
-					matAttrib.core.name,
-					"materials",
-					stuc.STUC_ATTRIB_NAME_MAX_LEN
-				)
-				matAttrib.core.type = stuc.StucAttribType.STRING.value
-				matAttrib.count = matCount
-				matAttrib.size = matCount
-				indexedAttribCount = 1
-				indexedAttribs.pArr = ctypes.pointer(matAttrib)
-			indexedAttribs.count = indexedAttribCount
-			indexedAttribs.size = indexedAttribCount
-			
-			err = stucLib.stucBlenderMapFileExport(
-				filePathUtf8,
-				objCount,
-				objArr,
-				usgCount,
-				usgArr,
-				ctypes.pointer(indexedAttribs),
-				ctypes.pointer(matTable)
-			)
+
+			handle = ctypes.c_void_p()
+
+			err = stucLib.stucBlenderMapExportInit(ctypes.pointer(handle), filePathUtf8)
 			if err != 1:
-				raise Exception("stuc map file export returned error")
+				raise Exception("stuc map export init failed")
+			addToMapExport(context, handle)
+			err = stucLib.stucBlenderMapExportEnd(ctypes.pointer(handle))
+			if err != 1:
+				raise Exception("stuc map file export end failed")
 		except Exception as e:
 			self.report({'ERROR'}, "Export failed")
 			raise e

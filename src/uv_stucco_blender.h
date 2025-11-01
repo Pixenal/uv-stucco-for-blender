@@ -12,18 +12,6 @@ SPDX-License-Identifier: GPL-3.0-only
 	#define STUC_BLENDER_EXPORT __attribute__((visibility("default")))
 #endif
 
-//TODO replace these mat structs with a generic per obj offset table for all indexedAttribs,
-//rather than just having an adhoc solution for materials
-//Though really this is only being done to avoid iterating over faces in python,
-//so this should be a non-issue for dcc's with c api's
-
-typedef struct {
-	char **ppArr;
-	int8_t *pMatIdxArr;
-	StucCommonAttribList *pCommonAttribArr;
-	int32_t count;
-} StucBlenderMapArr;
-
 typedef struct {
 	int8_t *pArr;
 	int32_t count;
@@ -37,15 +25,31 @@ typedef struct {
 STUC_BLENDER_EXPORT
 void stucBlenderInit();
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapFileExport(
-	const char *pFilepath,
-	int32_t objCount,
-	StucObject *pObjArr,
-	int32_t usgCount,
-	StucUsg *pUsgArr,
-	StucAttribIndexedArr *pIndexedAttribs,
-	StucBlenderMatTableArr *pMatTable
+StucErr stucBlenderMapExportInit(
+	void **ppHandle,
+	const char *pPath
 );
+STUC_BLENDER_EXPORT
+StucErr stucBlenderMapExportEnd(void **ppHandle);
+STUC_BLENDER_EXPORT
+StucErr stucBlenderMapExportTargetAdd(
+	void *pHandle,
+	StucMapArr *pMapArr,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs,
+	float wScale,
+	float receiveLen
+);
+STUC_BLENDER_EXPORT
+StucErr stucBlenderMapExportObjAdd(
+	void *pHandle,
+	const StucObject *pObj,
+	const StucAttribIndexedArr *pIndexedAttribs
+);
+STUC_BLENDER_EXPORT
+StucErr stucBlenderMapExportUsgAdd(void *pHandle, StucUsg *pUsg);
+STUC_BLENDER_EXPORT
+StucErr stucBlenderMapExportUsgCutoffAdd(void *pHandle, StucObject *pFlatCutoff);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapFileLoadForEdit(
 	const char *pFilepath,
@@ -66,18 +70,14 @@ PixErr stucBlenderMapFileReload(const char *pFilepath, const char *pName);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapToMesh(
 	void **ppJobHandle,
-	StucBlenderMapArr *pMapArr,
+	StucMapArr *pMapArr,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
 	float receiveLen,
-	int32_t *pPushedJobs,
-	//TODO TEMP structs arn't mirrored in python atm, so allocing in c and passing back ptrs for now.
-	//remove these
-	void **ppMemA,
-	void **ppMemB
+	int32_t *pPushedJobs
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderQueryCommonAttribs(
@@ -108,3 +108,5 @@ STUC_BLENDER_EXPORT
 void stucBlenderDestroy();
 STUC_BLENDER_EXPORT
 void stucBlenderCallFree(void *pData);
+STUC_BLENDER_EXPORT
+void *stucBlenderMapHandleGet(const char *pName);

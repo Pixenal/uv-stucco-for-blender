@@ -20,30 +20,89 @@ from . import mesh_utils as meshUtils
 from . import stuc
 from . import mapping
 
+class CutoffTable():
+	def __init__(self):
+		self.dict = {}
+		self.count = 0
+
 def addFlatCutoff(
 	handle : ctypes.c_void_p,
 	depsgraph : bpy.types.Depsgraph,
-	cutoffTable : dict,
-	cutoffCount : int,
+	cutoffTable : CutoffTable,
 	flatCutoff : bpy.types.Object
-) -> int:
+) -> stuc.StucFlatCutoffIdx:
 	if flatCutoff.type != 'MESH':
 		raise Exception("flat-cutoff object is not a mesh")
-	cutoffIdx = cutoffTable.get(flatCutoff.name, None)
+	cutoffIdx = cutoffTable.dict.get(flatCutoff.name, None)
 	if not cutoffIdx:
 		cutoffObj = meshUtils.formatAsStucObj(flatCutoff, True, depsgraph, False)
-		err = stucLib.stucBlenderMapExportCutoffAdd(handle, ctypes.pointer(cutoffObj.obj))
+		err = stucLib.stucBlenderMapExportUsgCutoffAdd(
+			handle,
+			ctypes.pointer(cutoffObj.obj)
+		)
 		if err != 1:
 			raise Exception("stuc map export usg-cutoff add failed")
-		cutoffIdx = cutoffCount
-		cutoffCount += 1
-		cutoffTable.update({flatCutoff.name : cutoffIdx})
-	return cutoffIdx
+		cutoffIdx = cutoffTable.count
+		cutoffTable.count += 1
+		cutoffTable.dict.update({flatCutoff.name : cutoffIdx})
+	return stuc.StucFlatCutoffIdx(cutoffIdx, True)
+
+def addUsgToMapExport(
+	handle : ctypes.c_void_p,
+	depsgraph : bpy.types.Depsgraph,
+	obj : bpy.types.Object,
+	cutoffTable : CutoffTable
+) -> None:
+	stucObj = meshUtils.formatAsStucObj(obj, True, depsgraph, False)
+	usg = stuc.StucUsg()
+	usg.obj = stucObj.obj
+	flatCutoff = obj.get("stucUsgFlatCutoff", None).evaluated_get(depsgraph)
+	if (flatCutoff):
+		pdb.set_trace()
+		usg.flatCutoff =\
+			addFlatCutoff(handle, depsgraph, cutoffTable, flatCutoff)
+	err = stucLib.stucBlenderMapExportUsgAdd(handle, ctypes.pointer(usg))
+	if err != 1:
+		raise Exception("stuc map export usg add failed")
+	
+def addObjToMapExport(
+	context : bpy.types.Context,
+	handle : ctypes.c_void_p,
+	depsgraph : bpy.types.Depsgraph,
+	obj : bpy.types.Object
+) -> None:
+	target = None
+	for item in context.scene.stucTargets: #type:ignore
+		if (item.obj == obj):
+			target = item
+			break
+	if target:
+		info = mapping.prepTargetForMapping(context, depsgraph, target)
+		if info:
+			err = stucLib.stucBlenderMapExportTargetAdd(
+				handle,
+				ctypes.pointer(info.mapArr),
+				ctypes.pointer(info.stucObj.obj),
+				ctypes.pointer(info.inIndexedArr),
+				info.wScale,
+				info.receiveLen
+			)
+			if err != 1:
+				raise Exception("stuc map export target add failed")
+			return
+	idxAttribs = mapping.createMatIdxAttrib(obj.data) #type:ignore
+	stucObj = meshUtils.formatAsStucObj(obj, True, depsgraph, True)
+	err = stucLib.stucBlenderMapExportObjAdd(
+		handle,
+		ctypes.pointer(stucObj.obj),
+		ctypes.pointer(idxAttribs)
+	)
+	if err != 1:
+		raise Exception("stuc map export obj add failed")
 
 def addToMapExport(context : bpy.types.Context, handle : ctypes.c_void_p) -> None:
 	depsgraph = context.evaluated_depsgraph_get()
-	cutoffTable = {}
-	cutoffCount = 0
+	cutoffTable = CutoffTable()
 
 	for obj in context.selected_objects:
 		objEval = obj.evaluated_get(depsgraph)
@@ -51,46 +110,9 @@ def addToMapExport(context : bpy.types.Context, handle : ctypes.c_void_p) -> Non
 			continue
 		isUsg = obj.get("StucUsg", None)
 		if isUsg:
-			stucObj = meshUtils.formatAsStucObj(objEval, True, depsgraph, False)
-			usg = stuc.StucUsg()
-			usg.obj = stucObj.obj
-			usg.flatCutoff = -1
-			flatCutoff = obj.get("stucUsgFlatCutoff", None).evaluated_get(depsgraph)
-			if (flatCutoff):
-				usg.flatCutoff =\
-					addFlatCutoff(handle, depsgraph, cutoffTable, cutoffCount, flatCutoff)
-			err = stucLib.stucBlenderMapExportUsgAdd(handle, ctypes.pointer(usg))
-			if err != 1:
-				raise Exception("stuc map export usg add failed")
+			addUsgToMapExport(handle, depsgraph, objEval, cutoffTable)
 		else:
-			target = None
-			for item in context.scene.stucTargets: #type:ignore
-				if (item.obj == obj):
-					target = item
-					break
-			if target:
-				info = mapping.prepTargetForMapping(context, depsgraph, target)
-				if info:
-					err = stucLib.stucBlenderMapExportTargetAdd(
-						handle,
-						ctypes.pointer(info.mapArr),
-						ctypes.pointer(info.stucObj.obj),
-						ctypes.pointer(info.inIndexedArr),
-						info.wScale,
-						info.receiveLen
-					)
-					if err != 1:
-						raise Exception("stuc map export target add failed")
-					return
-			idxAttribs = mapping.createMatIdxAttrib(objEval.data) #type:ignore
-			stucObj = meshUtils.formatAsStucObj(objEval, True, depsgraph, True)
-			err = stucLib.stucBlenderMapExportObjAdd(
-				handle,
-				ctypes.pointer(stucObj.obj),
-				ctypes.pointer(idxAttribs)
-			)
-			if err != 1:
-				raise Exception("stuc map export obj add failed")
+			addObjToMapExport(context, handle, depsgraph, objEval)
 
 class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 	bl_idname = "stuc.export_stuc_file"
@@ -103,7 +125,6 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			pdb.set_trace()
 			if (len(context.selected_objects) == 0):
 				self.report({'WARNING'}, "Nothing was exported, no objects selected")
 				return {'CANCELLED'}

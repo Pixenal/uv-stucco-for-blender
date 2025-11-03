@@ -350,10 +350,8 @@ PixErr stucBlenderCopyMeshAttribs(StucMesh *pDest, StucMesh *pSrc) {
 	return err;
 }
 
-PixErr stucBlenderObjArrDestroy(I32 objCount, StucObject *pObjArr) {
-	PixErr err = stucObjArrDestroy(pStucCtx, objCount, pObjArr);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	return err;
+PixErr stucBlenderObjArrDestroy(StucObjArr *pObjArr) {
+	return stucObjArrDestroy(pStucCtx, pObjArr);
 }
 
 PixErr stucBlenderUsgArrDestroy(I32 count, StucUsg *pUsgArr) {

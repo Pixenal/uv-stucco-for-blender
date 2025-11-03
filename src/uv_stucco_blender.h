@@ -92,7 +92,7 @@ void stucBlenderCopyMeshCore(StucMesh *pDest, StucMesh *pSrc);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderCopyMeshAttribs(StucMesh *pDest, StucMesh *pSrc);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderObjArrDestroy(int32_t objCount, StucObject *pObjArr);
+PixErr stucBlenderObjArrDestroy(StucObjArr *pObjArr);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderUsgArrDestroy(int32_t count, StucUsg *pUsgArr);
 STUC_BLENDER_EXPORT

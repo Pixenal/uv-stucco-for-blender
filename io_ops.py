@@ -58,7 +58,6 @@ def addUsgToMapExport(
 	usg.obj = stucObj.obj
 	flatCutoff = obj.get("stucUsgFlatCutoff", None).evaluated_get(depsgraph)
 	if (flatCutoff):
-		pdb.set_trace()
 		usg.flatCutoff =\
 			addFlatCutoff(handle, depsgraph, cutoffTable, flatCutoff)
 	err = stucLib.stucBlenderMapExportUsgAdd(handle, ctypes.pointer(usg))

@@ -100,9 +100,10 @@ void stucBlenderInit() {
 
 StucErr stucBlenderMapExportInit(
 	void **ppHandle,
-	const char *pPath
+	const char *pPath,
+	bool compress
 ) {
-	return stucMapExportInit(pStucCtx, (StucMapExport **)ppHandle, pPath);
+	return stucMapExportInit(pStucCtx, (StucMapExport **)ppHandle, pPath, compress);
 }
 
 StucErr stucBlenderMapExportEnd(void **ppHandle) {

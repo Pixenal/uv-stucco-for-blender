@@ -27,7 +27,8 @@ void stucBlenderInit();
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportInit(
 	void **ppHandle,
-	const char *pPath
+	const char *pPath,
+	bool compress
 );
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportEnd(void **ppHandle);

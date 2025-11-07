@@ -121,6 +121,8 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 	filename_ext = ".stuc"
 	filter_glob :\
 		bpy.props.StringProperty(default = "*.stuc", options = {'HIDDEN'}) #type:ignore
+	
+	compress : bpy.props.BoolProperty(name = "Compress", default = True) #type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
@@ -133,7 +135,11 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 
 			handle = ctypes.c_void_p()
 
-			err = stucLib.stucBlenderMapExportInit(ctypes.pointer(handle), filePathUtf8)
+			err = stucLib.stucBlenderMapExportInit(
+				ctypes.pointer(handle),
+				filePathUtf8,
+				self.compress
+			)
 			if err != 1:
 				raise Exception("stuc map export init failed")
 			addToMapExport(context, handle)

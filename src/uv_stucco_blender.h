@@ -84,10 +84,10 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
 	const char *pMapName,
-	StucCommonAttribList *pCommonAttribs
+	StucBlendOptArr *pBlendOptArr
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs);
+PixErr stucBlenderDestroyBlendOptArr(StucBlendOptArr *pBlendOptArr);
 STUC_BLENDER_EXPORT
 void stucBlenderCopyMeshCore(StucMesh *pDest, StucMesh *pSrc);
 STUC_BLENDER_EXPORT

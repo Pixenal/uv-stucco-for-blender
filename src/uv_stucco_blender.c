@@ -224,7 +224,8 @@ PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
 		stucBlenderMapFileReload(pFilepath, pName);
 		return err;
 	}
-	err = stucMapFileLoad(pStucCtx, &pEntry->pHandle, pFilepath);
+	//TODO add callback funcs to call
+	err = stucMapFileLoad(pStucCtx, pFilepath, NULL, NULL);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	I32 nameLength = (I32)strlen(pName) + 1;
 	pEntry->pName = calloc(nameLength, 1);
@@ -247,14 +248,14 @@ PixErr stucBlenderMapFileReload(const char *pFilepath, const char *pName) {
 PixErr stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
 	const char *pMap,
-	StucCommonAttribList *pCommonAttribs
+	StucBlendOptArr *pBlendOptArr
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	HandleEntry *pEntry = getHandle(NULL, pMap);
 	if (!pEntry) {
 		return err;
 	}
-	err = stucQueryCommonAttribs(pStucCtx, pEntry->pHandle, pMesh, pCommonAttribs);
+	err = stucQueryCommonAttribs(pStucCtx, pEntry->pHandle, pMesh, pBlendOptArr);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
@@ -286,8 +287,8 @@ PixErr stucBlenderMapToMesh(
 	return err;
 }
 
-PixErr stucBlenderDestroyCommonAttribs(StucCommonAttribList *pCommonAttribs) {
-	PixErr err = stucDestroyCommonAttribs(pStucCtx, pCommonAttribs);
+PixErr stucBlenderDestroyBlendOptArr(StucBlendOptArr *pBlendOptArr) {
+	PixErr err = stucDestroyBlendOptArr(pStucCtx, pBlendOptArr);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }

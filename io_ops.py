@@ -250,7 +250,7 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 					if (timestamp == float(map.timestamp)):
 						continue
 					map.timestamp = str(timestamp)
-					stucLib.stucBlenderMapFileReload(filepathUtf8, nameUtf8)
+					stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
 					return {'FINISHED'}
 			newMap = context.scene.stucMaps.add() #type:ignore
 			newMap.name = name

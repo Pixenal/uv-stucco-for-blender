@@ -89,7 +89,7 @@ def createMapArr(
 		pMap = stucLib.stucBlenderMapHandleGet(mat.map.encode('utf-8'))
 		if not pMap:
 			return None #map for this material isn't loaded
-		mapArr.pArr[i].pMap = pMap
+		mapArr.pArr[i].map.ptr = pMap
 		mapArr.pArr[i].blendOptArr = commonAttribs[i]
 		mapArr.pArr[i].matIdx = objEval.material_slots.find(mat.mat.name)
 		i += 1

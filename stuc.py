@@ -199,7 +199,6 @@ class StucBlendConfig(ctypes.Structure):
 	]
 
 class StucBlendOpt(ctypes.Structure):
-	#use c_byte instead of c_char, as the latter is immutable
 	_fields_ = [
 		("blendConfig", StucBlendConfig),
 		("attrib", ctypes.c_int32)
@@ -214,9 +213,15 @@ class StucBlendOptArr(ctypes.Structure):
 
 StucBlendOptDomainArrs = StucBlendOptArr * StucDomain.MESH.value
 
+class StucMapOrIdx(ctypes.Union):
+    _fields_ = [
+        ("ptr", ctypes.c_void_p),
+        ("idx", ctypes.c_int64)
+    ]
+
 class StucMapArrEntry(ctypes.Structure):
 	_fields_ = [
-		("pMap", ctypes.c_void_p),
+		("map", StucMapOrIdx),
 		("blendOptArr", StucBlendOptDomainArrs),
 		("wScale", ctypes.c_float),
 		("receiveLen", ctypes.c_float),

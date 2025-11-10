@@ -408,5 +408,5 @@ void stucBlenderCallFree(void *pData) {
 }
 
 void *stucBlenderMapHandleGet(const char *pName) {
-	return getHandle(NULL, pName);
+	return getHandle(NULL, pName)->pHandle;
 }

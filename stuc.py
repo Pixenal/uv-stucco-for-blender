@@ -91,6 +91,7 @@ class StucDomain(Enum):
 	CORNER = 2
 	EDGE = 3
 	VERT = 4
+	MESH = 5
 
 class StucAttribCopyOpt(Enum):
 	COPY = 0
@@ -197,39 +198,35 @@ class StucBlendConfig(ctypes.Structure):
 		("order", ctypes.c_bool)
 	]
 
-class StucCommonAttrib(ctypes.Structure):
+class StucBlendOpt(ctypes.Structure):
 	#use c_byte instead of c_char, as the latter is immutable
 	_fields_ = [
-		("name", ctypes.c_byte * STUC_ATTRIB_NAME_MAX_LEN),
-		("blendConfig", StucBlendConfig)
+		("blendConfig", StucBlendConfig),
+		("attrib", ctypes.c_int32)
 	]
 
-class StucCommonAttribArr(ctypes.Structure):
+class StucBlendOptArr(ctypes.Structure):
 	_fields_ = [
-		("pArr", ctypes.POINTER(StucCommonAttrib)),
+		("pArr", ctypes.POINTER(StucBlendOpt)),
 		("size", ctypes.c_int32),
 		("count", ctypes.c_int32)
 	]
 
-class StucCommonAttribList(ctypes.Structure):
-	_fields_ = [
-		("mesh", StucCommonAttribArr),
-		("face", StucCommonAttribArr),
-		("corner", StucCommonAttribArr),
-		("edge", StucCommonAttribArr),
-		("vert", StucCommonAttribArr),
-	]
+StucBlendOptDomainArrs = StucBlendOptArr * StucDomain.MESH.value
 
 class StucMapArrEntry(ctypes.Structure):
 	_fields_ = [
 		("pMap", ctypes.c_void_p),
+		("blendOptArr", StucBlendOptDomainArrs),
+		("wScale", ctypes.c_float),
+		("receiveLen", ctypes.c_float),
 		("matIdx", ctypes.c_byte)
 	]
 
 class StucMapArr(ctypes.Structure):
 	_fields_ = [
 		("pArr", ctypes.POINTER(StucMapArrEntry)),
-		("pCommonAttribArr", ctypes.POINTER(StucCommonAttribList)),
+		("size", ctypes.c_int32),
 		("count", ctypes.c_int32)
 	]
 

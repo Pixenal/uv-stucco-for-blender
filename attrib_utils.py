@@ -296,12 +296,13 @@ def appendAttrib(
 
 def setTargetCommonAttribs(
 	targetAttribs: bpy.types.Collection,
-	attribs: stuc.StucCommonAttribArr
-):
+	attribs: stuc.StucBlendOptArr,
+	meshAttribs : stuc.StucAttribArray
+) -> None:
 	i = 0
 	while i < attribs.count:
-		#TODO make this name conversion a generic function
-		name = attribs.pArr[i].name
+		attribIdx = attribs.pArr[i].attrib
+		name = meshAttribs.pArr[attribIdx].core.name
 		name = ctypes.cast(name, ctypes.c_char_p).value
 		if not name:
 			raise Exception("name is None")
@@ -333,7 +334,7 @@ def updateCommonAttribs(
 		context: bpy.types.Context,
 		target: props.StucTarget,
 		depsgraph: bpy.types.Depsgraph
-) -> ctypes.Array[stuc.StucCommonAttribList] | None:
+) -> ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]] | None:
 	objEval = cast(bpy.types.Object, target.obj).evaluated_get(depsgraph)
 	meshEval = objEval.data
 	if type(meshEval) != bpy.types.Mesh:
@@ -351,8 +352,7 @@ def updateCommonAttribs(
 	targetMatCount = len(targetMats)
 	if targetMatCount == 0:
 		return None
-	CommonAttribList = stuc.StucCommonAttribList * targetMatCount
-	commonAttribList = CommonAttribList()
+	commonAttribList = (stuc.StucBlendOptDomainArrs * targetMatCount)()
 	meshTuple = meshUtils.formatAsStucMesh(meshEval, True, False, True, activeNames)
 	i = 0
 	for mat in targetMats:
@@ -368,7 +368,7 @@ def updateCommonAttribs(
 
 		mapUtf8 = mat.map.encode('utf-8')
 		stucLib.stucBlenderQueryCommonAttribs(
-			meshTuple[0],
+			meshTuple.mesh,
 			mapUtf8,
 			ctypes.pointer(commonAttribList[i])
 		)
@@ -382,19 +382,23 @@ def updateCommonAttribs(
 			entry.verts.clear()
 		setTargetCommonAttribs(
 			entry.faces,
-			commonAttribList[i].face,
+			commonAttribList[i][stuc.StucDomain.FACE.value],
+			meshTuple.mesh.faceAttribs
 		)
 		setTargetCommonAttribs(
 			entry.corners,
-			commonAttribList[i].corner,
+			commonAttribList[i][stuc.StucDomain.CORNER.value],
+			meshTuple.mesh.cornerAttribs
 		)
 		setTargetCommonAttribs(
 			entry.edges,
-			commonAttribList[i].edge,
+			commonAttribList[i][stuc.StucDomain.EDGE.value],
+			meshTuple.mesh.edgeAttribs
 		)
 		setTargetCommonAttribs(
 			entry.verts,
-			commonAttribList[i].vert,
+			commonAttribList[i][stuc.StucDomain.VERT.value],
+			meshTuple.mesh.vertAttribs
 		)
 		i += 1
 	return commonAttribList

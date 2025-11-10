@@ -26,15 +26,14 @@ typedef struct HandleEntry {
 	struct HandleEntry *pNext;
 	struct HandleEntry *pPrev;
 	StucMap pHandle;
-	char *pName;
 } HandleEntry;
 
 typedef struct HandleBucket {
 	HandleEntry *pList;
 } HandleBucket;
 
-static StucContext pStucCtx;
-static HandleBucket handleTable[HANDLE_TABLE_SIZE];
+static StucContext pStucCtx = NULL;
+static HandleBucket handleTable[HANDLE_TABLE_SIZE] = {0};
 
 static
 U32 fnvHash(unsigned char *value, I32 valueSize, U32 size) {
@@ -58,10 +57,12 @@ HandleEntry *getHandle(HandleBucket **pOutBucket, const char *pName) {
 	}
 	HandleEntry *pEntry = pBucket->pList;
 	while (pEntry) {
-		if (!pEntry->pName) {
+		if (!pEntry->pHandle) {
 			break;
 		}
-		if (!strcmp(pName, pEntry->pName)) {
+		const char *pMapName = NULL;
+		stucMapNameGet(pStucCtx, pEntry->pHandle, &pMapName);
+		if (!strcmp(pName, pMapName)) {
 			return pEntry;
 		}
 		pEntry = pEntry->pNext;
@@ -71,9 +72,6 @@ HandleEntry *getHandle(HandleBucket **pOutBucket, const char *pName) {
 
 static
 void handleDestroy(HandleEntry *pEntry) {
-	if (pEntry->pName) {
-		free(pEntry->pName);
-	}
 	if (pEntry->pHandle) {
 		stucMapFileUnload(pStucCtx, pEntry->pHandle);
 	}
@@ -217,31 +215,44 @@ PixErr stucBlenderMapFileUnload(const char *pName) {
 	return err;
 }
 
-PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
+static
+PixErr mapGet(const char *pName, const char **ppFilepath, StucMap * const ppMap) {
 	PixErr err = PIX_ERR_SUCCESS;
-	HandleEntry *pEntry = handleAdd(pName);
-	if (!pEntry) {
-		stucBlenderMapFileReload(pFilepath, pName);
+	HandleEntry *pEntry = getHandle(NULL, pName);
+	if (pEntry) {
+		*ppMap = pEntry->pHandle;
 		return err;
 	}
-	//TODO add callback funcs to call
-	err = stucMapFileLoad(pStucCtx, pFilepath, NULL, NULL);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	I32 nameLength = (I32)strlen(pName) + 1;
-	pEntry->pName = calloc(nameLength, 1);
-	memcpy(pEntry->pName, pName, nameLength);
-	PIX_ERR_CATCH(0, err,
-		stucBlenderMapFileUnload(pName);
-	);
+	//TODO search through list of directories for map
+	//*ppFilepath = found map filepath
+	//else PIX_ERR_RETURN_IFNOT_COND(err, <not found>, "no map found")
 	return err;
 }
 
-PixErr stucBlenderMapFileReload(const char *pFilepath, const char *pName) {
+static
+PixErr mapStore(const char *pName, StucMap pMap) {
 	PixErr err = PIX_ERR_SUCCESS;
-	if (getHandle(NULL, pName)) {
-		stucBlenderMapFileUnload(pName);
+	HandleEntry *pEntry = handleAdd(pName);
+	if (pEntry->pHandle) {
+		//already exists
+		stucMapFileUnload(pStucCtx, pEntry->pHandle);
 	}
-	stucBlenderMapFileLoad(pFilepath, pName);
+	pEntry->pHandle = pMap;
+	return err;
+}
+
+PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	HandleEntry *pEntry = getHandle(NULL, pName);
+	if (pEntry) {
+		err = stucBlenderMapFileUnload(pName);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
+	err = stucMapFileLoad(pStucCtx, pFilepath, mapGet, mapStore);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	PIX_ERR_CATCH(0, err,
+		stucBlenderMapFileUnload(pName);
+	);
 	return err;
 }
 

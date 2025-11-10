@@ -67,8 +67,6 @@ PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapFileUnload(const char *pName);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapFileReload(const char *pFilepath, const char *pName);
-STUC_BLENDER_EXPORT
 PixErr stucBlenderMapToMesh(
 	void **ppJobHandle,
 	StucMapArr *pMapArr,

@@ -22,7 +22,7 @@ class MappingInfo:
 	def __init__(
 		self,
 		mapArr : stuc.StucMapArr,
-		commonAttribs : ctypes.Array[stuc.StucCommonAttribList],
+		commonAttribs : ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]],
 		objEval : bpy.types.Object,
 		stucObj : meshUtils.StucObjData,
 		inIndexedArr : stuc.StucAttribIndexedArr,
@@ -32,7 +32,7 @@ class MappingInfo:
 		self.mapArr = mapArr
 		self.commonAttribs = commonAttribs
 		self.objEval = objEval
-		self.stucObj = stucObj,
+		self.stucObj = stucObj
 		self.inIndexedArr = inIndexedArr
 		self.wScale = wScale
 		self.receiveLen = receiveLen
@@ -73,7 +73,7 @@ def createMapArr(
 	context : bpy.types.Context,
 	objEval : bpy.types.Object,
 	meshEval : bpy.types.Mesh,
-	commonAttribs : ctypes.Array[stuc.StucCommonAttribList]
+	commonAttribs : ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]]
 ) -> stuc.StucMapArr | None:
 	targetMats = utils.getMatsInStucMats(context, meshEval)
 	targetMatCount = len(targetMats)
@@ -81,14 +81,16 @@ def createMapArr(
 		return None
 	mapArr = stuc.StucMapArr()
 	mapArr.pArr = (stuc.StucMapArrEntry * targetMatCount)()
-	mapArr.pCommonAttribArr = commonAttribs
 	mapArr.count = targetMatCount
 	i = 0
 	for mat in targetMats:
-		pMap = stucLib.stucBlenderMapHandleGet(ctypes.pointer(mat.map.encode('utf-8')))
-		if not pMap.value:
+		print(f"name is {mat.map}")
+		stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
+		pMap = stucLib.stucBlenderMapHandleGet(mat.map.encode('utf-8'))
+		if not pMap:
 			return None #map for this material isn't loaded
 		mapArr.pArr[i].pMap = pMap
+		mapArr.pArr[i].blendOptArr = commonAttribs[i]
 		mapArr.pArr[i].matIdx = objEval.material_slots.find(mat.mat.name)
 		i += 1
 	return mapArr
@@ -131,7 +133,7 @@ def prepTargetForMapping(
 		return None
 	inIndexedArr = createMatIdxAttrib(meshEval)
 	stucObj = meshUtils.formatAsStucObj(
-		meshEval,
+		objEval,
 		True,
 		depsgraph,
 		True,
@@ -163,7 +165,7 @@ def pushMappingJobToQueue(
 	result = stucLib.stucBlenderMapToMesh(
 		ctypes.pointer(jobHandle),
 		ctypes.pointer(info.mapArr),
-		ctypes.pointer(info.stucObj.meshData.mesh), #type:ignore
+		ctypes.pointer(info.stucObj.meshData.mesh),
 		ctypes.pointer(info.inIndexedArr),
 		ctypes.pointer(workMesh),
 		ctypes.pointer(outIndexedAttribs),

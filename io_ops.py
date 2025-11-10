@@ -241,6 +241,7 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			name = os.path.basename(self.filepath) #type:ignore
+			print(f"name is {name}, path is {self.filepath}") #type:ignore
 			filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
 			nameUtf8 = name.encode('utf-8')
 			timestamp = os.path.getmtime(self.filepath) #type:ignore
@@ -281,7 +282,7 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 			for map in context.scene.stucMaps: #type:ignore
 				print(f"refreshing in {map.dir}")
 				filepath = os.path.join(bpy.path.abspath(map.dir), map.name)
-				print(f"filepath {filepath}")
+				print(f"name is {map.name}, path is {filepath}")
 				timestamp = os.path.getmtime(filepath)
 				print(f"timestamp {timestamp}, map-timestamp {float(map.timestamp)}")
 				if (timestamp == float(map.timestamp)):
@@ -289,7 +290,7 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 				map.timestamp = str(timestamp)
 				filepathUtf8 = filepath.encode('utf-8')
 				nameUtf8 = map.name.encode('utf-8')
-				err = stucLib.stucBlenderMapFileReload(filepathUtf8, nameUtf8)
+				err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
 				if err != 1:
 					self.report({'ERROR'}, "Failed to reload map file")
 		except Exception as e:

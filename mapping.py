@@ -67,6 +67,7 @@ def createMatIdxAttrib(
 	i = 0
 	for mat in mesh.materials:
 		utils.copyString(inMatsArr[i], mat.name, stuc.STUC_ATTRIB_STRING_MAX_LEN)
+		i += 1
 	return idxAttribs
 
 def createMapArr(
@@ -213,11 +214,6 @@ def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
 	matBlendAttrib = meshStuc.attributes.get("materials", None)
 	if (matBlendAttrib):
 		meshStuc.attributes.remove(matBlendAttrib)
-	
-	i = 0
-	while i < item.info.mapArr.count:
-		stucLib.stucBlenderDestroyCommonAttribs(ctypes.pointer(item.info.commonAttribs[i]))
-		i += 1
 
 def waitForAndCopyOutMeshes(
 	context: bpy.types.Context,

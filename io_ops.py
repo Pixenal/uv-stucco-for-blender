@@ -72,12 +72,20 @@ def addObjToMapExport(
 ) -> None:
 	target = None
 	for item in context.scene.stucTargets: #type:ignore
-		if (item.obj == obj):
+		if (item.obj.name == obj.name):
 			target = item
 			break
 	if target:
 		info = mapping.prepTargetForMapping(context, depsgraph, target)
 		if info:
+			stucLib.stucBlenderMapExportTargetAdd.argtypes = (
+				ctypes.c_void_p,
+				ctypes.POINTER(stuc.StucMapArr),
+				ctypes.POINTER(stuc.StucObject),
+				ctypes.POINTER(stuc.StucAttribIndexedArr),
+				ctypes.c_float,
+				ctypes.c_float
+			)
 			err = stucLib.stucBlenderMapExportTargetAdd(
 				handle,
 				ctypes.pointer(info.mapArr),

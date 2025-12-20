@@ -258,3 +258,10 @@ class StucBlenderMatTableArr(ctypes.Structure):
 		("pArr", ctypes.POINTER(StucBlenderMatTable)),
 		("count", ctypes.c_int32)
 	]
+
+class PixtyStrArr(ctypes.Structure):
+	_fields_= [
+		("pArr", ctypes.POINTER(ctypes.c_char_p)),
+		("size", ctypes.c_int32),
+		("count", ctypes.c_int32)
+	]

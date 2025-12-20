@@ -101,12 +101,16 @@ class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
 	mat : bpy.props.PointerProperty(type = bpy.types.Material)
 	map : bpy.props.StringProperty()
 
+class StucPath(bpy.types.PropertyGroup):
+	path : bpy.props.StringProperty(subtype = 'DIR_PATH')
+
 classes = [
 	StucProperties,
 	StucTarget,
 	StucActiveAttrib,
 	StucCommonAttrib,
 	StucCommonAttribTableEntry,
+	StucPath,
 	StucMap,
 	StucMat
 ]
@@ -127,6 +131,8 @@ def register() -> None:
 	bpy.types.Scene.stucMapsIdx = bpy.props.IntProperty(name = "Maps Index")
 	bpy.types.Scene.stucMats = bpy.props.CollectionProperty(name = "Mats", type = StucMat)
 	bpy.types.Scene.stucMatsIdx = bpy.props.IntProperty(name = "Mats Index")
+	bpy.types.Scene.stucDepDirs = bpy.props.CollectionProperty(name = "Dep Dirs", type = StucPath)
+	bpy.types.Scene.stucDepDirsIdx = bpy.props.IntProperty(name = "Dep Dirs Index")
 	StucCommonAttribTableEntry.mesh = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucCommonAttribTableEntry.faces = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucCommonAttribTableEntry.corners = bpy.props.CollectionProperty(type = StucCommonAttrib)

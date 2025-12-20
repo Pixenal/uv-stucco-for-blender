@@ -237,6 +237,39 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 			raise e
 		return {'FINISHED'}
 
+@ctypes.CFUNCTYPE(
+	None,
+	ctypes.c_char_p,
+	ctypes.POINTER(stuc.PixtyStrArr),
+	ctypes.POINTER(ctypes.c_byte)
+)
+def getMapInDirs(mapNameUtf8: ctypes.c_char_p, dirArrPtr, path) -> None:
+	mapName = mapNameUtf8.decode('utf-8') #type:ignore
+
+	dirArr = dirArrPtr.contents
+	i = 0
+	while i < dirArr.count:
+		for root, dirs, files in os.walk(dirArr.pArr[i].decode('utf-8')):
+			for name in files:
+				if name == mapName:
+					utils.copyString(path, os.path.join(root, name), 32768)
+					return
+		i += 1
+
+def getDepDirs(context: bpy.types.Context, filepath: str) -> stuc.PixtyStrArr:
+	dirs = stuc.PixtyStrArr()
+	dirs.size = len(context.scene.stucDepDirs) + 1 #type:ignore
+	dirs.pArr = (ctypes.c_char_p * dirs.size)()
+	dirUtf8 = os.path.dirname(filepath).encode('utf-8') #type:ignore
+	dirs.pArr[0] = dirUtf8
+	dirs.count = 1
+	depDirsUtf8 = []
+	for dir in context.scene.stucDepDirs: #type:ignore
+		depDirsUtf8.append(dir.encode('utf-8'))
+		dirs.pArr[dirs.count] = ctypes.pointer(depDirsUtf8[-1])
+		dirs.count += 1
+	return dirs
+
 class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	bl_idname = "stuc.load_stuc_file"
 	bl_label = "Load STUC File"
@@ -252,13 +285,21 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 			print(f"name is {name}, path is {self.filepath}") #type:ignore
 			filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
 			nameUtf8 = name.encode('utf-8')
+
+			dirs = getDepDirs(context, self.filepath) #type:ignore
+
 			timestamp = os.path.getmtime(self.filepath) #type:ignore
 			for map in context.scene.stucMaps: #type:ignore
 				if (name == map.name):
 					if (timestamp == float(map.timestamp)):
 						continue
 					map.timestamp = str(timestamp)
-					stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
+					stucLib.stucBlenderMapFileLoad(
+						filepathUtf8,
+						nameUtf8,
+						ctypes.pointer(dirs),
+						getMapInDirs
+					)
 					return {'FINISHED'}
 			newMap = context.scene.stucMaps.add() #type:ignore
 			newMap.name = name
@@ -268,7 +309,12 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 			print(f"saving map dir as {newMap.dir}")
 			newMap.timestamp = str(timestamp)
 			context.scene.stucMapsIdx = len(context.scene.stucMaps) #type:ignore
-			err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
+			err = stucLib.stucBlenderMapFileLoad(
+				filepathUtf8,
+				nameUtf8,
+				ctypes.pointer(dirs),
+				getMapInDirs
+			)
 			if err != 1:
 				raise Exception("stuc map file load returned error")
 		except Exception as e:
@@ -298,7 +344,13 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 				map.timestamp = str(timestamp)
 				filepathUtf8 = filepath.encode('utf-8')
 				nameUtf8 = map.name.encode('utf-8')
-				err = stucLib.stucBlenderMapFileLoad(filepathUtf8, nameUtf8)
+				dirs = getDepDirs(context, filepath) #type:ignore
+				err = stucLib.stucBlenderMapFileLoad(
+					filepathUtf8,
+					nameUtf8,
+					ctypes.pointer(dirs),
+					getMapInDirs
+				)
 				if err != 1:
 					self.report({'ERROR'}, "Failed to reload map file")
 		except Exception as e:

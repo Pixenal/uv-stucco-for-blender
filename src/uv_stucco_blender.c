@@ -7,6 +7,8 @@ SPDX-License-Identifier: GPL-3.0-only
 
 #include <string.h>
 
+#include <pixenals_io_utils.h>
+
 #include <uv_stucco_blender.h>
 
 typedef int8_t I8;
@@ -215,22 +217,38 @@ PixErr stucBlenderMapFileUnload(const char *pName) {
 	return err;
 }
 
+typedef struct LoadState {
+	PixtyStrArr *pDepDirs;
+	StrWithLen pathBuf;
+	I32 (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, const char *);
+} LoadState;
+
 static
-PixErr mapGet(const char *pName, const char **ppFilepath, StucMap * const ppMap) {
+PixErr mapGet(
+	void *pUserData,
+	const char *pName,
+	const char **ppFilepath,
+	StucMap * const ppMap
+) {
 	PixErr err = PIX_ERR_SUCCESS;
 	HandleEntry *pEntry = getHandle(NULL, pName);
 	if (pEntry) {
 		*ppMap = pEntry->pHandle;
 		return err;
 	}
-	//TODO search through list of directories for map
-	//*ppFilepath = found map filepath
-	//else PIX_ERR_RETURN_IFNOT_COND(err, <not found>, "no map found")
+	LoadState *pState = pUserData;
+	I32 len = strnlen(pState->pathBuf.pStr, PIXIO_PATH_MAX);
+	memset(pState->pathBuf.pStr, 0, len);
+	pState->fpGetMapPath(pName, pState->pDepDirs, pState->pathBuf.pStr);
+	if (!pState->pathBuf.pStr[0]) {
+		PIX_ERR_RETURN(err, "unable to find map in provided directories");
+	}
+	*ppFilepath = pState->pathBuf.pStr;
 	return err;
 }
 
 static
-PixErr mapStore(const char *pName, StucMap pMap) {
+PixErr mapStore(void *pUserData, const char *pName, StucMap pMap) {
 	PixErr err = PIX_ERR_SUCCESS;
 	HandleEntry *pEntry = handleAdd(pName);
 	if (pEntry->pHandle) {
@@ -241,18 +259,31 @@ PixErr mapStore(const char *pName, StucMap pMap) {
 	return err;
 }
 
-PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName) {
+PixErr stucBlenderMapFileLoad(
+	const char *pFilepath,
+	const char *pName,
+	PixtyStrArr *pDepDirs,
+	I32 (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, const char *)
+) {
 	PixErr err = PIX_ERR_SUCCESS;
+	LoadState state = {
+		.pDepDirs = pDepDirs,
+		.fpGetMapPath = fpGetMapPath,
+		.pathBuf.pStr = calloc(PIXIO_PATH_MAX, 1)
+	};
 	HandleEntry *pEntry = getHandle(NULL, pName);
 	if (pEntry) {
 		err = stucBlenderMapFileUnload(pName);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
-	err = stucMapFileLoad(pStucCtx, pFilepath, mapGet, mapStore);
+	err = stucMapFileLoad(pStucCtx, pFilepath, &state, mapGet, mapStore);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err,
 		stucBlenderMapFileUnload(pName);
 	);
+	if (state.pathBuf.pStr) {
+		free(state.pathBuf.pStr);
+	}
 	return err;
 }
 

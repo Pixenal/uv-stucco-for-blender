@@ -21,45 +21,77 @@ class StucParentPanel(bpy.types.Panel):
 	bl_category = "UV Stucco"
 
 class STUC_UL_StucTargets(bpy.types.UIList):
-	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			row0.prop(item, "obj", text = "", emboss = False, icon = 'MESH_CUBE')
 
 class STUC_UL_StucActiveAttribs(bpy.types.UIList):
-	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			row0.prop_search(item, "name", data.obj.data, "attributes", text = item.use, icon = 'SOLO_OFF')
 
 class STUC_UL_StucCommonAttribs(bpy.types.UIList):
-	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_CUBE')
 			
 class STUC_UL_StucMats(bpy.types.UIList):
-	def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			row0.prop_search(item, "mat", bpy.data, "materials", text = "")
 			row0.prop_search(item, "map", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
 			remove_props = row0.operator("stuc.stuc_mat_remove", text = "", icon = "REMOVE")
 
+class STUC_UL_StucDepDirs(bpy.types.UIList):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
+		if self.layout_type in {'DEFAULT', 'COMPACT'}:
+			row0 = layout.row(align = True)
+			row0.prop(item, "path", text = "", icon = 'FILE_FOLDER')
+
+
 class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_Stuc"
 	bl_label = "STUC"
 
 	def draw(self, context: bpy.types.Context) -> None:
-		stuc = context.scene.stuc #type:ignore
-		layout = self.layout
-		col0 = layout.column()
-		
+		pass
+
+class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucMaps"
+	bl_label = "Maps"
+	bl_parent_id = "STUC_PT_Stuc"
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
 		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
 		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
 
-		col0.label(text = "")
-		col0.label(text = "Materials")
+class STUC_PT_StucDepDirs(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucDepDirs"
+	bl_label = "Dep Paths"
+	bl_parent_id = "STUC_PT_StucMaps"
+	bl_options = {'DEFAULT_CLOSED'}
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
+		col0.template_list(
+			"STUC_UL_StucDepDirs",
+			"",
+			context.scene, "stucDepDirs",
+			context.scene, "stucDepDirsIdx"
+		)
+
+class STUC_PT_StucMats(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucMats"
+	bl_label = "Materials"
+	bl_parent_id = "STUC_PT_Stuc"
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
 		row0 = col0.row()
 		row0.template_list(
 			"STUC_UL_StucMats",
@@ -70,9 +102,15 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 		col1 = row0.column(align = True)
 		col1.scale_x = .35
 		col1.operator("stuc.stuc_mat_assign", text = " ", icon = "ADD")
-		
-		col0.label(text = "")
-		col0.label(text = "Objects")
+
+class STUC_PT_StucTargets(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucTargets"
+	bl_label = "Targets"
+	bl_parent_id = "STUC_PT_Stuc"
+
+	def draw(self, context: bpy.types.Context) -> None:
+		stuc = context.scene.stuc #type:ignore
+		col0 = self.layout.column()
 		row1 = col0.row()
 		row1.template_list(
 			"STUC_UL_StucTargets",
@@ -142,8 +180,14 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 					col0.prop(commonAttribEntry, "opacity")
 					col0.prop(commonAttribEntry, "blend")
 					col0.prop(commonAttribEntry, "order")
-		col0.label(text = "")
-		col0.label(text = "USG")
+
+class STUC_PT_StucUsg(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucUsg"
+	bl_label = "USG"
+	bl_parent_id = "STUC_PT_Stuc"
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
 		col0.operator("stuc.set_as_usg", icon = "NORMALS_FACE")
 		col0.operator("stuc.unset_usg", icon = "X")
 		col0.label(text = "Flatten Cut-Off")
@@ -157,18 +201,31 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 				text = ""
 			)
 		col0.operator("stuc.set_flat_cutoff", text = "Set Sel To Active")
-		col0.label(text = "")
-		col0.prop(cast(Any, context.scene).stuc, "wScale", text = "Default W Scale")
-		col0.label(text = "")
-		col0.prop(context.scene.stuc, "relPaths", text = "Relative paths") #type:ignore
 
+class STUC_PT_StucOpts(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucOpts"
+	bl_label = "Options"
+	bl_parent_id = "STUC_PT_Stuc"
+	bl_options = {'DEFAULT_CLOSED'}
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
+		col0.prop(cast(Any, context.scene).stuc, "wScale", text = "Default W Scale")
+		col0.prop(context.scene.stuc, "relPaths", text = "Relative paths") #type:ignore
 
 classes = [
 	STUC_PT_Stuc,
+	STUC_PT_StucMaps,
+	STUC_PT_StucDepDirs,
+	STUC_PT_StucMats,
+	STUC_PT_StucTargets,
+	STUC_PT_StucUsg,
+	STUC_PT_StucOpts,
 	STUC_UL_StucTargets,
 	STUC_UL_StucActiveAttribs,
 	STUC_UL_StucCommonAttribs,
-	STUC_UL_StucMats
+	STUC_UL_StucMats,
+	STUC_UL_StucDepDirs
 ]
 
 def register() -> None:

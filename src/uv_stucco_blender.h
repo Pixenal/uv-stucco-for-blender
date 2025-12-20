@@ -12,15 +12,20 @@ SPDX-License-Identifier: GPL-3.0-only
 	#define STUC_BLENDER_EXPORT __attribute__((visibility("default")))
 #endif
 
-typedef struct {
+typedef struct StucBlenderMatTable{
 	int8_t *pArr;
 	int32_t count;
 } StucBlenderMatTable;
 
-typedef struct {
+typedef struct StucBlenderMatTableArr{
 	StucBlenderMatTable *pArr;
 	int32_t count;
 } StucBlenderMatTableArr;
+
+typedef struct StrWithLen {
+	char *pStr;
+	int32_t len;
+} StrWithLen;
 
 STUC_BLENDER_EXPORT
 void stucBlenderInit();
@@ -63,7 +68,12 @@ PixErr stucBlenderMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapFileLoad(const char *pFilepath, const char *pName);
+PixErr stucBlenderMapFileLoad(
+	const char *pFilepath,
+	const char *pName,
+	PixtyStrArr *pDepDirs,
+	int32_t (* getDepDirs)(const char *, const PixtyStrArr *Dirs, const char *)
+);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapFileUnload(const char *pName);
 STUC_BLENDER_EXPORT

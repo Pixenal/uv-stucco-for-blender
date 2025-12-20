@@ -200,6 +200,7 @@ def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
 		meshStuc = bpy.data.meshes.new(nameStuc)
 		objStuc.data = meshStuc
 		bpy.data.meshes.remove(meshStucOld)
+	objStuc.matrix_world = item.info.objEval.matrix_world
 
 	meshUtils.copyStucMeshToBlenderMesh(
 		stucLib,

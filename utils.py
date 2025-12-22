@@ -44,7 +44,7 @@ def setBlenderMatrix(dest: mathutils.Matrix, src: ctypes.Array[ctypes.c_float]) 
 
 def findMatInCol(
 	mat: bpy.types.Material,
-	col: bpy.types.Collection
+	col: Any
 ) -> int | None:
 	i = 0
 	for item in col:
@@ -55,7 +55,7 @@ def findMatInCol(
 
 def findObjInCol(
 	obj: bpy.types.Object,
-	col: bpy.types.Collection
+	col: Any
 ) -> int | None:
 	i = 0
 	for item in col:
@@ -79,3 +79,13 @@ def updateUiTargetIdx(context: bpy.types.Context) -> None:
 					idx = findObjInCol(active, cast(Any, context.scene).stucTargets)
 					if idx != None:
 						context.scene.stucTargetsIdx = idx #type:ignore
+
+def initActiveAttrib(
+	target: Any,
+	use: str,
+	name: str
+) -> Any:
+	entry = target.activeAttribs.add()
+	entry.use = use
+	entry.name = name
+	return entry

@@ -9,7 +9,6 @@ from typing import Any, cast
 import pdb
 
 from . import stuc
-from . import props
 from . import utils
 from . import mesh_utils as meshUtils
 
@@ -319,20 +318,59 @@ def setTargetCommonAttribs(
 		attribs.pArr[i].blendConfig.order = int(entry.order)
 		i += 1
 
-def getAttrib(arr: stuc.StucAttribIndexedArr, name: str) -> stuc.StucAttribIndexed:
-	nameUtf8 = name.encode('utf-8')
+def getIdxAttrib(
+	arr: stuc.StucAttribIndexedArr,
+	name: bytes
+) -> stuc.StucAttribIndexed:
 	i = 0
 	while i < arr.count:
-		if ctypes.cast(arr.pArr[i].core.name, ctypes.c_char_p).value == nameUtf8:
+		if ctypes.cast(arr.pArr[i].core.name, ctypes.c_char_p).value == name:
 			return arr.pArr[i]
 		i += 1
-	raise
+	raise Exception("attrib doesn't exist")
+
+def getAttribFromUse(
+	arr: stuc.StucAttribArray,
+	use: int
+) -> stuc.StucAttrib | None:
+	i = 0
+	while i < arr.count:
+		if arr.pArr[i].core.use == use:
+			return arr.pArr[i]
+		i += 1
+	return None
+
+def getAttribArr(
+	mesh: stuc.StucMesh,
+	domain: int
+) -> stuc.StucAttribArray:
+	match domain:
+		case stuc.StucDomain.FACE.value:
+			return mesh.faceAttribs
+		case stuc.StucDomain.CORNER.value:
+			return mesh.cornerAttribs
+		case stuc.StucDomain.EDGE.value:
+			return mesh.edgeAttribs
+		case stuc.StucDomain.VERT.value:
+			return mesh.vertAttribs
+		case _:
+			raise Exception("invalid domain")
+		
+def getActiveAttrib(
+	mesh: stuc.StucMesh,
+	use: stuc.StucAttribUse
+) -> stuc.StucAttrib | None:
+	activeEntry = mesh.activeAttribs[use.value]
+	if not activeEntry.active:
+		return None
+	attribArr = getAttribArr(mesh, activeEntry.domain)
+	return getAttribFromUse(attribArr, use.value)
 
 def updateCommonAttribs(
 		stucLib: ctypes.CDLL,
 		activeNames: bpy.types.Collection,
 		context: bpy.types.Context,
-		target: props.StucTarget,
+		target: Any,
 		depsgraph: bpy.types.Depsgraph
 ) -> ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]] | None:
 	objEval = cast(bpy.types.Object, target.obj).evaluated_get(depsgraph)
@@ -402,3 +440,18 @@ def updateCommonAttribs(
 		)
 		i += 1
 	return commonAttribList
+
+def attribNameToStr(attrib: stuc.StucAttrib)-> str:
+	return ctypes.cast(attrib.core.name, ctypes.c_char_p).value.decode('utf-8') #type:ignore
+
+def attribArrToCol(col: Any, arr: stuc.StucAttribArray, map: Any)-> None:
+	i = 0
+	while i < arr.count:
+		attrib = arr.pArr[i].core
+		name = ctypes.cast(attrib.name, ctypes.c_char_p).value.decode('utf-8') #type:ignore
+		entry = col.get(name, None)
+		if not entry:
+			entry = col.add()
+			entry.name = name
+		entry.use = attrib.use
+		i += 1

@@ -114,31 +114,21 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 				obj["stucWScale"] = context.scene.stuc.wScale #type:ignore
 				obj["stucReceiveLen"] = -1.0
 
-				posEntry = newTarget.activeAttribs.add()
-				posEntry.use = "position"
-				posEntry.name = "position"
-				normalEntry = newTarget.activeAttribs.add()
-				normalEntry.use = "normal"
-				normalEntry.name = ""
-				uvEntry = newTarget.activeAttribs.add()
-				uvEntry.use = "UV"
+				utils.initActiveAttrib(newTarget, "position", "position")
+				utils.initActiveAttrib(newTarget, "normal", "")
+				uvEntry = utils.initActiveAttrib(newTarget, "UV", "")
 				for uv in obj.data.uv_layers:
 					if uv.active:
 						uvEntry.name = uv.name
 						break
-				colEntry = newTarget.activeAttribs.add()
-				colEntry.use = "Color"
+				colEntry = utils.initActiveAttrib(newTarget, "Color", "")
 				activeColIdx = obj.data.attributes.active_color_index
 				if activeColIdx and activeColIdx >= 0:
 					colEntry.name = obj.data.color_attributes[activeColIdx].name
-				preserveEdgeEntry = newTarget.activeAttribs.add()
-				preserveEdgeEntry.use = "Preserve Edge"
-				preserveVertEntry = newTarget.activeAttribs.add()
-				preserveVertEntry.use = "Preserve Vert"
-				receiveEntry = newTarget.activeAttribs.add()
-				receiveEntry.use = "Receive Edge"
-				wScaleEntry = newTarget.activeAttribs.add()
-				wScaleEntry.use = "WScale"
+				utils.initActiveAttrib(newTarget, "Preserve Edge", "")
+				utils.initActiveAttrib(newTarget, "Preserve Vert", "")
+				utils.initActiveAttrib(newTarget, "Receive Edge", "")
+				utils.initActiveAttrib(newTarget, "WScale", "")
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to add target")
 			raise e

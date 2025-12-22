@@ -26,11 +26,23 @@ class STUC_UL_StucTargets(bpy.types.UIList):
 			row0 = layout.row(align = True)
 			row0.prop(item, "obj", text = "", emboss = False, icon = 'MESH_CUBE')
 
+class STUC_UL_StucMaps(bpy.types.UIList):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
+		if self.layout_type in {'DEFAULT', 'COMPACT'}:
+			row0 = layout.row(align = True)
+			row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_PLANE')
+
 class STUC_UL_StucActiveAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			row0.prop_search(item, "name", data.obj.data, "attributes", text = item.use, icon = 'SOLO_OFF')
+
+class STUC_UL_StucMapActiveAttribs(bpy.types.UIList):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
+		if self.layout_type in {'DEFAULT', 'COMPACT'}:
+			row0 = layout.row(align = True)
+			row0.prop_search(item, "name", data, "attribs", text = item.use, icon = 'SOLO_OFF')
 
 class STUC_UL_StucCommonAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
@@ -69,6 +81,22 @@ class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
 		col0 = self.layout.column()
 		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
 		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
+		col0.template_list(
+			"STUC_UL_StucMaps",
+			"",
+			context.scene, "stucMaps",
+			context.scene, "stucMapsIdx",
+			rows = 6, maxrows = 6
+		)
+		if len(context.scene.stucMaps): #type:ignore
+			map = context.scene.stucMaps[context.scene.stucMapsIdx] #type:ignore
+			col0.template_list(
+				"STUC_UL_StucMapActiveAttribs",
+				"",
+				map, "activeAttribs",
+				map, "activeAttribIdx",
+				rows = 4, maxrows = 4
+			)
 
 class STUC_PT_StucDepDirs(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_StucDepDirs"
@@ -222,7 +250,9 @@ classes = [
 	STUC_PT_StucUsg,
 	STUC_PT_StucOpts,
 	STUC_UL_StucTargets,
+	STUC_UL_StucMaps,
 	STUC_UL_StucActiveAttribs,
+	STUC_UL_StucMapActiveAttribs,
 	STUC_UL_StucCommonAttribs,
 	STUC_UL_StucMats,
 	STUC_UL_StucDepDirs

@@ -13,6 +13,8 @@ import pdb
 from . import stuc
 from . import utils
 from . import attrib_utils as attribUtils
+from . import c_lib
+stucLib = c_lib.stucLib
 
 class StucMeshData:
 	def __init__(
@@ -131,7 +133,7 @@ def copyStucMeshToBlenderMesh(
 		#pass inMesh materials to stucMapToMesh, and it will pass back
 		#an outMesh mat arr (in a separate out param), which contains
 		#the final material slots, and their mat names.
-		outMats = attribUtils.getAttrib(outIndexedAttribs, "materials")
+		outMats = attribUtils.getIdxAttrib(outIndexedAttribs, b"materials")
 		StucString = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN
 		outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
 		i = 0
@@ -241,3 +243,10 @@ def getUsgCountInSelObjs(context: bpy.types.Context) -> int:
 		if isUsg:
 			count += 1
 	return count
+
+def getMapMesh(name: bytes) -> stuc.StucMesh:
+	mesh = ctypes.POINTER(stuc.StucMesh)()
+	err = stucLib.stucBlenderMapMeshGet(name, ctypes.pointer(mesh))
+	if err != 1:
+		raise Exception("unable to get map mesh")
+	return mesh.contents

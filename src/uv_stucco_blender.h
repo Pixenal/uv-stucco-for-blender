@@ -75,6 +75,8 @@ PixErr stucBlenderMapFileLoad(
 	int32_t (* getDepDirs)(const char *, const PixtyStrArr *Dirs, const char *)
 );
 STUC_BLENDER_EXPORT
+PixErr stucBlenderMapMeshGet(const char *pMap, StucMesh **ppMesh);
+STUC_BLENDER_EXPORT
 PixErr stucBlenderMapFileUnload(const char *pName);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapToMesh(
@@ -119,3 +121,11 @@ STUC_BLENDER_EXPORT
 void stucBlenderCallFree(void *pData);
 STUC_BLENDER_EXPORT
 void *stucBlenderMapHandleGet(const char *pName);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderAttribGet(
+	StucMesh *pMesh,
+	const char *pName,
+	StucAttrib **ppAttrib,
+	int32_t *pIdx,
+	StucDomain *pDomain
+);

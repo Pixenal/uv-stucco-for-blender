@@ -287,6 +287,13 @@ PixErr stucBlenderMapFileLoad(
 	return err;
 }
 
+PixErr stucBlenderMapMeshGet(const char *pMap, StucMesh **ppMesh) {
+	PixErr err = PIX_ERR_SUCCESS;
+	HandleEntry *pEntry = getHandle(NULL, pMap);
+	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
+	return stucMapFileMeshGet(pStucCtx, pEntry->pHandle, ppMesh);
+}
+
 PixErr stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
 	const char *pMap,
@@ -441,4 +448,14 @@ void stucBlenderCallFree(void *pData) {
 void *stucBlenderMapHandleGet(const char *pName) {
 	HandleEntry *pEntry = getHandle(NULL, pName);
 	return pEntry ? pEntry->pHandle : NULL;
+}
+
+PixErr stucBlenderAttribGet(
+	StucMesh *pMesh,
+	const char *pName,
+	StucAttrib **ppAttrib,
+	int32_t *pIdx,
+	StucDomain *pDomain
+) {
+	return stucAttribGetAllDomains(pStucCtx, pMesh, pName, ppAttrib, pIdx, pDomain);
 }

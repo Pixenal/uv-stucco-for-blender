@@ -4,14 +4,37 @@ SPDX-License-Identifier: GPL-3.0-only
 '''
 
 import pdb
+import ctypes
 
 import bpy
 
 from . import c_lib
 stucLib = c_lib.stucLib
+from . import stuc
+from . import mesh_utils as meshUtils
 
 def targetObjUpdate(self, context) -> None:
 	self.name = self.obj.name
+
+def mapActiveAttribUpdate(self, context) -> None:
+	if not len(self.name):
+		return
+	map = context.scene.stucMaps[context.scene.stucMapsIdx]
+	mesh = meshUtils.getMapMesh(map.name.encode('utf-8'))
+	attrib = ctypes.POINTER(stuc.StucAttrib)()
+	idx = ctypes.c_int32()
+	domain = ctypes.c_int32()
+	stucLib.stucBlenderAttribGet(
+		ctypes.pointer(mesh),
+		self.name.encode('utf-8'),
+		ctypes.pointer(attrib),
+		ctypes.pointer(idx),
+		ctypes.pointer(domain)
+	)
+	entry = mesh.activeAttribs[attrib.contents.core.use]
+	entry.active = True
+	entry.idx = idx.value
+	entry.domain = domain.value
 
 def usgFlatCutoffPoll(self, obj: bpy.types.Object) -> bool | None:
 	return self != obj and not obj.get("StucUsg", None)
@@ -33,17 +56,25 @@ def relPathsUpdate(self, context) -> None:
 		for map in context.scene.stucMaps:
 			map.dir = bpy.path.abspath(map.dir)
 
+class StucAttribMirror(bpy.types.PropertyGroup):
+	name : bpy.props.StringProperty()
+	use : bpy.props.IntProperty()
 
 class StucMap(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()
 	dir : bpy.props.StringProperty(subtype = 'DIR_PATH')
 	#storing as a string, value too large for Int or Float prop
 	timestamp : bpy.props.StringProperty()
+	activeAttribIdx : bpy.props.IntProperty()
 
 class StucTarget(bpy.types.PropertyGroup):
 	obj : bpy.props.PointerProperty(type = bpy.types.Object,
 									update = targetObjUpdate)
 	activeAttribIdx : bpy.props.IntProperty()
+
+class StucMapActiveAttrib(bpy.types.PropertyGroup):
+	name : bpy.props.StringProperty(update = mapActiveAttribUpdate)
+	use : bpy.props.StringProperty()
 
 class StucActiveAttrib(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()
@@ -107,7 +138,9 @@ class StucPath(bpy.types.PropertyGroup):
 classes = [
 	StucProperties,
 	StucTarget,
+	StucAttribMirror,
 	StucActiveAttrib,
+	StucMapActiveAttrib,
 	StucCommonAttrib,
 	StucCommonAttribTableEntry,
 	StucPath,
@@ -140,6 +173,8 @@ def register() -> None:
 	StucCommonAttribTableEntry.verts = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucTarget.commonAttribTable = bpy.props.CollectionProperty(type = StucCommonAttribTableEntry)
 	StucTarget.activeAttribs = bpy.props.CollectionProperty(type = StucActiveAttrib)
+	StucMap.activeAttribs = bpy.props.CollectionProperty(type = StucMapActiveAttrib)
+	StucMap.attribs = bpy.props.CollectionProperty(type = StucAttribMirror)
 
 #TODO don't you need to delete the other props as well?
 def unregister() -> None:

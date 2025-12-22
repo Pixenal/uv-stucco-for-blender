@@ -19,6 +19,8 @@ from . import utils
 from . import mesh_utils as meshUtils
 from . import stuc
 from . import mapping
+from . import props
+from . import attrib_utils as attribUtils
 
 class CutoffTable():
 	def __init__(self):
@@ -270,6 +272,47 @@ def getDepDirs(context: bpy.types.Context, filepath: str) -> stuc.PixtyStrArr:
 		dirs.count += 1
 	return dirs
 
+def loadMap(
+	map: props.StucMap,
+	filepath: bytes,
+	name: bytes,
+	timestamp: float,
+	dirs: stuc.PixtyStrArr
+) -> None:
+	map.timestamp = str(timestamp)
+	err = stucLib.stucBlenderMapFileLoad(
+		filepath,
+		name,
+		ctypes.pointer(dirs),
+		getMapInDirs
+	)
+	if err != 1:
+		raise Exception("stuc map file load returned error")
+	
+	mesh = meshUtils.getMapMesh(name)
+
+	attrib = attribUtils.getActiveAttrib(mesh, stuc.StucAttribUse.POS)
+	if not attrib:
+		raise Exception("map mesh missing position attrib")
+	utils.initActiveAttrib(map, "position", "").name = attribUtils.attribNameToStr(attrib)
+	attrib = attribUtils.getActiveAttrib(mesh, stuc.StucAttribUse.NORMAL)
+	if not attrib:
+		raise Exception("map mesh missing normal attrib")
+	utils.initActiveAttrib(map, "normal", "").name = attribUtils.attribNameToStr(attrib)
+	attrib = attribUtils.getActiveAttrib(mesh, stuc.StucAttribUse.UV)
+	if attrib:
+		utils.initActiveAttrib(map, "UV", "").name = attribUtils.attribNameToStr(attrib)
+	attrib = attribUtils.getActiveAttrib(mesh, stuc.StucAttribUse.COLOR)
+	col = utils.initActiveAttrib(map, "Color", "")
+	if attrib:
+		col.name = attribUtils.attribNameToStr(attrib)
+
+	map.attribs.clear() #type:ignore
+	attribUtils.attribArrToCol(map.attribs, mesh.faceAttribs, map) #type:ignore
+	attribUtils.attribArrToCol(map.attribs, mesh.cornerAttribs, map) #type:ignore
+	attribUtils.attribArrToCol(map.attribs, mesh.edgeAttribs, map) #type:ignore
+	attribUtils.attribArrToCol(map.attribs, mesh.vertAttribs, map) #type:ignore
+
 class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	bl_idname = "stuc.load_stuc_file"
 	bl_label = "Load STUC File"
@@ -285,7 +328,6 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 			print(f"name is {name}, path is {self.filepath}") #type:ignore
 			filepathUtf8 = self.filepath.encode('utf-8') #type:ignore
 			nameUtf8 = name.encode('utf-8')
-
 			dirs = getDepDirs(context, self.filepath) #type:ignore
 
 			timestamp = os.path.getmtime(self.filepath) #type:ignore
@@ -293,30 +335,16 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 				if (name == map.name):
 					if (timestamp == float(map.timestamp)):
 						continue
-					map.timestamp = str(timestamp)
-					stucLib.stucBlenderMapFileLoad(
-						filepathUtf8,
-						nameUtf8,
-						ctypes.pointer(dirs),
-						getMapInDirs
-					)
+					loadMap(map, filepathUtf8, nameUtf8, timestamp, dirs)
 					return {'FINISHED'}
 			newMap = context.scene.stucMaps.add() #type:ignore
 			newMap.name = name
+			context.scene.stucMapsIdx = context.scene.stucMaps.find(name) #type:ignore
 			newMap.dir = os.path.dirname(self.filepath) #type:ignore
 			if len(bpy.data.filepath) and context.scene.stuc.relPaths: #type:ignore
 				newMap.dir = bpy.path.relpath(newMap.dir)
 			print(f"saving map dir as {newMap.dir}")
-			newMap.timestamp = str(timestamp)
-			context.scene.stucMapsIdx = len(context.scene.stucMaps) #type:ignore
-			err = stucLib.stucBlenderMapFileLoad(
-				filepathUtf8,
-				nameUtf8,
-				ctypes.pointer(dirs),
-				getMapInDirs
-			)
-			if err != 1:
-				raise Exception("stuc map file load returned error")
+			loadMap(newMap, filepathUtf8, nameUtf8, timestamp, dirs)
 		except Exception as e:
 			self.report({'ERROR'}, "Load failed")
 			raise e
@@ -341,18 +369,10 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 				print(f"timestamp {timestamp}, map-timestamp {float(map.timestamp)}")
 				if (timestamp == float(map.timestamp)):
 					continue
-				map.timestamp = str(timestamp)
 				filepathUtf8 = filepath.encode('utf-8')
 				nameUtf8 = map.name.encode('utf-8')
 				dirs = getDepDirs(context, filepath) #type:ignore
-				err = stucLib.stucBlenderMapFileLoad(
-					filepathUtf8,
-					nameUtf8,
-					ctypes.pointer(dirs),
-					getMapInDirs
-				)
-				if err != 1:
-					self.report({'ERROR'}, "Failed to reload map file")
+				loadMap(map, filepathUtf8, nameUtf8, timestamp, dirs)
 		except Exception as e:
 			self.report({'ERROR'}, "Reload failed")
 			raise e

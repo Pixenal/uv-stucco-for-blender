@@ -89,3 +89,10 @@ def initActiveAttrib(
 	entry.use = use
 	entry.name = name
 	return entry
+
+def makeRel(context: bpy.types.Context, dir: str) -> str | None:
+	if len(bpy.data.filepath) and context.scene.stuc.relPaths: #type:ignore
+		relDir = bpy.path.relpath(dir)
+		if dir != relDir:
+			return relDir
+	return None

@@ -178,7 +178,7 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			print("hi")
+			print("hi") #TODO implement this lol
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to remove mat")
 			raise e

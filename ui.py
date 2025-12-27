@@ -30,7 +30,11 @@ class STUC_UL_StucMaps(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
-			row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_PLANE')
+			if item.status == '1':
+				mapIcon = "MESH_PLANE"
+			else:
+				mapIcon = "ERROR"
+			row0.prop(item, "name", text = "", emboss = False, icon = mapIcon)
 
 class STUC_UL_StucActiveAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
@@ -44,6 +48,12 @@ class STUC_UL_StucMapActiveAttribs(bpy.types.UIList):
 			row0 = layout.row(align = True)
 			row0.prop_search(item, "name", data, "attribs", text = item.use, icon = 'SOLO_OFF')
 
+class STUC_UL_StucMapDeps(bpy.types.UIList):
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
+		if self.layout_type in {'DEFAULT', 'COMPACT'}:
+			row0 = layout.row(align = True)
+			row0.prop_search(item, "name", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
+
 class STUC_UL_StucCommonAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -56,13 +66,15 @@ class STUC_UL_StucMats(bpy.types.UIList):
 			row0 = layout.row(align = True)
 			row0.prop_search(item, "mat", bpy.data, "materials", text = "")
 			row0.prop_search(item, "map", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
-			remove_props = row0.operator("stuc.stuc_mat_remove", text = "", icon = "REMOVE")
+			remove = row0.operator("stuc.stuc_mat_remove", text = "", icon = 'REMOVE')
 
 class STUC_UL_StucDepDirs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
-			row0.prop(item, "path", text = "", icon = 'FILE_FOLDER')
+			row0.prop(item, "name", text = "")
+			remove = row0.operator("stuc.extra_dep_dir_remove", text = "", icon = 'REMOVE')
+			remove.item = item.name
 
 
 class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
@@ -70,7 +82,28 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 	bl_label = "STUC"
 
 	def draw(self, context: bpy.types.Context) -> None:
-		pass
+		col0 = self.layout.column()
+		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
+		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
+
+class STUC_PT_StucDepDirs(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucDepDirs"
+	bl_label = "Extra Dep Dirs"
+	bl_parent_id = "STUC_PT_Stuc"
+	bl_options = {'DEFAULT_CLOSED'}
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
+		row0 = col0.row()
+		row0.template_list(
+			"STUC_UL_StucDepDirs",
+			"",
+			context.scene, "stucDepDirs",
+			context.scene, "stucDepDirsIdx"
+		)
+		col1 = row0.column(align = True)
+		col1.scale_x = .35
+		col1.operator("stuc.extra_dep_dir_add", text = " ", icon = "ADD")
 
 class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_StucMaps"
@@ -79,8 +112,6 @@ class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
 
 	def draw(self, context: bpy.types.Context) -> None:
 		col0 = self.layout.column()
-		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
-		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
 		col0.template_list(
 			"STUC_UL_StucMaps",
 			"",
@@ -88,6 +119,33 @@ class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
 			context.scene, "stucMapsIdx",
 			rows = 6, maxrows = 6
 		)
+
+class STUC_PT_StucMapDeps(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucMapDeps"
+	bl_label = "Map Deps"
+	bl_parent_id = "STUC_PT_StucMaps"
+	bl_options = {'DEFAULT_CLOSED'}
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
+		if len(context.scene.stucMaps): #type:ignore
+			map = context.scene.stucMaps[context.scene.stucMapsIdx] #type:ignore
+			col0.template_list(
+				"STUC_UL_StucMapDeps",
+				"",
+				map, "deps",
+				map, "depsIdx",
+				rows = 1, maxrows = 8
+			)
+
+class STUC_PT_StucMapActive(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucMapActive"
+	bl_label = "Map Active Attribs"
+	bl_parent_id = "STUC_PT_StucMaps"
+	bl_options = {'DEFAULT_CLOSED'}
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
 		if len(context.scene.stucMaps): #type:ignore
 			map = context.scene.stucMaps[context.scene.stucMapsIdx] #type:ignore
 			col0.template_list(
@@ -97,21 +155,6 @@ class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
 				map, "activeAttribIdx",
 				rows = 4, maxrows = 4
 			)
-
-class STUC_PT_StucDepDirs(StucParentPanel, bpy.types.Panel):
-	bl_idname = "STUC_PT_StucDepDirs"
-	bl_label = "Dep Paths"
-	bl_parent_id = "STUC_PT_StucMaps"
-	bl_options = {'DEFAULT_CLOSED'}
-
-	def draw(self, context: bpy.types.Context) -> None:
-		col0 = self.layout.column()
-		col0.template_list(
-			"STUC_UL_StucDepDirs",
-			"",
-			context.scene, "stucDepDirs",
-			context.scene, "stucDepDirsIdx"
-		)
 
 class STUC_PT_StucMats(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_StucMats"
@@ -137,23 +180,21 @@ class STUC_PT_StucTargets(StucParentPanel, bpy.types.Panel):
 	bl_parent_id = "STUC_PT_Stuc"
 
 	def draw(self, context: bpy.types.Context) -> None:
-		stuc = context.scene.stuc #type:ignore
 		col0 = self.layout.column()
-		row1 = col0.row()
-		row1.template_list(
+		row0 = col0.row()
+		row0.template_list(
 			"STUC_UL_StucTargets",
 			"",
 			context.scene, "stucTargets",
 			context.scene, "stucTargetsIdx"
 		)
-		col2 = row1.column(align = True)
+		col2 = row0.column(align = True)
 		col2.scale_x = .35
 		col2.operator("stuc.stuc_assign", text = " ", icon = "ADD")
 		col2.operator("stuc.stuc_remove", text = " ", icon = "REMOVE")
 		
 		if (len(context.scene.stucTargets)): #type:ignore
 			target = context.scene.stucTargets[context.scene.stucTargetsIdx] #type:ignore
-
 			col0.template_list(
 				"STUC_UL_StucActiveAttribs",
 				"",
@@ -162,52 +203,60 @@ class STUC_PT_StucTargets(StucParentPanel, bpy.types.Panel):
 				rows = 8, maxrows = 8
 			)
 
-			idx = None
-			if len(target.obj.material_slots):
-				matSlotIdx = target.obj.active_material_index
-				mat = target.obj.material_slots[matSlotIdx]
-				idx = utils.findMatInCol(mat, target.commonAttribTable)
-			if idx != None:
-				commonAttribs = target.commonAttribTable[idx]
-				col0.label(text = "")
-				col0.label(text = "Common Attribs")
-				col0.prop(stuc, "commonAttribDomain", text = "")
+class STUC_PT_StucCommonAttribs(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucCommonAttribs"
+	bl_label = "Common Attribs"
+	bl_parent_id = "STUC_PT_StucTargets"
+	bl_options = {'DEFAULT_CLOSED'}
+
+	def draw(self, context: bpy.types.Context) -> None:
+		stuc = context.scene.stuc #type:ignore
+		col0 = self.layout.column()
+		target = context.scene.stucTargets[context.scene.stucTargetsIdx] #type:ignore
+		idx = None
+		if len(target.obj.material_slots):
+			matSlotIdx = target.obj.active_material_index
+			mat = target.obj.material_slots[matSlotIdx]
+			idx = utils.findMatInCol(mat, target.commonAttribTable)
+		if idx != None:
+			commonAttribs = target.commonAttribTable[idx]
+			col0.prop(stuc, "commonAttribDomain", text = "")
+			match (stuc.commonAttribDomain):
+				case "FACE":
+					domain = "faces"
+					commonAttrib = commonAttribs.faces
+				case "CORNER":
+					domain = "corners" 
+					commonAttrib = commonAttribs.corners
+				case "EDGE":
+					domain = "edges"
+					commonAttrib = commonAttribs.edges
+				case "POINT":
+					domain = "verts"
+					commonAttrib = commonAttribs.verts
+			col0.template_list(
+				"STUC_UL_StucCommonAttribs",
+				"",
+				commonAttribs, domain,
+				stuc, "commonAttribIdx"
+			)
+			if len(commonAttrib):
 				match (stuc.commonAttribDomain):
 					case "FACE":
-						domain = "faces"
-						commonAttrib = commonAttribs.faces
+						commonAttribEntry =\
+							commonAttribs.faces[stuc.commonAttribIdx]
 					case "CORNER":
-						domain = "corners" 
-						commonAttrib = commonAttribs.corners
+						commonAttribEntry =\
+							commonAttribs.corners[stuc.commonAttribIdx]
 					case "EDGE":
-						domain = "edges"
-						commonAttrib = commonAttribs.edges
+						commonAttribEntry =\
+							commonAttribs.edges[stuc.commonAttribIdx]
 					case "POINT":
-						domain = "verts"
-						commonAttrib = commonAttribs.verts
-				col0.template_list(
-					"STUC_UL_StucCommonAttribs",
-					"",
-					commonAttribs, domain,
-					stuc, "commonAttribIdx"
-				)
-				if len(commonAttrib):
-					match (stuc.commonAttribDomain):
-						case "FACE":
-							commonAttribEntry =\
-								commonAttribs.faces[stuc.commonAttribIdx]
-						case "CORNER":
-							commonAttribEntry =\
-								commonAttribs.corners[stuc.commonAttribIdx]
-						case "EDGE":
-							commonAttribEntry =\
-								commonAttribs.edges[stuc.commonAttribIdx]
-						case "POINT":
-							commonAttribEntry =\
-								commonAttribs.verts[stuc.commonAttribIdx]
-					col0.prop(commonAttribEntry, "opacity")
-					col0.prop(commonAttribEntry, "blend")
-					col0.prop(commonAttribEntry, "order")
+						commonAttribEntry =\
+							commonAttribs.verts[stuc.commonAttribIdx]
+				col0.prop(commonAttribEntry, "opacity")
+				col0.prop(commonAttribEntry, "blend")
+				col0.prop(commonAttribEntry, "order")
 
 class STUC_PT_StucUsg(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_StucUsg"
@@ -243,15 +292,19 @@ class STUC_PT_StucOpts(StucParentPanel, bpy.types.Panel):
 
 classes = [
 	STUC_PT_Stuc,
-	STUC_PT_StucMaps,
 	STUC_PT_StucDepDirs,
+	STUC_PT_StucMaps,
+	STUC_PT_StucMapDeps,
+	STUC_PT_StucMapActive,
 	STUC_PT_StucMats,
 	STUC_PT_StucTargets,
+	STUC_PT_StucCommonAttribs,
 	STUC_PT_StucUsg,
 	STUC_PT_StucOpts,
 	STUC_UL_StucTargets,
 	STUC_UL_StucMaps,
 	STUC_UL_StucActiveAttribs,
+	STUC_UL_StucMapDeps,
 	STUC_UL_StucMapActiveAttribs,
 	STUC_UL_StucCommonAttribs,
 	STUC_UL_StucMats,

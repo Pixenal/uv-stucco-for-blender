@@ -12,6 +12,13 @@ from . import c_lib
 stucLib = c_lib.stucLib
 from . import stuc
 from . import mesh_utils as meshUtils
+from . import utils
+
+def stucMapDirUpdate(self, context) -> None:
+	pdb.set_trace()
+	dir = utils.makeRel(context, self.dir)
+	if dir:
+		self.dir = dir
 
 def targetObjUpdate(self, context) -> None:
 	self.name = self.obj.name
@@ -20,7 +27,7 @@ def mapActiveAttribUpdate(self, context) -> None:
 	if not len(self.name):
 		return
 	map = context.scene.stucMaps[context.scene.stucMapsIdx]
-	mesh = meshUtils.getMapMesh(map.name.encode('utf-8'))
+	mesh = meshUtils.getMapMesh(map.name)
 	attrib = ctypes.POINTER(stuc.StucAttrib)()
 	idx = ctypes.c_int32()
 	domain = ctypes.c_int32()
@@ -49,12 +56,17 @@ def stucMatUpdate(self, context) -> None:
 def relPathsUpdate(self, context) -> None:
 	if not bpy.data.filepath:
 		return
-	if self.relPaths:
-		for map in context.scene.stucMaps:
-			map.dir = bpy.path.relpath(map.dir)
-	else:
-		for map in context.scene.stucMaps:
+	for map in context.scene.stucMaps:
+		if self.relPaths:
+			map.dir = map.dir #update func will make relative
+		else:
 			map.dir = bpy.path.abspath(map.dir)
+	for dir in context.scene.stucDepDirs:
+		if self.relPaths:
+			dir.name = bpy.path.relpath(dir.name)
+		else:
+			dir.name = bpy.path.abspath(dir.name)
+			
 
 class StucAttribMirror(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()
@@ -62,10 +74,21 @@ class StucAttribMirror(bpy.types.PropertyGroup):
 
 class StucMap(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()
-	dir : bpy.props.StringProperty(subtype = 'DIR_PATH')
+	dir : bpy.props.StringProperty(subtype = 'DIR_PATH', update = stucMapDirUpdate)
 	#storing as a string, value too large for Int or Float prop
 	timestamp : bpy.props.StringProperty()
 	activeAttribIdx : bpy.props.IntProperty()
+	depsIdx : bpy.props.IntProperty()
+	status : bpy.props.EnumProperty(default = '0', items = [
+		('0', 'Pending Load', ""),
+		('1', 'Loaded', ""),
+		('2', "Error", ""),
+		('3', "Missing Dep", "")
+	])
+	age : bpy.props.IntProperty()
+
+class StucDep(bpy.types.PropertyGroup):
+	name : bpy.props.StringProperty()
 
 class StucTarget(bpy.types.PropertyGroup):
 	obj : bpy.props.PointerProperty(type = bpy.types.Object,
@@ -133,7 +156,7 @@ class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
 	map : bpy.props.StringProperty()
 
 class StucPath(bpy.types.PropertyGroup):
-	path : bpy.props.StringProperty(subtype = 'DIR_PATH')
+	name : bpy.props.StringProperty(subtype = 'DIR_PATH')
 
 classes = [
 	StucProperties,
@@ -145,6 +168,7 @@ classes = [
 	StucCommonAttribTableEntry,
 	StucPath,
 	StucMap,
+	StucDep,
 	StucMat
 ]
 
@@ -166,6 +190,7 @@ def register() -> None:
 	bpy.types.Scene.stucMatsIdx = bpy.props.IntProperty(name = "Mats Index")
 	bpy.types.Scene.stucDepDirs = bpy.props.CollectionProperty(name = "Dep Dirs", type = StucPath)
 	bpy.types.Scene.stucDepDirsIdx = bpy.props.IntProperty(name = "Dep Dirs Index")
+	bpy.types.Scene.stucAgeNext = bpy.props.IntProperty()
 	StucCommonAttribTableEntry.mesh = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucCommonAttribTableEntry.faces = bpy.props.CollectionProperty(type = StucCommonAttrib)
 	StucCommonAttribTableEntry.corners = bpy.props.CollectionProperty(type = StucCommonAttrib)
@@ -175,6 +200,7 @@ def register() -> None:
 	StucTarget.activeAttribs = bpy.props.CollectionProperty(type = StucActiveAttrib)
 	StucMap.activeAttribs = bpy.props.CollectionProperty(type = StucMapActiveAttrib)
 	StucMap.attribs = bpy.props.CollectionProperty(type = StucAttribMirror)
+	StucMap.deps = bpy.props.CollectionProperty(type = StucDep)
 
 #TODO don't you need to delete the other props as well?
 def unregister() -> None:

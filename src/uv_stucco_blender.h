@@ -71,8 +71,17 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderMapFileLoad(
 	const char *pFilepath,
 	const char *pName,
+	double timestamp,
 	PixtyStrArr *pDepDirs,
-	int32_t (* getDepDirs)(const char *, const PixtyStrArr *Dirs, const char *)
+	int32_t (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, char *, double *),
+	void (* fpStoreMap)(
+		const char *,
+		const char *,
+		double,
+		StucMapStatus,
+		const PixtyStrArr *
+	),
+	bool dirty
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapMeshGet(const char *pMap, StucMesh **ppMesh);

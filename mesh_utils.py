@@ -244,9 +244,9 @@ def getUsgCountInSelObjs(context: bpy.types.Context) -> int:
 			count += 1
 	return count
 
-def getMapMesh(name: bytes) -> stuc.StucMesh:
+def getMapMesh(name: str) -> stuc.StucMesh:
 	mesh = ctypes.POINTER(stuc.StucMesh)()
-	err = stucLib.stucBlenderMapMeshGet(name, ctypes.pointer(mesh))
+	err = stucLib.stucBlenderMapMeshGet(name.encode('utf-8'), ctypes.pointer(mesh))
 	if err != 1:
 		raise Exception("unable to get map mesh")
 	return mesh.contents

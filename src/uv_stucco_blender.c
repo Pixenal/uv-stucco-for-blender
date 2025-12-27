@@ -220,7 +220,14 @@ PixErr stucBlenderMapFileUnload(const char *pName) {
 typedef struct LoadState {
 	PixtyStrArr *pDepDirs;
 	StrWithLen pathBuf;
-	I32 (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, const char *);
+	I32 (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, char *, double *);
+	void (* fpStoreMap)(
+		const char *,
+		const char *,
+		double,
+		StucMapStatus,
+		const PixtyStrArr *
+	);
 } LoadState;
 
 static
@@ -228,47 +235,77 @@ PixErr mapGet(
 	void *pUserData,
 	const char *pName,
 	const char **ppFilepath,
+	double *pTimestamp,
 	StucMap * const ppMap
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	HandleEntry *pEntry = getHandle(NULL, pName);
-	if (pEntry) {
-		*ppMap = pEntry->pHandle;
-		return err;
-	}
 	LoadState *pState = pUserData;
 	I32 len = strnlen(pState->pathBuf.pStr, PIXIO_PATH_MAX);
 	memset(pState->pathBuf.pStr, 0, len);
-	pState->fpGetMapPath(pName, pState->pDepDirs, pState->pathBuf.pStr);
-	if (!pState->pathBuf.pStr[0]) {
-		PIX_ERR_RETURN(err, "unable to find map in provided directories");
+	double timestamp = .0;
+	I32 ret = pState->fpGetMapPath(pName, pState->pDepDirs, pState->pathBuf.pStr, pTimestamp);
+	PIX_ERR_RETURN_IFNOT_COND(err, !ret, "unable to find map in provided directories");
+
+	bool noPath = !pState->pathBuf.pStr[0];
+	HandleEntry *pEntry = getHandle(NULL, pName);
+	if (pEntry && pEntry->pHandle) {
+		if (noPath) {
+			//loaded map is up to date
+			*ppMap = pEntry->pHandle;
+			return err;
+		}
+		else {
+			err = stucMapFileUnload(pStucCtx, pEntry->pHandle);
+			pEntry->pHandle = NULL;
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
 	}
+	PIX_ERR_ASSERT("", !noPath);
 	*ppFilepath = pState->pathBuf.pStr;
 	return err;
 }
 
 static
-PixErr mapStore(void *pUserData, const char *pName, StucMap pMap) {
+PixErr mapStore(
+	void *pUserData,
+	const char *pName,
+	const char *pFilepath,
+	double timestamp,
+	StucMap pMap,
+	StucMapStatus status,
+	const PixtyStrArr *pDeps
+) {
 	PixErr err = PIX_ERR_SUCCESS;
-	HandleEntry *pEntry = handleAdd(pName);
-	if (pEntry->pHandle) {
-		//already exists
-		stucMapFileUnload(pStucCtx, pEntry->pHandle);
+	HandleEntry *pEntry = getHandle(NULL, pName);
+	if (!pEntry) {
+		pEntry = handleAdd(pName);
 	}
+	PIX_ERR_ASSERT("", !pEntry->pHandle);
 	pEntry->pHandle = pMap;
+	((LoadState *)pUserData)->fpStoreMap(pName, pFilepath, timestamp, status, pDeps);
 	return err;
 }
 
 PixErr stucBlenderMapFileLoad(
 	const char *pFilepath,
 	const char *pName,
+	F64 timestamp,
 	PixtyStrArr *pDepDirs,
-	I32 (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, const char *)
+	I32 (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, char *, double *),
+	void (* fpStoreMap)(
+		const char *,
+		const char *,
+		double,
+		StucMapStatus,
+		const PixtyStrArr *
+	),
+	bool dirty 
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	LoadState state = {
 		.pDepDirs = pDepDirs,
 		.fpGetMapPath = fpGetMapPath,
+		.fpStoreMap = fpStoreMap,
 		.pathBuf.pStr = calloc(PIXIO_PATH_MAX, 1)
 	};
 	HandleEntry *pEntry = getHandle(NULL, pName);
@@ -276,8 +313,35 @@ PixErr stucBlenderMapFileLoad(
 		err = stucBlenderMapFileUnload(pName);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
-	err = stucMapFileLoad(pStucCtx, pFilepath, &state, mapGet, mapStore);
+	StucMapLoad *pHandle = NULL;
+	err = stucMapFileLoadInit(
+		pStucCtx,
+		&pHandle,
+		pFilepath,
+		timestamp,
+		&state,
+		mapGet, mapStore
+	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = stucMapFileLoadDeps(pHandle);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	StucMapStatus status = 0;
+	err = stucMapFileLoadGetDepStatus(pHandle, &status);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	switch (status) {
+		case STUC_MAP_LOADED:
+			if (!dirty) {
+				break; //file is already up to date
+			}
+			//v otherwise fallthrough v
+		case STUC_MAP_PENDING_LOAD:
+			err = stucMapFileLoad(pHandle);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			break;
+		case STUC_MAP_ERROR:
+		case STUC_MAP_MISSING_DEP:
+			PIX_ERR_THROW(err, "unable to load one or more dependencies", 0);
+	}
 	PIX_ERR_CATCH(0, err,
 		stucBlenderMapFileUnload(pName);
 	);

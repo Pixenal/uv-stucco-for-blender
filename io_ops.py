@@ -469,12 +469,11 @@ class STUC_OT_StucExtraDepDirRemove(bpy.types.Operator):
 	bl_label = "Remove Dep Dir"
 	bl_options = {'REGISTER'}
 
-	item : bpy.props.StringProperty(subtype = 'DIR_PATH') #type:ignore
+	itemIdx : bpy.props.IntProperty() #type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			idx = context.scene.stucDepDirs.find(self.item) #type:ignore
-			context.scene.stucDepDirs.remove(idx) #type:ignore
+			context.scene.stucDepDirs.remove(self.itemIdx) #type:ignore
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to add dependency dir")
 			raise e

@@ -27,7 +27,7 @@ class STUC_UL_StucTargets(bpy.types.UIList):
 			row0.prop(item, "obj", text = "", emboss = False, icon = 'MESH_CUBE')
 
 class STUC_UL_StucMaps(bpy.types.UIList):
-	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			if item.status == '1':
@@ -35,6 +35,8 @@ class STUC_UL_StucMaps(bpy.types.UIList):
 			else:
 				mapIcon = "ERROR"
 			row0.prop(item, "name", text = "", emboss = False, icon = mapIcon)
+			remove = row0.operator("stuc.stuc_map_unload", text = "", icon = 'REMOVE')
+			remove.itemIdx = index
 
 class STUC_UL_StucActiveAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
@@ -71,12 +73,12 @@ class STUC_UL_StucMats(bpy.types.UIList):
 			remove.itemIdx = index
 
 class STUC_UL_StucDepDirs(bpy.types.UIList):
-	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			row0.prop(item, "name", text = "")
 			remove = row0.operator("stuc.extra_dep_dir_remove", text = "", icon = 'REMOVE')
-			remove.item = item.name
+			remove.itemIdx = index
 
 
 class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
@@ -119,7 +121,7 @@ class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
 			"",
 			context.scene, "stucMaps",
 			context.scene, "stucMapsIdx",
-			rows = 6, maxrows = 6
+			rows = 4, maxrows = 6
 		)
 
 class STUC_PT_StucMapDeps(StucParentPanel, bpy.types.Panel):
@@ -170,7 +172,8 @@ class STUC_PT_StucMats(StucParentPanel, bpy.types.Panel):
 			"STUC_UL_StucMats",
 			"",
 			context.scene, "stucMats",
-			context.scene, "stucMatsIdx"
+			context.scene, "stucMatsIdx",
+			rows = 4, maxrows = 6
 			)
 		col1 = row0.column(align = True)
 		col1.scale_x = .35
@@ -188,7 +191,8 @@ class STUC_PT_StucTargets(StucParentPanel, bpy.types.Panel):
 			"STUC_UL_StucTargets",
 			"",
 			context.scene, "stucTargets",
-			context.scene, "stucTargetsIdx"
+			context.scene, "stucTargetsIdx",
+			rows = 4, maxrows = 6
 		)
 		col2 = row0.column(align = True)
 		col2.scale_x = .35

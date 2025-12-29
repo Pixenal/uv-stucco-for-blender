@@ -185,6 +185,28 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 			self.report({'ERROR'}, "Failed to remove mat")
 			raise e
 		return {'FINISHED'}
+	
+class STUC_OT_StucMapRemove(bpy.types.Operator):
+	bl_idname = "stuc.stuc_map_unload"
+	bl_label = "Unload Map"
+	bl_options = {'REGISTER'}
+
+	itemIdx : bpy.props.IntProperty() #type:ignore
+
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		try:
+			pdb.set_trace()
+			if self.itemIdx >= len(context.scene.stucMaps): #type:ignore
+				raise Exception("specificed index out of range")
+			map = context.scene.stucMaps[self.itemIdx] #type:ignore
+			name = map.name.encode('utf-8')
+			context.scene.stucMaps.remove(self.itemIdx) #type:ignore
+			if stucLib.stucBlenderMapFileUnload(name) != 1:
+				raise Exception()
+		except Exception as e:
+			self.report({'ERROR'}, "Failed to unload map")
+			raise e
+		return {'FINISHED'}
 
 classes = [
 	STUC_OT_StucSetAsUsg,
@@ -193,7 +215,8 @@ classes = [
 	STUC_OT_StucAssign,
 	STUC_OT_StucRemove,
 	STUC_OT_StucMatAssign,
-	STUC_OT_StucMatRemove
+	STUC_OT_StucMatRemove,
+	STUC_OT_StucMapRemove
 ]
 
 def register() -> None:

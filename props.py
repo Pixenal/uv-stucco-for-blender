@@ -15,7 +15,6 @@ from . import mesh_utils as meshUtils
 from . import utils
 
 def stucMapDirUpdate(self, context) -> None:
-	pdb.set_trace()
 	dir = utils.makeRel(context, self.dir)
 	if dir:
 		self.dir = dir
@@ -104,6 +103,7 @@ class StucActiveAttrib(bpy.types.PropertyGroup):
 	use : bpy.props.StringProperty()
 	
 class StucMat(bpy.types.PropertyGroup):
+	name : bpy.props.StringProperty()
 	mat : bpy.props.PointerProperty(type = bpy.types.Material, update = stucMatUpdate)
 	#matCpy exists to allow stucMatUpdate to see the mat a material pointed to before
 	#it was changed (there doesn't seem to be a pre-update callback).
@@ -188,6 +188,7 @@ def register() -> None:
 	bpy.types.Scene.stucMapsIdx = bpy.props.IntProperty(name = "Maps Index")
 	bpy.types.Scene.stucMats = bpy.props.CollectionProperty(name = "Mats", type = StucMat)
 	bpy.types.Scene.stucMatsIdx = bpy.props.IntProperty(name = "Mats Index")
+	bpy.types.Scene.stucMatToRm = bpy.props.PointerProperty(type = StucMat)
 	bpy.types.Scene.stucDepDirs = bpy.props.CollectionProperty(name = "Dep Dirs", type = StucPath)
 	bpy.types.Scene.stucDepDirsIdx = bpy.props.IntProperty(name = "Dep Dirs Index")
 	bpy.types.Scene.stucAgeNext = bpy.props.IntProperty()

@@ -61,12 +61,14 @@ class STUC_UL_StucCommonAttribs(bpy.types.UIList):
 			row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_CUBE')
 			
 class STUC_UL_StucMats(bpy.types.UIList):
-	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
+	def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
 			row0.prop_search(item, "mat", bpy.data, "materials", text = "")
 			row0.prop_search(item, "map", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
+			layout.context_pointer_set(name = "stucMatToRm", data = item)
 			remove = row0.operator("stuc.stuc_mat_remove", text = "", icon = 'REMOVE')
+			remove.itemIdx = index
 
 class STUC_UL_StucDepDirs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:

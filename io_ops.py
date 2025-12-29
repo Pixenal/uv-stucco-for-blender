@@ -432,7 +432,6 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			err = 1
-			pdb.set_trace()
 			for map in context.scene.stucMaps: #type:ignore
 				filepath = os.path.join(bpy.path.abspath(map.dir), map.name)
 				if loadMap(context, filepath, map.name) != 1:

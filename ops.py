@@ -176,9 +176,11 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 	bl_label = "STUC Mat Remove"
 	bl_options = {"REGISTER"}
 
+	itemIdx : bpy.props.IntProperty() #type:ignore
+
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			print("hi") #TODO implement this lol
+			context.scene.stucMats.remove(self.itemIdx) #type:ignore
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to remove mat")
 			raise e

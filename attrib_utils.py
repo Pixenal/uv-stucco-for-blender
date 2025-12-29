@@ -368,21 +368,22 @@ def getActiveAttrib(
 
 def updateCommonAttribs(
 		stucLib: ctypes.CDLL,
-		activeNames: bpy.types.Collection,
 		context: bpy.types.Context,
-		target: Any,
+		obj: bpy.types.Object,
+		table: bpy.types.Collection,
+		activeNames: bpy.types.Collection,
 		depsgraph: bpy.types.Depsgraph
 ) -> ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]] | None:
-	objEval = cast(bpy.types.Object, target.obj).evaluated_get(depsgraph)
+	objEval = cast(bpy.types.Object, obj).evaluated_get(depsgraph)
 	meshEval = objEval.data
 	if type(meshEval) != bpy.types.Mesh:
 		raise Exception("target object isn't a mesh")
 	#clean common attrib entries for mat's no longer assigned to obj
 	i = 0
-	for entry in target.commonAttribTable: #type:ignore
+	for entry in table: #type:ignore
 		mat = meshEval.materials.get(entry.mat.name, None)
 		if not mat:
-			target.commonAttribTable.remove(i) #type:ignore
+			table.remove(i) #type:ignore
 			i -= 1
 		i += 1
 			
@@ -396,11 +397,11 @@ def updateCommonAttribs(
 	for mat in targetMats:
 		if not len(mat.map):
 			continue
-		idx = utils.findMatInCol(mat.mat, cast(Any, target).commonAttribTable)
+		idx = utils.findMatInCol(mat.mat, table)
 		if idx != None:
-			entry = target.commonAttribTable[idx] #type:ignore
+			entry = table[idx] #type:ignore
 		else:
-			entry = target.commonAttribTable.add() #type:ignore
+			entry = table.add() #type:ignore
 			entry.mat = mat.mat
 			entry.map = mat.map
 

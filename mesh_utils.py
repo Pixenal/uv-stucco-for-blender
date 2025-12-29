@@ -3,12 +3,14 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: GPL-3.0-only
 '''
 
-import bpy
 import ctypes
-import numpy
-from numpy._typing import NDArray
-from typing import Any, cast
 import pdb
+from numpy._typing import NDArray
+import numpy
+from typing import Any, cast
+
+import bpy
+import bmesh
 
 from . import stuc
 from . import utils
@@ -209,12 +211,12 @@ def formatAsStucObj(
 	else:
 		objEval = obj.evaluated_get(depsgraph)
 	meshEval = objEval.data
+	
 	if type(meshEval) != bpy.types.Mesh:
 		raise Exception("object is not a mesh")
 	meshTuple = formatAsStucMesh(meshEval, False, True, mats, activeNames)
 	stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple.mesh), ctypes.POINTER(stuc.StucObjectData))
 	utils.setStucMatrix(stucObj.transform, obj.matrix_world)
-	#the mesh tuple is returned here as well to ensure the mesh contents arn't garbage collected
 	return StucObjData(stucObj, meshTuple)
 
 def blendObjFromStuc(

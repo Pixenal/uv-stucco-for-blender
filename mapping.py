@@ -4,11 +4,13 @@ SPDX-License-Identifier: GPL-3.0-only
 '''
 
 import ctypes
+from math import e
 from numpy._typing import NDArray
 from typing import Any, cast
 import pdb
 
 import bpy
+import bmesh
 
 from . import c_lib
 stucLib = c_lib.stucLib
@@ -21,14 +23,17 @@ from . import stuc
 class MappingInfo:
 	def __init__(
 		self,
+		target : props.StucTarget,
 		mapArr : stuc.StucMapArr,
 		commonAttribs : ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]],
 		objEval : bpy.types.Object,
 		stucObj : meshUtils.StucObjData,
 		inIndexedArr : stuc.StucAttribIndexedArr,
 		wScale : float,
-		receiveLen : float
+		receiveLen : float,
+		editMode : bool
 	) -> None:
+		self.target = target
 		self.mapArr = mapArr
 		self.commonAttribs = commonAttribs
 		self.objEval = objEval
@@ -36,6 +41,7 @@ class MappingInfo:
 		self.inIndexedArr = inIndexedArr
 		self.wScale = wScale
 		self.receiveLen = receiveLen
+		self.editMode = editMode
 
 class TargetCache: 
 	done = False
@@ -96,22 +102,61 @@ def createMapArr(
 		i += 1
 	return mapArr
 
+def removeHiddenInEditMesh(bm: bmesh.types.BMesh)-> bool:
+	noSelFaces = True
+	toDel = []
+	for face in bm.faces:
+		if face.hide:
+			toDel.append(face)
+		elif noSelFaces and face.select:
+			noSelFaces = False
+	if noSelFaces:
+		for vert in bm.verts:
+			if vert.select:
+				noSelFaces = False
+				break
+	if noSelFaces:
+		for edge in bm.edges:
+			if edge.select:
+				noSelFaces = False
+				break
+	if noSelFaces or len(toDel) == len(bm.faces):
+		return True
+	bmesh.ops.delete(bm, geom = toDel, context = 'FACES')
+	return False
+
 #returns None if aborted
 def prepTargetForMapping(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget
 ) -> MappingInfo | None:
-	obj = target.obj
-	if obj not in context.selected_objects:
+	if target.obj not in context.selected_objects or\
+		type(target.obj.data) != bpy.types.Mesh:
 		return None
-	elif obj.mode != 'OBJECT':
+	if target.obj.mode == 'OBJECT':
+		obj = target.obj
+	elif target.obj.mode == 'EDIT':
+		obj = target.obj.copy()
+		obj.name = "STUC_TEMP_WORK_OBJ"
+		obj.data = target.obj.data.copy()
+		obj.data.name = "STUC_TEMP_WORK_MESH"
+		bm = bmesh.from_edit_mesh(target.obj.data) #type:ignore
+		bm = bm.copy()
+		if removeHiddenInEditMesh(bm):
+			bm.clear()
+			return None
+		bm.to_mesh(obj.data)
+		bm.clear()
+	else:
 		return None
+
 	commonAttribs = attribUtils.updateCommonAttribs(
 		stucLib,
-		target.activeAttribs, #type:ignore
 		context,
-		target,
+		obj,
+		target.commonAttribTable, #type:ignore
+		target.activeAttribs, #type:ignore
 		depsgraph
 	)
 	#hide_viewport is the moniter icon, and hide_get is the eye
@@ -129,25 +174,27 @@ def prepTargetForMapping(
 	objEval = obj.evaluated_get(depsgraph)
 	meshEval = objEval.data
 	
-	mapArr = createMapArr(context, objEval, meshEval, commonAttribs)
+	mapArr = createMapArr(context, objEval, meshEval, commonAttribs) #type:ignore
 	if not mapArr:
 		return None
-	inIndexedArr = createMatIdxAttrib(meshEval)
+	inIndexedArr = createMatIdxAttrib(meshEval) #type:ignore
 	stucObj = meshUtils.formatAsStucObj(
 		objEval,
 		True,
 		depsgraph,
 		True,
-		cast(Any, target).activeAttribs
+		target.activeAttribs #type:ignore
 	)
 	return MappingInfo(
+		target,
 		mapArr,
 		commonAttribs,
 		objEval,
 		stucObj,
 		inIndexedArr,
 		wScale,
-		receiveLen
+		receiveLen,
+		target.obj.mode == 'EDIT'
 	)
 
 def pushMappingJobToQueue(
@@ -186,7 +233,7 @@ def pushMappingJobToQueue(
 	))
 
 def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
-	nameStuc = item.info.objEval.name + ".Stuc"
+	nameStuc = item.info.target.obj.name + ".Stuc"
 	objStuc = bpy.data.objects.get(nameStuc, None)
 	if not(objStuc):
 		meshStuc = bpy.data.meshes.new(nameStuc)

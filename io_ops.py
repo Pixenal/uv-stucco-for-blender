@@ -286,6 +286,7 @@ def addOrUpdateMap(
 	else:
 		map = context.scene.stucMaps.add() #type:ignore
 		map.name = name
+	context.scene.stucMapsIdx = context.scene.stucMaps.find(name) #type:ignore
 	map.dir = os.path.dirname(path)
 	map.timestamp = str(timestamp)
 	map.status = str(status)

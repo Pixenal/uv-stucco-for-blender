@@ -23,7 +23,7 @@ def targetObjUpdate(self, context) -> None:
 	self.name = self.obj.name
 
 def mapActiveAttribUpdate(self, context) -> None:
-	if not len(self.name):
+	if not len(self.name) or not len(context.scene.stucMaps):
 		return
 	map = context.scene.stucMaps[context.scene.stucMapsIdx]
 	mesh = meshUtils.getMapMesh(map.name)

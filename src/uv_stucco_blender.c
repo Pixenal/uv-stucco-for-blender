@@ -8,6 +8,7 @@ SPDX-License-Identifier: GPL-3.0-only
 #include <string.h>
 
 #include <pixenals_io_utils.h>
+#include <pixenals_structs.h>
 
 #include <uv_stucco_blender.h>
 
@@ -24,78 +25,105 @@ typedef uint64_t U64;
 typedef float F32;
 typedef double F64;
 
-typedef struct HandleEntry {
-	struct HandleEntry *pNext;
-	struct HandleEntry *pPrev;
-	StucMap pHandle;
-} HandleEntry;
+typedef struct MapEntry {
+	PixuctHTableEntryCore core;
+	StucMap pMap;
+} MapEntry;
 
-typedef struct HandleBucket {
-	HandleEntry *pList;
-} HandleBucket;
+/*
+typedef struct TargetEntry {
+	PixuctHTableEntryCore core;
+	StucMesh pMesh;
+} TargetEntry;
+*/
 
+static PixalcFPtrs allocPtrs = {
+	.fpCalloc = calloc,
+	.fpMalloc = malloc,
+	.fpRealloc = realloc,
+	.fpFree = free
+};
 static StucContext pStucCtx = NULL;
-static HandleBucket handleTable[HANDLE_TABLE_SIZE] = {0};
+static PixErr tableErr = PIX_ERR_SUCCESS;
+static PixuctHTable mapTable = {0};
+//static PixuctHTable targetTable = {0};
 
 static
-U32 fnvHash(unsigned char *value, I32 valueSize, U32 size) {
-	U32 hash = 2166136261;
-	for (I32 i = 0; i < valueSize; ++i) {
-		hash ^= value[i];
-		hash *= 16777619;
+void clearMapEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pKeyData) {
+	MapEntry *pEntry = (MapEntry *)pCore;
+	if (pEntry->pMap) {
+		*(PixErr *)pUserData = stucMapFileUnload(pStucCtx, pEntry->pMap);
+		pEntry->pMap = NULL;
 	}
-	hash %= size;
-	return hash;
-}
-
-//returns null if doesn't exist
-static
-HandleEntry *getHandle(HandleBucket **pOutBucket, const char *pName) {
-	I32 pathLength = (I32)strlen(pName);
-	I32 hash = fnvHash((unsigned char *)pName, pathLength, HANDLE_TABLE_SIZE);
-	HandleBucket *pBucket = handleTable + hash;
-	if (pOutBucket) {
-		*pOutBucket = pBucket;
-	}
-	HandleEntry *pEntry = pBucket->pList;
-	while (pEntry) {
-		if (!pEntry->pHandle) {
-			break;
-		}
-		const char *pMapName = NULL;
-		stucMapNameGet(pStucCtx, pEntry->pHandle, &pMapName);
-		if (!strcmp(pName, pMapName)) {
-			return pEntry;
-		}
-		pEntry = pEntry->pNext;
-	}
-	return NULL;
 }
 
 static
-void handleDestroy(HandleEntry *pEntry) {
-	if (pEntry->pHandle) {
-		stucMapFileUnload(pStucCtx, pEntry->pHandle);
+bool cmpMap(
+	const PixuctHTableEntryCore *pCore,
+	const void *pKeyData,
+	const void *pInitInfo
+) {
+	const char *pName = NULL;
+	//TODO v pass userdata to cmp fp in htable get func, so error can be passed out here v
+	stucMapNameGet(pStucCtx, ((MapEntry *)pCore)->pMap, &pName);
+	if (pName) {
+		return !strncmp(pKeyData, pName, PIXIO_PATH_MAX);
 	}
-	*pEntry = (HandleEntry) {0};
+	return false;
 }
 
 static
-void handleTableDestroy() {
-	for (I32 i = 0; i < HANDLE_TABLE_SIZE; ++i) {
-		HandleEntry *pEntry = handleTable[i].pList;
-		while (pEntry) {
-			HandleEntry *pNext = pEntry->pNext;
-			handleDestroy(pEntry);
-			free(pEntry);
-			pEntry = pNext;
-		};
-		handleTable[i].pList = NULL;
-	}
+void initMapEntry(
+	void *pUserData,
+	PixuctHTableEntryCore *pCore,
+	const void *pKeyData,
+	void *pInitInfo,
+	I32 idx
+) {
+	((MapEntry *)pCore)->pMap = pInitInfo;
+}
+
+static
+PixErr getMapEntry(const char *pName, MapEntry **ppEntry, StucMap pMap) {
+	PixErr err = PIX_ERR_SUCCESS;
+	pixuctHTableGet(
+		&mapTable,
+		0,
+		pName,
+		ppEntry,
+		!!pMap,
+		pMap,
+		stucKeyFromPath,
+		NULL,
+		pMap ? initMapEntry : NULL,
+		cmpMap
+	);
+	PIX_ERR_RETURN_IFNOT_COND(err, tableErr == PIX_ERR_SUCCESS, "");
+	return err;
+}
+
+static
+PixErr mapEntryDestroy(const char *pName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	pixuctHTableRemove(&mapTable, 0, pName, stucKeyFromPath, cmpMap, clearMapEntry);
+	PIX_ERR_RETURN_IFNOT_COND(err, tableErr == PIX_ERR_SUCCESS, "");
+	return err;
+}
+
+static
+void mapTableDestroy() {
+	pixuctHTableDestroy(&mapTable);
 }
 
 void stucBlenderInit() {
 	stucContextInit(&pStucCtx, NULL, NULL, NULL, NULL, NULL);
+	pixuctHTableInit(
+		&allocPtrs,
+		&mapTable,
+		HANDLE_TABLE_SIZE,
+		(PixtyI32Arr){.pArr = (I32[]){sizeof(MapEntry)}, .count = 1},
+		&tableErr
+	);
 }
 
 StucErr stucBlenderMapExportInit(
@@ -147,6 +175,7 @@ StucErr stucBlenderMapExportUsgCutoffAdd(void *pHandle, StucObject *pFlatCutoff)
 	return stucMapExportUsgCutoffAdd(pHandle, pFlatCutoff);
 }
 
+//TODO get this working again
 PixErr stucBlenderMapFileLoadForEdit(
 	const char *pName,
 	I32 *pObjCount,
@@ -172,48 +201,10 @@ PixErr stucBlenderMapFileLoadForEdit(
 	return err;
 }
 
-//returns null if handle already exists for this map
-static
-HandleEntry *handleAdd(const char *pName) {
-	HandleBucket *pBucket = NULL;
-	HandleEntry *pEntry = getHandle(&pBucket, pName);
-	if (pEntry) {
-		return NULL;
-	}
-	pEntry = pBucket->pList;
-	if (!pEntry) {
-		pBucket->pList = calloc(1, sizeof(HandleEntry));
-		return pBucket->pList;
-	}
-	while (pEntry->pNext) {
-		pEntry = pEntry->pNext;
-	}
-	pEntry->pNext = calloc(1, sizeof(HandleEntry));
-	pEntry->pNext->pPrev = pEntry;
-	return pEntry->pNext;
-}
-
 PixErr stucBlenderMapFileUnload(const char *pName) {
 	PixErr err = PIX_ERR_SUCCESS;
-	HandleBucket *pBucket = NULL;
-	HandleEntry *pEntry = getHandle(&pBucket, pName);
-	if (!pEntry) {
-		return err;
-	}
-	HandleEntry *pNext = pEntry->pNext;
-	HandleEntry *pPrev = pEntry->pPrev;
-	handleDestroy(pEntry);
-	if (pPrev) {
-		pPrev->pNext = pNext;
-		pNext->pPrev = pPrev;
-	}
-	else {
-		pBucket->pList = pNext;
-		if (pNext) {
-			pNext->pPrev = NULL;
-		}
-	}
-	free(pEntry);
+	err = mapEntryDestroy(pName);
+	PIX_ERR_RETURN_IFNOT(err, "")
 	return err;
 }
 
@@ -247,16 +238,18 @@ PixErr mapGet(
 	PIX_ERR_RETURN_IFNOT_COND(err, !ret, "unable to find map in provided directories");
 
 	bool noPath = !pState->pathBuf.pStr[0];
-	HandleEntry *pEntry = getHandle(NULL, pName);
-	if (pEntry && pEntry->pHandle) {
+	MapEntry *pEntry = NULL;
+	err = getMapEntry(pName, &pEntry, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	if (pEntry && pEntry->pMap) {
 		if (noPath) {
 			//loaded map is up to date
-			*ppMap = pEntry->pHandle;
+			*ppMap = pEntry->pMap;
 			return err;
 		}
 		else {
-			err = stucMapFileUnload(pStucCtx, pEntry->pHandle);
-			pEntry->pHandle = NULL;
+			err = stucMapFileUnload(pStucCtx, pEntry->pMap);
+			pEntry->pMap = NULL;
 			PIX_ERR_RETURN_IFNOT(err, "");
 		}
 	}
@@ -276,12 +269,9 @@ PixErr mapStore(
 	const PixtyStrArr *pDeps
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	HandleEntry *pEntry = getHandle(NULL, pName);
-	if (!pEntry) {
-		pEntry = handleAdd(pName);
-	}
-	PIX_ERR_ASSERT("", !pEntry->pHandle);
-	pEntry->pHandle = pMap;
+	MapEntry *pEntry = NULL;
+	err = getMapEntry(pName, &pEntry, pMap);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	((LoadState *)pUserData)->fpStoreMap(pName, pFilepath, timestamp, status, pDeps);
 	return err;
 }
@@ -308,9 +298,12 @@ PixErr stucBlenderMapFileLoad(
 		.fpStoreMap = fpStoreMap,
 		.pathBuf.pStr = calloc(PIXIO_PATH_MAX, 1)
 	};
-	HandleEntry *pEntry = getHandle(NULL, pName);
+	MapEntry *pEntry = NULL;
+	err = getMapEntry(pName, &pEntry, NULL);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
 	if (pEntry) {
-		err = stucBlenderMapFileUnload(pName);
+		err = stucMapFileUnload(pStucCtx, pEntry->pMap);
+		pEntry->pMap = NULL;
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
 	StucMapLoad *pHandle = NULL;
@@ -353,9 +346,11 @@ PixErr stucBlenderMapFileLoad(
 
 PixErr stucBlenderMapMeshGet(const char *pMap, StucMesh **ppMesh) {
 	PixErr err = PIX_ERR_SUCCESS;
-	HandleEntry *pEntry = getHandle(NULL, pMap);
+	MapEntry *pEntry = NULL;
+	err = getMapEntry(pMap, &pEntry, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
-	return stucMapFileMeshGet(pStucCtx, pEntry->pHandle, ppMesh);
+	return stucMapFileMeshGet(pStucCtx, pEntry->pMap, ppMesh);
 }
 
 PixErr stucBlenderQueryCommonAttribs(
@@ -364,11 +359,13 @@ PixErr stucBlenderQueryCommonAttribs(
 	StucBlendOptArr *pBlendOptArr
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	HandleEntry *pEntry = getHandle(NULL, pMap);
+	MapEntry *pEntry = NULL;
+	err = getMapEntry(pMap, &pEntry, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	if (!pEntry) {
 		return err;
 	}
-	err = stucQueryCommonAttribs(pStucCtx, pEntry->pHandle, pMesh, pBlendOptArr);
+	err = stucQueryCommonAttribs(pStucCtx, pEntry->pMap, pMesh, pBlendOptArr);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
@@ -498,7 +495,7 @@ PixErr stucBlenderWaitForJobs(
 }
 
 void stucBlenderDestroy() {
-	handleTableDestroy();
+	mapTableDestroy();
 	stucContextDestroy(pStucCtx);
 	return;
 }
@@ -509,9 +506,11 @@ void stucBlenderCallFree(void *pData) {
 	}
 }
 
+//TODO why isn't this returning an error?
 void *stucBlenderMapHandleGet(const char *pName) {
-	HandleEntry *pEntry = getHandle(NULL, pName);
-	return pEntry ? pEntry->pHandle : NULL;
+	MapEntry *pEntry = NULL;
+	getMapEntry(pName, &pEntry, NULL);
+	return pEntry ? pEntry->pMap : NULL;
 }
 
 PixErr stucBlenderAttribGet(

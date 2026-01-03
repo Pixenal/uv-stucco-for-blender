@@ -97,7 +97,8 @@ PixErr stucBlenderMapToMesh(
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
 	float receiveLen,
-	int32_t *pPushedJobs
+	int32_t *pPushedJobs,
+	bool triangulate
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderQueryCommonAttribs(
@@ -138,3 +139,11 @@ PixErr stucBlenderAttribGet(
 	int32_t *pIdx,
 	StucDomain *pDomain
 );
+STUC_BLENDER_EXPORT
+PixErr stucBlenderTargetCacheRemove(int32_t id);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderTargetCacheAdd(int32_t id, StucMesh *pMesh);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderTargetCacheGet(int32_t id, StucMesh **ppMesh);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderTargetCacheClear(int32_t id);

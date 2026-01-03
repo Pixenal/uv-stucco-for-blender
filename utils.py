@@ -59,7 +59,7 @@ def findObjInCol(
 ) -> int | None:
 	i = 0
 	for item in col:
-		if item.obj.name == obj.name:
+		if item.obj and item.obj.name == obj.name:
 			return i
 		i += 1
 	return None

@@ -20,7 +20,21 @@ def stucMapDirUpdate(self, context) -> None:
 		self.dir = dir
 
 def targetObjUpdate(self, context) -> None:
-	self.name = self.obj.name
+	try:
+		if self.obj:
+			self.name = self.obj.name
+		else:
+			self.name = ""
+		if self.displayType:
+			if self.lastObj and self.lastObj != self.obj:
+				self.lastObj.display_type = self.displayType
+				err = stucLib.stucBlenderTargetCacheClear(self.id)
+				if err != 1:
+					raise Exception("error clearing target mesh cache")
+			self.displayType = ""
+		self.lastObj = self.obj
+	except Exception as e:
+		raise e
 
 def mapActiveAttribUpdate(self, context) -> None:
 	if not len(self.name) or not len(context.scene.stucMaps):
@@ -90,9 +104,14 @@ class StucDep(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()
 
 class StucTarget(bpy.types.PropertyGroup):
-	obj : bpy.props.PointerProperty(type = bpy.types.Object,
-									update = targetObjUpdate)
+	obj : bpy.props.PointerProperty(
+		type = bpy.types.Object,
+		update = targetObjUpdate
+	)
+	lastObj : bpy.props.PointerProperty( type = bpy.types.Object)
 	activeAttribIdx : bpy.props.IntProperty()
+	id : bpy.props.IntProperty()
+	displayType : bpy.props.StringProperty()
 
 class StucMapActiveAttrib(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty(update = mapActiveAttribUpdate)
@@ -184,6 +203,7 @@ def register() -> None:
 	bpy.types.Scene.stuc = bpy.props.PointerProperty(type = StucProperties)
 	bpy.types.Scene.stucTargets = bpy.props.CollectionProperty(name = "Targets", type = StucTarget)
 	bpy.types.Scene.stucTargetsIdx = bpy.props.IntProperty(name = "Targets Index")
+	bpy.types.Scene.stucTargetIdNext = bpy.props.IntProperty()
 	bpy.types.Scene.stucMaps = bpy.props.CollectionProperty(name = "Maps", type = StucMap)
 	bpy.types.Scene.stucMapsIdx = bpy.props.IntProperty(name = "Maps Index")
 	bpy.types.Scene.stucMats = bpy.props.CollectionProperty(name = "Mats", type = StucMat)

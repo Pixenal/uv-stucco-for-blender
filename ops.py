@@ -110,6 +110,8 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 				if exists:
 					continue
 				newTarget = context.scene.stucTargets.add() #type:ignore
+				newTarget.id = context.scene.stucTargetIdNext #type:ignore
+				context.scene.stucTargetIdNext += 1 #type:ignore
 				newTarget.obj = obj.id_data
 				obj["stucWScale"] = context.scene.stuc.wScale #type:ignore
 				obj["stucReceiveLen"] = -1.0
@@ -145,6 +147,7 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 			if scene.stucTargetsIdx >= len(scene.stucTargets): #type:ignore
 				return {'CANCELLED'}
 			target: props.StucTarget = scene.stucTargets[scene.stucTargetsIdx] #type:ignore
+			stucLib.stucBlenderTargetCacheRemove(target.id)
 			if target.obj:
 				objProp = target.obj.get("stucWScale", None)
 				if objProp:

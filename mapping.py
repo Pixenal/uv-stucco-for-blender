@@ -91,7 +91,7 @@ def createMapArr(
 	mapArr.count = targetMatCount
 	i = 0
 	for mat in targetMats:
-		print(f"name is {mat.map}")
+		#print(f"name is {mat.map}")
 		stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
 		pMap = stucLib.stucBlenderMapHandleGet(mat.map.encode('utf-8'))
 		if not pMap:
@@ -130,10 +130,10 @@ def prepTargetForMapping(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget
-) -> MappingInfo | None:
+) -> tuple[MappingInfo, int] | tuple[None, int]:
 	if target.obj not in context.selected_objects or\
 		type(target.obj.data) != bpy.types.Mesh:
-		return None
+		return (None, 0)
 	if target.obj.mode == 'OBJECT':
 		obj = target.obj
 	elif target.obj.mode == 'EDIT':
@@ -145,11 +145,11 @@ def prepTargetForMapping(
 		bm = bm.copy()
 		if removeHiddenInEditMesh(bm):
 			bm.clear()
-			return None
+			return (None, 1)
 		bm.to_mesh(obj.data)
 		bm.clear()
 	else:
-		return None
+		return (None, 1)
 
 	commonAttribs = attribUtils.updateCommonAttribs(
 		stucLib,
@@ -161,7 +161,7 @@ def prepTargetForMapping(
 	)
 	#hide_viewport is the moniter icon, and hide_get is the eye
 	if not commonAttribs or obj.hide_viewport or obj.hide_get():
-		return None
+		return (None, 1)
 	wScale = obj.get("stucWScale", None)
 	if wScale == None:
 		wScale = context.scene.stuc.wScale #type:ignore
@@ -176,7 +176,7 @@ def prepTargetForMapping(
 	
 	mapArr = createMapArr(context, objEval, meshEval, commonAttribs) #type:ignore
 	if not mapArr:
-		return None
+		return (None, 1)
 	inIndexedArr = createMatIdxAttrib(meshEval) #type:ignore
 	stucObj = meshUtils.formatAsStucObj(
 		objEval,
@@ -185,7 +185,7 @@ def prepTargetForMapping(
 		True,
 		target.activeAttribs #type:ignore
 	)
-	return MappingInfo(
+	info = MappingInfo(
 		target,
 		mapArr,
 		commonAttribs,
@@ -196,16 +196,18 @@ def prepTargetForMapping(
 		receiveLen,
 		target.obj.mode == 'EDIT'
 	)
+	return (info, 0)
 
 def pushMappingJobToQueue(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget,
 	targetCache: list[TargetCache]
-) -> None:
-	info = prepTargetForMapping(context, depsgraph, target)
-	if not info:
-		return
+) -> int:
+	infoTuple = prepTargetForMapping(context, depsgraph, target)
+	if not infoTuple[0]:
+		return infoTuple[1]
+	info = infoTuple[0]
 	workMesh = stuc.StucMesh()
 	outIndexedAttribs = stuc.StucAttribIndexedArr()
 	jobHandle = ctypes.c_void_p()
@@ -219,10 +221,11 @@ def pushMappingJobToQueue(
 		ctypes.pointer(outIndexedAttribs),
 		ctypes.c_float(info.wScale),
 		ctypes.c_float(info.receiveLen),
-		ctypes.pointer(pushedJobs)
+		ctypes.pointer(pushedJobs),
+		ctypes.c_bool(True)
 	)
 	if not pushedJobs:
-		return
+		return 1
 	if result != 1:
 		raise Exception("error pushing job to queue")
 	targetCache.append(TargetCache(
@@ -231,6 +234,12 @@ def pushMappingJobToQueue(
 		workMesh,
 		outIndexedAttribs
 	))
+	return 0
+
+def resetTargetDisplayType(target: props.StucTarget) -> None:
+	if len(target.displayType) and target.obj:
+		target.obj.display_type = target.displayType
+		target.displayType = ""
 
 def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
 	nameStuc = item.info.target.obj.name + ".Stuc"
@@ -287,21 +296,39 @@ def waitForAndCopyOutMeshes(
 			item.done = True
 			doneCount += 1
 			if result != 1:
+				err = stucLib.stucBlenderTargetCacheClear(item.info.target.id)
+				resetTargetDisplayType(item.info.target)
+				if err != 1:
+					raise Exception("error clearing target mesh cache")
 				print(f"Stuc python, map to mesh failed on obj {item.info.objEval.name}, skipping")
 				continue
-			print(f"Stuc python, map to mesh returned success on obj {item.info.objEval.name}")
-			
+			#print(f"Stuc python, map to mesh returned success on obj {item.info.objEval.name}")
+
 			if item.outMesh.faceCount:
-				addOrUpdateBlendMesh(context, item)
-			print("FinishedUpdating")
+				err = stucLib.stucBlenderTargetCacheAdd(item.info.target.id, ctypes.pointer(item.outMesh))
+				if err != 1:
+					raise Exception("Failed to cache target mesh")
+				#addOrUpdateBlendMesh(context, item)
+				item.info.target.displayType = item.info.target.obj.display_type
+				item.info.target.obj.display_type = 'WIRE'
+				
+			#print("FinishedUpdating")
 
 def mapToSelTargets(context: bpy.types.Context) -> None:
-	depsgraph = context.evaluated_depsgraph_get()
-	targetCache = []
-	for target in context.scene.stucTargets: #type:ignore
-		pushMappingJobToQueue(context, depsgraph, target, targetCache)
-	cacheCount = len(targetCache)
-	if not cacheCount:
-		return
-	print("waiting for finished jobs")
-	waitForAndCopyOutMeshes(context, targetCache, cacheCount)
+	try:
+		depsgraph = context.evaluated_depsgraph_get()
+		targetCache = []
+		for target in context.scene.stucTargets: #type:ignore
+			result = pushMappingJobToQueue(context, depsgraph, target, targetCache)
+			if result:
+				err = stucLib.stucBlenderTargetCacheClear(target.id)
+				resetTargetDisplayType(target)
+				if err != 1:
+					raise Exception("error clearing target mesh cache")
+		cacheCount = len(targetCache)
+		if not cacheCount:
+			return
+		#print("waiting for finished jobs")
+		waitForAndCopyOutMeshes(context, targetCache, cacheCount)
+	except Exception as e:
+		raise e

@@ -77,7 +77,7 @@ def addObjToMapExport(
 			target = item
 			break
 	if target:
-		info = mapping.prepTargetForMapping(context, depsgraph, target)
+		info = mapping.prepTargetForMapping(context, depsgraph, target)[0]
 		if info:
 			stucLib.stucBlenderMapExportTargetAdd.argtypes = (
 				ctypes.c_void_p,

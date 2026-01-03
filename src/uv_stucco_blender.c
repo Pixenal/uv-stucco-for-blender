@@ -30,12 +30,11 @@ typedef struct MapEntry {
 	StucMap pMap;
 } MapEntry;
 
-/*
 typedef struct TargetEntry {
 	PixuctHTableEntryCore core;
-	StucMesh pMesh;
+	StucMesh mesh;
+	I32 id;
 } TargetEntry;
-*/
 
 static PixalcFPtrs allocPtrs = {
 	.fpCalloc = calloc,
@@ -46,7 +45,7 @@ static PixalcFPtrs allocPtrs = {
 static StucContext pStucCtx = NULL;
 static PixErr tableErr = PIX_ERR_SUCCESS;
 static PixuctHTable mapTable = {0};
-//static PixuctHTable targetTable = {0};
+static PixuctHTable targetCache = {0};
 
 static
 void clearMapEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pKeyData) {
@@ -54,6 +53,14 @@ void clearMapEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pK
 	if (pEntry->pMap) {
 		*(PixErr *)pUserData = stucMapFileUnload(pStucCtx, pEntry->pMap);
 		pEntry->pMap = NULL;
+	}
+}
+
+static
+void clearTargetEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pKeyData) {
+	TargetEntry *pEntry = (TargetEntry *)pCore;
+	if (pEntry->mesh.faceCount) {
+		*(PixErr *)pUserData = stucMeshDestroy(pStucCtx, &pEntry->mesh);
 	}
 }
 
@@ -73,6 +80,15 @@ bool cmpMap(
 }
 
 static
+bool cmpTarget(
+	const PixuctHTableEntryCore *pCore,
+	const void *pKeyData,
+	const void *pInitInfo
+) {
+	return *(I32 *)pKeyData == ((TargetEntry *)pCore)->id;
+}
+
+static
 void initMapEntry(
 	void *pUserData,
 	PixuctHTableEntryCore *pCore,
@@ -84,7 +100,19 @@ void initMapEntry(
 }
 
 static
-PixErr getMapEntry(const char *pName, MapEntry **ppEntry, StucMap pMap) {
+void initTargetEntry(
+	void *pUserData,
+	PixuctHTableEntryCore *pCore,
+	const void *pKeyData,
+	void *pInitInfo,
+	I32 idx
+) {
+	((TargetEntry *)pCore)->id = *(I32 *)pKeyData;
+	((TargetEntry *)pCore)->mesh = *(StucMesh *)pInitInfo;
+}
+
+static
+PixErr mapEntryGet(const char *pName, MapEntry **ppEntry, StucMap pMap) {
 	PixErr err = PIX_ERR_SUCCESS;
 	pixuctHTableGet(
 		&mapTable,
@@ -103,6 +131,33 @@ PixErr getMapEntry(const char *pName, MapEntry **ppEntry, StucMap pMap) {
 }
 
 static
+PixErr targetEntryGet(I32 id, TargetEntry **ppEntry, StucMesh *pMesh) {
+	PixErr err = PIX_ERR_SUCCESS;
+	SearchResult result = pixuctHTableGet(
+		&targetCache,
+		0,
+		&id,
+		ppEntry,
+		!!pMesh,
+		pMesh,
+		stucKeyFromI32,
+		NULL,
+		pMesh ? initTargetEntry : NULL,
+		cmpTarget
+	);
+	PIX_ERR_RETURN_IFNOT_COND(err, tableErr == PIX_ERR_SUCCESS, "");
+	if (result == PIX_SEARCH_FOUND && pMesh) {
+		PIX_ERR_ASSERT("", *ppEntry);
+		if ((*ppEntry)->mesh.faceCount) {
+			err = stucMeshDestroy(pStucCtx, &(*ppEntry)->mesh);
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
+		(*ppEntry)->mesh = *pMesh;
+	}	
+	return err;
+}
+
+static
 PixErr mapEntryDestroy(const char *pName) {
 	PixErr err = PIX_ERR_SUCCESS;
 	pixuctHTableRemove(&mapTable, 0, pName, stucKeyFromPath, cmpMap, clearMapEntry);
@@ -111,8 +166,11 @@ PixErr mapEntryDestroy(const char *pName) {
 }
 
 static
-void mapTableDestroy() {
-	pixuctHTableDestroy(&mapTable);
+PixErr targetEntryDestroy(I32 id) {
+	PixErr err = PIX_ERR_SUCCESS;
+	pixuctHTableRemove(&targetCache, 0, &id, stucKeyFromI32, cmpTarget, clearTargetEntry);
+	PIX_ERR_RETURN_IFNOT_COND(err, tableErr == PIX_ERR_SUCCESS, "");
+	return err;
 }
 
 void stucBlenderInit() {
@@ -122,6 +180,13 @@ void stucBlenderInit() {
 		&mapTable,
 		HANDLE_TABLE_SIZE,
 		(PixtyI32Arr){.pArr = (I32[]){sizeof(MapEntry)}, .count = 1},
+		&tableErr
+	);
+	pixuctHTableInit(
+		&allocPtrs,
+		&targetCache,
+		HANDLE_TABLE_SIZE,
+		(PixtyI32Arr){.pArr = (I32[]){sizeof(TargetEntry)}, .count = 1},
 		&tableErr
 	);
 }
@@ -239,7 +304,7 @@ PixErr mapGet(
 
 	bool noPath = !pState->pathBuf.pStr[0];
 	MapEntry *pEntry = NULL;
-	err = getMapEntry(pName, &pEntry, NULL);
+	err = mapEntryGet(pName, &pEntry, NULL);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->pMap) {
 		if (noPath) {
@@ -270,7 +335,7 @@ PixErr mapStore(
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	MapEntry *pEntry = NULL;
-	err = getMapEntry(pName, &pEntry, pMap);
+	err = mapEntryGet(pName, &pEntry, pMap);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	((LoadState *)pUserData)->fpStoreMap(pName, pFilepath, timestamp, status, pDeps);
 	return err;
@@ -299,7 +364,7 @@ PixErr stucBlenderMapFileLoad(
 		.pathBuf.pStr = calloc(PIXIO_PATH_MAX, 1)
 	};
 	MapEntry *pEntry = NULL;
-	err = getMapEntry(pName, &pEntry, NULL);
+	err = mapEntryGet(pName, &pEntry, NULL);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	if (pEntry) {
 		err = stucMapFileUnload(pStucCtx, pEntry->pMap);
@@ -347,7 +412,7 @@ PixErr stucBlenderMapFileLoad(
 PixErr stucBlenderMapMeshGet(const char *pMap, StucMesh **ppMesh) {
 	PixErr err = PIX_ERR_SUCCESS;
 	MapEntry *pEntry = NULL;
-	err = getMapEntry(pMap, &pEntry, NULL);
+	err = mapEntryGet(pMap, &pEntry, NULL);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
 	return stucMapFileMeshGet(pStucCtx, pEntry->pMap, ppMesh);
@@ -360,7 +425,7 @@ PixErr stucBlenderQueryCommonAttribs(
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	MapEntry *pEntry = NULL;
-	err = getMapEntry(pMap, &pEntry, NULL);
+	err = mapEntryGet(pMap, &pEntry, NULL);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (!pEntry) {
 		return err;
@@ -379,8 +444,8 @@ PixErr stucBlenderMapToMesh(
 	StucAttribIndexedArr *pOutIndexedAttribs,
 	float wScale,
 	float receiveLen,
-	I32 *pPushedJobs
-
+	I32 *pPushedJobs,
+	bool triangulate
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	err = stucQueueMapToMesh(
@@ -390,7 +455,8 @@ PixErr stucBlenderMapToMesh(
 		pMesh, pInIndexedAttribs,
 		pOutMesh, pOutIndexedAttribs,
 		wScale,
-		receiveLen
+		receiveLen,
+		triangulate
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	*pPushedJobs = true;
@@ -495,7 +561,8 @@ PixErr stucBlenderWaitForJobs(
 }
 
 void stucBlenderDestroy() {
-	mapTableDestroy();
+	pixuctHTableDestroy(&mapTable);
+	pixuctHTableDestroy(&targetCache);
 	stucContextDestroy(pStucCtx);
 	return;
 }
@@ -509,7 +576,7 @@ void stucBlenderCallFree(void *pData) {
 //TODO why isn't this returning an error?
 void *stucBlenderMapHandleGet(const char *pName) {
 	MapEntry *pEntry = NULL;
-	getMapEntry(pName, &pEntry, NULL);
+	mapEntryGet(pName, &pEntry, NULL);
 	return pEntry ? pEntry->pMap : NULL;
 }
 
@@ -521,4 +588,50 @@ PixErr stucBlenderAttribGet(
 	StucDomain *pDomain
 ) {
 	return stucAttribGetAllDomains(pStucCtx, pMesh, pName, ppAttrib, pIdx, pDomain);
+}
+
+PixErr stucBlenderTargetCacheRemove(I32 id) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = targetEntryDestroy(id);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderTargetCacheAdd(I32 id, StucMesh *pMesh) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_ASSERT("", pMesh->faceCount);
+	err = stucMeshAttribsCornerToVert(pStucCtx, pMesh);
+	PIX_ERR_RETURN_IFNOT(err, "");
+
+	TargetEntry *pEntry = NULL;
+	err = targetEntryGet(id, &pEntry, pMesh);
+	PIX_ERR_RETURN_IFNOT(err, "");
+
+	*pMesh = (StucMesh){0};
+	return err;
+}
+
+PixErr stucBlenderTargetCacheGet(I32 id, StucMesh **ppMesh) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, ppMesh, "");
+	TargetEntry *pEntry = NULL;
+	err = targetEntryGet(id, &pEntry, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	if (pEntry && pEntry->mesh.faceCount) {
+		*ppMesh = &pEntry->mesh;
+	}
+	return err;
+}
+
+PixErr stucBlenderTargetCacheClear(I32 id) {
+	PixErr err = PIX_ERR_SUCCESS;
+	TargetEntry *pEntry = NULL;
+	err = targetEntryGet(id, &pEntry, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	if (pEntry && pEntry->mesh.faceCount) {
+		err = stucMeshDestroy(pStucCtx, &pEntry->mesh);
+		pEntry->mesh = (StucMesh){0};
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	return err;
 }

@@ -301,7 +301,10 @@ def addOrUpdateMap(
 		i += 1
 
 	map.attribs.clear() #type:ignore
-	mesh = meshUtils.getMapMesh(name)
+	mapInfo = meshUtils.getMapMesh(name)
+	if type(mapInfo[0]) != stuc.StucMesh:
+		raise Exception()
+	mesh = mapInfo[0]
 	attrib = attribUtils.getActiveAttrib(mesh, stuc.StucAttribUse.POS)
 	if not attrib:
 		raise Exception("map mesh missing position attrib")

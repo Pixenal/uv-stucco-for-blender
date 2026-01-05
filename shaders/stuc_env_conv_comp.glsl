@@ -7,15 +7,23 @@ vec2 dirToUv(vec3 dir) {
 }
 
 vec3 uvToDir(vec2 uv) {
-	uv = (uv - .5f) * vec2(2.0f * PI, PI);
-	vec3 dir = vec3(.0f);
-	dir.z = sin(uv.y);
-	vec2 a = vec2(1.0f, .0f);
-	float sinTheta = sin(uv.x);
-	float cosTheta = cos(uv.x);
-	dir.x = cosTheta * a.x - sinTheta * a.y;
-	dir.y = sinTheta * a.x + cosTheta * a.y;
-	return dir;
+	vec2 theta = (uv - .5f) * vec2(2.0f * PI, PI);
+	float sinTheta = sin(theta.y);
+	float cosTheta = cos(theta.y);
+	vec3 dir = vec3(cosTheta * 1.0f, .0f, sinTheta * 1.0f);
+	sinTheta = sin(theta.x);
+	cosTheta = cos(theta.x);
+	return vec3(
+		cosTheta * dir.x - sinTheta * dir.y,
+		sinTheta * dir.x + cosTheta * dir.y,
+		dir.z
+	);
+}
+
+float geoSchlickGgx(float nov, float a) {
+	float aP1 = a + 1.0f;
+	float a2 = (aP1 * aP1) / 8.0f;
+	return nov / (nov * (1.0f - a2) + a2);
 }
 
 void main() {
@@ -31,7 +39,7 @@ void main() {
 	float sinRing = sin(ringTheta);
 	float cosRing = cos(ringTheta);
 	vec3 dir = vec3(1.0f, .0f, .0f);
-	int total = 0;
+	float denom = .0f;
 	float segStep = 2.0f * PI / float(RING_SEGS);
 	for (int ring = 0; ring < RING_STEPS; ++ring) {
 		vec3 dirBuf = vec3(
@@ -41,6 +49,7 @@ void main() {
 		);
 		dirBuf = normalize(dirBuf);
 		dir = dirBuf;
+		float weight = pow(dot(dir, vec3(.0f, .0f, 1.0f)), 2.0f);
 		float circum = 2.0f * PI * dot(vec3(1.0f, .0f, .0f), dir);
 		int segCount = int(circum / segStep);
 		float segTheta = 2.0f * PI / float(segCount);
@@ -54,11 +63,13 @@ void main() {
 			);
 			sampleDir = normalize(sampleDir);
 			dirBuf = sampleDir;
-			irr += texture(envTex, dirToUv(nMat * sampleDir)).xyz;
-			++total;
+			sampleDir = nMat * sampleDir;
+			vec3 light = texture(envTex, dirToUv(sampleDir)).xyz;
+			irr += light * weight;
+			denom += weight;
 		}
 	}
-	irr /= float(total);
+	irr /= denom;
 
 	FragColor = vec4(irr, 1.0f);
 }

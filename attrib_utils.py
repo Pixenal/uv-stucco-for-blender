@@ -12,6 +12,12 @@ from . import stuc
 from . import utils
 from . import mesh_utils as meshUtils
 
+def pyStrFromC(cStr: Any) -> str:
+	namePtr = ctypes.cast(cStr, ctypes.c_char_p)
+	if not namePtr.value:
+		raise Exception("invalid c string")
+	return namePtr.value.decode('utf-8')
+
 def getAttribType(attrib: bpy.types.Attribute) -> tuple[int, Any]:
 	attribType = type(attrib)
 	match attribType:

@@ -198,7 +198,6 @@ class STUC_OT_StucMapRemove(bpy.types.Operator):
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			pdb.set_trace()
 			if self.itemIdx >= len(context.scene.stucMaps): #type:ignore
 				raise Exception("specificed index out of range")
 			map = context.scene.stucMaps[self.itemIdx] #type:ignore

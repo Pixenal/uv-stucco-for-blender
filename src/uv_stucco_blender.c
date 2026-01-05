@@ -33,6 +33,7 @@ typedef struct MapEntry {
 typedef struct TargetEntry {
 	PixuctHTableEntryCore core;
 	StucMesh mesh;
+	StucAttribIndexedArr idxAttribs;
 	I32 id;
 } TargetEntry;
 
@@ -107,8 +108,11 @@ void initTargetEntry(
 	void *pInitInfo,
 	I32 idx
 ) {
-	((TargetEntry *)pCore)->id = *(I32 *)pKeyData;
-	((TargetEntry *)pCore)->mesh = *(StucMesh *)pInitInfo;
+	void **ppInitArr = pInitInfo;
+	TargetEntry *pEntry = (TargetEntry *)pCore;
+	pEntry->id = *(I32 *)pKeyData;
+	pEntry->mesh = *(StucMesh *)ppInitArr[0];
+	pEntry->idxAttribs = *(StucAttribIndexedArr *)ppInitArr[1];
 }
 
 static
@@ -131,28 +135,44 @@ PixErr mapEntryGet(const char *pName, MapEntry **ppEntry, StucMap pMap) {
 }
 
 static
-PixErr targetEntryGet(I32 id, TargetEntry **ppEntry, StucMesh *pMesh) {
+PixErr targetEntryGet(
+	I32 id,
+	TargetEntry **ppEntry,
+	StucMesh *pMesh,
+	StucAttribIndexedArr *pIdxAttribs
+) {
 	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, !(!pMesh ^ !pIdxAttribs), "");
+	void *init[] = {pMesh, pIdxAttribs};
 	SearchResult result = pixuctHTableGet(
 		&targetCache,
 		0,
 		&id,
 		ppEntry,
 		!!pMesh,
-		pMesh,
+		init,
 		stucKeyFromI32,
 		NULL,
 		pMesh ? initTargetEntry : NULL,
 		cmpTarget
 	);
 	PIX_ERR_RETURN_IFNOT_COND(err, tableErr == PIX_ERR_SUCCESS, "");
-	if (result == PIX_SEARCH_FOUND && pMesh) {
+	if (result == PIX_SEARCH_FOUND) {
 		PIX_ERR_ASSERT("", *ppEntry);
-		if ((*ppEntry)->mesh.faceCount) {
-			err = stucMeshDestroy(pStucCtx, &(*ppEntry)->mesh);
-			PIX_ERR_RETURN_IFNOT(err, "");
+		if (pMesh) {
+			if ((*ppEntry)->mesh.faceCount) {
+				err = stucMeshDestroy(pStucCtx, &(*ppEntry)->mesh);
+				PIX_ERR_RETURN_IFNOT(err, "");
+			}
+			(*ppEntry)->mesh = *pMesh;
 		}
-		(*ppEntry)->mesh = *pMesh;
+		if (pIdxAttribs) {
+			if ((*ppEntry)->idxAttribs.count) {
+				err = stucAttribIndexedArrDestroy(pStucCtx, &(*ppEntry)->idxAttribs);
+				PIX_ERR_RETURN_IFNOT(err, "");
+			}
+			(*ppEntry)->idxAttribs = *pIdxAttribs;
+		}
 	}	
 	return err;
 }
@@ -268,6 +288,14 @@ PixErr stucBlenderMapFileLoadForEdit(
 
 PixErr stucBlenderMapFileUnload(const char *pName) {
 	PixErr err = PIX_ERR_SUCCESS;
+
+	MapEntry *pEntry = NULL;
+	err = mapEntryGet(pName, &pEntry, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	if (!pEntry) {
+		return err;
+	}
+
 	err = mapEntryDestroy(pName);
 	PIX_ERR_RETURN_IFNOT(err, "")
 	return err;
@@ -409,13 +437,17 @@ PixErr stucBlenderMapFileLoad(
 	return err;
 }
 
-PixErr stucBlenderMapMeshGet(const char *pMap, StucMesh **ppMesh) {
+PixErr stucBlenderMapMeshGet(
+	const char *pMap,
+	StucMesh **ppMesh,
+	StucAttribIndexedArr **ppIdxAttribs
+) {
 	PixErr err = PIX_ERR_SUCCESS;
 	MapEntry *pEntry = NULL;
 	err = mapEntryGet(pMap, &pEntry, NULL);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
-	return stucMapFileMeshGet(pStucCtx, pEntry->pMap, ppMesh);
+	return stucMapFileMeshGet(pStucCtx, pEntry->pMap, ppMesh, ppIdxAttribs);
 }
 
 PixErr stucBlenderQueryCommonAttribs(
@@ -592,33 +624,56 @@ PixErr stucBlenderAttribGet(
 
 PixErr stucBlenderTargetCacheRemove(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
+
+	TargetEntry *pEntry = NULL;
+	err = targetEntryGet(id, &pEntry, NULL, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	if (!pEntry) {
+		return err;
+	}
+
 	err = targetEntryDestroy(id);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
 
-PixErr stucBlenderTargetCacheAdd(I32 id, StucMesh *pMesh) {
+PixErr stucBlenderTargetCacheAdd(
+	I32 id,
+	StucMesh *pMesh,
+	StucAttribIndexedArr *pIdxAttribs
+) {
 	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pMesh && pIdxAttribs, "");
 	PIX_ERR_ASSERT("", pMesh->faceCount);
 	err = stucMeshAttribsCornerToVert(pStucCtx, pMesh);
 	PIX_ERR_RETURN_IFNOT(err, "");
 
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, pMesh);
+	err = targetEntryGet(id, &pEntry, pMesh, pIdxAttribs);
 	PIX_ERR_RETURN_IFNOT(err, "");
 
 	*pMesh = (StucMesh){0};
+	*pIdxAttribs = (StucAttribIndexedArr){0};
 	return err;
 }
 
-PixErr stucBlenderTargetCacheGet(I32 id, StucMesh **ppMesh) {
+PixErr stucBlenderTargetCacheGet(
+	I32 id,
+	StucMesh **ppMesh,
+	StucAttribIndexedArr **ppIdxAttribs
+) {
 	PixErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, ppMesh, "");
+	PIX_ERR_RETURN_IFNOT_COND(err, ppMesh || ppIdxAttribs, "");
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, NULL);
+	err = targetEntryGet(id, &pEntry, NULL, NULL);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->mesh.faceCount) {
-		*ppMesh = &pEntry->mesh;
+		if (ppMesh) {
+			*ppMesh = &pEntry->mesh;
+		}
+		if (ppIdxAttribs) {
+			*ppIdxAttribs = &pEntry->idxAttribs;
+		}
 	}
 	return err;
 }
@@ -626,12 +681,61 @@ PixErr stucBlenderTargetCacheGet(I32 id, StucMesh **ppMesh) {
 PixErr stucBlenderTargetCacheClear(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, NULL);
+	err = targetEntryGet(id, &pEntry, NULL, NULL);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->mesh.faceCount) {
 		err = stucMeshDestroy(pStucCtx, &pEntry->mesh);
-		pEntry->mesh = (StucMesh){0};
 		PIX_ERR_RETURN_IFNOT(err, "");
+		pEntry->mesh = (StucMesh){0};
+		err = stucAttribIndexedArrDestroy(pStucCtx, &pEntry->idxAttribs);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		pEntry->idxAttribs = (StucAttribIndexedArr){0};
 	}
+	return err;
+}
+
+static
+void copyCorners(const StucMesh *pMesh, PixtyI32Arr *pCorners, I32 start, I32 toCpy) {
+	I32 newCount = pCorners->count + toCpy;
+	PIXALC_DYN_ARR_RESIZE(I32, &allocPtrs, pCorners, newCount);
+	memcpy(
+		pCorners->pArr + pCorners->count,
+		pMesh->pCorners + start,
+		sizeof(I32) * toCpy
+	);
+	pCorners->count = newCount;
+}
+
+PixErr stucBlenderCornersForMat(StucMesh *pMesh, I32 mat, PixtyI32Arr *pCorners) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pMesh && pCorners && mat >= 0, "");
+	PIX_ERR_ASSERT("mesh must be triangulated", !pMesh->pFaces);
+
+	StucAttrib *pAttrib = NULL;
+	err = stucAttribActiveGet(pStucCtx, pMesh, STUC_ATTRIB_USE_IDX, &pAttrib);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	I8 *pMat = pAttrib->core.pData;
+	I32 start = -1;
+	for (I32 i = 0; i < pMesh->cornerCount; ++i) {
+		I32 tri = i / 3;
+		if (pMat[tri] == mat) {
+			if (start < 0) {
+				start = i;
+			}
+		}
+		else if (start >= 0) {
+			copyCorners(pMesh, pCorners, start, i - start);
+			start = -1;
+		}
+	}
+	if (start >= 0) {
+		copyCorners(pMesh, pCorners, start, pMesh->cornerCount - start);
+	}
+	PIX_ERR_CATCH(0, err,
+		if (pCorners->pArr) {
+			free(pCorners->pArr);
+			*pCorners = (PixtyI32Arr){0};
+		}
+	);
 	return err;
 }

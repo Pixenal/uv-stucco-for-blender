@@ -135,6 +135,7 @@ def copyStucMeshToBlenderMesh(
 		#pass inMesh materials to stucMapToMesh, and it will pass back
 		#an outMesh mat arr (in a separate out param), which contains
 		#the final material slots, and their mat names.
+		#TODO ^^ this is old, still doing this? ^^
 		outMats = attribUtils.getIdxAttrib(outIndexedAttribs, b"materials")
 		StucString = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN
 		outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
@@ -246,9 +247,16 @@ def getUsgCountInSelObjs(context: bpy.types.Context) -> int:
 			count += 1
 	return count
 
-def getMapMesh(name: str) -> stuc.StucMesh:
+def getMapMesh(
+	name: str
+) -> list[stuc.StucMesh | stuc.StucAttribIndexedArr]:
 	mesh = ctypes.POINTER(stuc.StucMesh)()
-	err = stucLib.stucBlenderMapMeshGet(name.encode('utf-8'), ctypes.pointer(mesh))
+	idxAttribs = ctypes.POINTER(stuc.StucAttribIndexedArr)()
+	err = stucLib.stucBlenderMapMeshGet(
+		name.encode('utf-8'),
+		ctypes.pointer(mesh),
+		ctypes.pointer(idxAttribs)
+	)
 	if err != 1:
 		raise Exception("unable to get map mesh")
-	return mesh.contents
+	return [mesh.contents, idxAttribs.contents]

@@ -40,7 +40,10 @@ def mapActiveAttribUpdate(self, context) -> None:
 	if not len(self.name) or not len(context.scene.stucMaps):
 		return
 	map = context.scene.stucMaps[context.scene.stucMapsIdx]
-	mesh = meshUtils.getMapMesh(map.name)
+	mapInfo = meshUtils.getMapMesh(map.name)
+	if type(mapInfo[0]) != stuc.StucMesh:
+		raise Exception()
+	mesh = mapInfo[0]
 	attrib = ctypes.POINTER(stuc.StucAttrib)()
 	idx = ctypes.c_int32()
 	domain = ctypes.c_int32()

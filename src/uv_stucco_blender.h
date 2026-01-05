@@ -84,7 +84,11 @@ PixErr stucBlenderMapFileLoad(
 	bool dirty
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapMeshGet(const char *pMap, StucMesh **ppMesh);
+PixErr stucBlenderMapMeshGet(
+	const char *pMap,
+	StucMesh **ppMesh,
+	StucAttribIndexedArr **ppIdxAttribs
+);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapFileUnload(const char *pName);
 STUC_BLENDER_EXPORT
@@ -142,8 +146,18 @@ PixErr stucBlenderAttribGet(
 STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheRemove(int32_t id);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderTargetCacheAdd(int32_t id, StucMesh *pMesh);
+PixErr stucBlenderTargetCacheAdd(
+	int32_t id,
+	StucMesh *pMesh,
+	StucAttribIndexedArr *pIdxAttribs
+);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderTargetCacheGet(int32_t id, StucMesh **ppMesh);
+PixErr stucBlenderTargetCacheGet(
+	int32_t id,
+	StucMesh **ppMesh,
+	StucAttribIndexedArr **ppIdxAttribs
+);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheClear(int32_t id);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderCornersForMat(StucMesh *pMesh, I32 mat, PixtyI32Arr *pCorners);

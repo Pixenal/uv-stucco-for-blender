@@ -305,7 +305,11 @@ def waitForAndCopyOutMeshes(
 			#print(f"Stuc python, map to mesh returned success on obj {item.info.objEval.name}")
 
 			if item.outMesh.faceCount:
-				err = stucLib.stucBlenderTargetCacheAdd(item.info.target.id, ctypes.pointer(item.outMesh))
+				err = stucLib.stucBlenderTargetCacheAdd(
+					item.info.target.id,
+					ctypes.pointer(item.outMesh),
+					ctypes.pointer(item.outIndexedAttribs)
+				)
 				if err != 1:
 					raise Exception("Failed to cache target mesh")
 				#addOrUpdateBlendMesh(context, item)

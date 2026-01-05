@@ -265,3 +265,10 @@ class PixtyStrArr(ctypes.Structure):
 		("size", ctypes.c_int32),
 		("count", ctypes.c_int32)
 	]
+
+class PixtyI32Arr(ctypes.Structure):
+	_fields_= [
+		("pArr", ctypes.POINTER(ctypes.c_int32)),
+		("size", ctypes.c_int32),
+		("count", ctypes.c_int32)
+	]

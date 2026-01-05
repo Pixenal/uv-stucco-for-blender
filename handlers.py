@@ -5,7 +5,6 @@ SPDX-License-Identifier: GPL-3.0-only
 
 from typing import Any, cast
 import ctypes
-import pdb
 
 import bpy
 from bpy.app.handlers import persistent
@@ -60,13 +59,20 @@ def stucSavePostHandler(dummy) -> None:
 	for map in bpy.context.scene.stucMaps: #type:ignore
 		map.dir = bpy.path.relpath(map.dir)
 
-def getTargetMesh(target: props.StucTarget) -> stuc.StucMesh | None:
+def getTargetMesh(
+	target: props.StucTarget
+) -> list[stuc.StucMesh | stuc.StucAttribIndexedArr] | None:
 	mesh = ctypes.POINTER(stuc.StucMesh)()
-	err = stucLib.stucBlenderTargetCacheGet(target.id, ctypes.pointer(mesh))
+	idxAttribs = ctypes.POINTER(stuc.StucAttribIndexedArr)()
+	err = stucLib.stucBlenderTargetCacheGet(
+		target.id,
+		ctypes.pointer(mesh),
+		ctypes.pointer(idxAttribs)
+	)
 	if err != 1:
 		raise Exception("error getting target mesh")
 	if mesh:
-		return mesh.contents
+		return [mesh.contents, idxAttribs.contents]
 	else:
 		return None
 
@@ -74,9 +80,11 @@ def getTargetMesh(target: props.StucTarget) -> stuc.StucMesh | None:
 def stucDrawHandler() -> None:
 	try :
 		for target in bpy.context.scene.stucTargets: #type:ignore
-			mesh = getTargetMesh(target)
-			if mesh:
-				draw.drawStucMesh(mesh)
+			cache = getTargetMesh(target)
+			if cache:
+				if not cache[1]:
+					raise Exception("idx attribs missing from target cache")
+				draw.drawStucMesh(cache[0], cache[1])
 		for obj in bpy.context.objects_in_mode:
 			if type(obj.data) != bpy.types.Mesh:
 				continue

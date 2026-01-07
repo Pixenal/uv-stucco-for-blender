@@ -2,11 +2,12 @@ import ctypes
 import numpy
 import pdb
 import os
+import re
+import io
 
 import bpy
 import gpu
 import gpu_extras
-from gpu_extras.presets import draw_circle_2d
 import mathutils
 
 from . import stuc
@@ -86,11 +87,12 @@ def getEnvTexConv(
 vertOut = gpu.types.GPUStageInterfaceInfo("my_interface") #type:ignore
 vertOut.smooth('VEC3', "v_pos")
 vertOut.smooth('VEC2', "v_uv")
-vertOut.smooth('VEC3', "v_normal")
+vertOut.smooth('MAT3', "m_tbn")
 vertOut.smooth('VEC3', "v_viewPos")
 
 info = gpu.types.GPUShaderCreateInfo()
 info.push_constant('MAT4', "viewProjectionMatrix")
+info.push_constant('MAT4', "modelMatrix")
 info.push_constant('VEC3', "viewPos")
 info.typedef_source("\
 	struct MatInfo { \
@@ -98,19 +100,27 @@ info.typedef_source("\
 		float metalUniform;\
 		float roughUniform;\
 		float albedoUseTex;\
+		float normalUseTex;\
 		float metalUseTex;\
 		float roughUseTex;\
+		float albedoChannel;\
+		float metalChannel;\
+		float roughChannel;\
 	};\
 ")
 info.uniform_buf(0, "MatInfo", "matInfo")
 info.sampler(0, 'FLOAT_2D', "envTex")
 info.sampler(1, 'FLOAT_2D', "envTexConv")
-info.sampler(2, 'UINT_2D', "albedoTex")
-info.sampler(3, 'UINT_2D', "metalTex")
-info.sampler(4, 'UINT_2D', "roughTex")
+info.sampler(2, 'FLOAT_2D', "albedoTex")
+info.sampler(3, 'FLOAT_2D', "normalTex")
+info.sampler(4, 'FLOAT_2D', "metalTex")
+info.sampler(5, 'FLOAT_2D', "roughTex")
+#info.sampler(6, 'FLOAT_3D', "tmLut")
 info.vertex_in(0, 'VEC3', "position")
 info.vertex_in(1, 'VEC2', "uv")
 info.vertex_in(2, 'VEC3', "normal")
+info.vertex_in(3, 'VEC3', "tangent")
+info.vertex_in(4, 'FLOAT', "tSign")
 info.vertex_out(vertOut)
 info.fragment_out(0, 'VEC4', "FragColor")
 
@@ -123,6 +133,58 @@ fragSrc.close()
 shader = gpu.shader.create_from_info(info)
 del vertOut
 del info
+
+'''
+def readCubeLutFile(file: io.TextIOWrapper) -> numpy.ndarray | None:
+	while True:
+		line = file.readline()
+		if "LUT_3D_SIZE" in line:
+			break
+	sizeStr = re.findall("(?<= )[0-9]*$", line)#find digits after a space
+	if not len(sizeStr):
+		return None
+	size = int(sizeStr[0])
+	if size < 2 or size > 256:
+		return None
+	sizeLin = size * size * size
+	data = numpy.empty(shape = (sizeLin, 4), dtype = numpy.float32)
+	i = 0
+	while i < sizeLin:
+		line = file.readline()
+		if not len(line):
+			break
+		colStr = re.findall("[0-9,.]+", line)
+		if len(colStr) != 3:
+			return None
+		col = [float(i) for i in colStr]
+		data[i][0] = col[0]
+		data[i][1] = col[1]
+		data[i][2] = col[2]
+		data[i][3] = 1.0
+		i += 1
+	if i == sizeLin:
+		return data
+	else:
+		return None
+
+def loadCubeLut(filepath: str) -> numpy.ndarray | None:
+	file = open(filepath, encoding = 'utf-8')
+	data = readCubeLutFile(file)
+	file.close()
+	return data
+
+tmLutData = loadCubeLut(
+	"E:/blender/4.3.2/4.3/datafiles/colormanagement/luts/AgX_Base_sRGB.cube"
+)
+if tmLutData is None:
+	raise Exception()
+tmLutBuf = gpu.types.Buffer('FLOAT', tmLutData.size, tmLutData) #type:ignore
+tmLut = gpu.types.GPUTexture(
+	size = (57, 57, 57), #type:ignore
+	format = 'RGBA32F',	#type:ignore
+	data = tmLutBuf	#type:ignore
+)
+'''
 
 def getNode(
 	nodeTree: bpy.types.NodeTree,
@@ -142,17 +204,75 @@ def getNode(
 				if link.to_node == parent and link.to_socket.name == parentSocket:
 					return node
 	return None
+
+def getParentNode(node: bpy.types.Node, outSocket: str, linkIdx: int) -> bpy.types.Node | None:
+	if not node.outputs:
+		return None
+	out = node.outputs.get(outSocket, None)
+	if not out or not out.links or linkIdx >= len(out.links):
+		return None
+	return out.links[linkIdx].to_node
 				
 def getMatTex(
-	nodeTree: bpy.types.NodeTree,
 	nodeBsdf: bpy.types.Node,
-	socket: str
-) -> bpy.types.Image | None:
-	tex = None
-	nodeTex = getNode(nodeTree, 'TEX_IMAGE', nodeBsdf, socket)
-	if nodeTex:
-		tex = nodeTex.image #type:ignore
-	return tex
+	socket: str,
+	normalMap: bool = False
+) -> list[bpy.types.Image | int] | None:
+	if not nodeBsdf.inputs:
+		raise Exception()
+	inSocket = nodeBsdf.inputs.get(socket, None)
+	if not inSocket:
+		raise Exception()
+	if not inSocket.links or not inSocket.links[0].from_node:
+		return None
+	link = inSocket.links[0]
+	node = link.from_node
+	channelIdx = -1
+	if node.type == 'TEX_IMAGE':
+		if link.from_socket.name == "Alpha":
+			channelIdx = 3
+	elif normalMap and node.type == 'NORMAL_MAP':
+		if not node.inputs:
+			raise Exception()
+		outSocket = inSocket.links[0].from_socket
+		inSocket = node.inputs[1]
+		if 	not inSocket.links or\
+			not inSocket.links[0].from_node or\
+			inSocket.links[0].from_node.type != 'TEX_IMAGE' or\
+			inSocket.links[0].from_socket.name == "Alpha":
+			return None
+		node = inSocket.links[0].from_node
+	elif not normalMap and\
+		(node.type == 'SEPARATE_COLOR' or node.type == 'SEPARATE_XYZ'):
+		
+		if not node.inputs:
+			raise Exception()
+		outSocket = inSocket.links[0].from_socket
+		inSocket = node.inputs[0]
+		if 	not inSocket.links or\
+			not inSocket.links[0].from_node or\
+			inSocket.links[0].from_node.type != 'TEX_IMAGE':
+			return None
+		node = inSocket.links[0].from_node
+		if inSocket.links[0].from_socket.name == "Alpha":
+			channelIdx = 3
+		else:
+			match outSocket.name:
+				case "X":
+					channelIdx = 0
+				case "Red":
+					channelIdx = 0
+				case "Y":
+					channelIdx = 1
+				case "Green":
+					channelIdx = 1
+				case "Z":
+					channelIdx = 2
+				case "Blue":
+					channelIdx = 2
+	else:
+		return None
+	return [node.image, channelIdx] #type:ignore
 
 def setArrFromArr(a, b, size) -> None:
 	i = 0
@@ -166,8 +286,12 @@ class MatInfo(ctypes.Structure):
 		("metalUniform", ctypes.c_float),
 		("roughUniform", ctypes.c_float),
 		("albedoUseTex", ctypes.c_float),
+		("normalUseTex", ctypes.c_float),
 		("metalUseTex", ctypes.c_float),
-		("roughUseTex", ctypes.c_float)
+		("roughUseTex", ctypes.c_float),
+		("albedoChannel", ctypes.c_float),
+		("metalChannel", ctypes.c_float),
+		("roughChannel", ctypes.c_float)
 	]
 
 def getMissingTex() -> gpu.types.GPUTexture:
@@ -178,46 +302,53 @@ def getMissingTex() -> gpu.types.GPUTexture:
 
 def getMatParams(
 	nodeTree: bpy.types.NodeTree,
-	matInfo: MatInfo,
-	albedoTex: bpy.types.Image | gpu.types.GPUTexture | None,
-	metalTex: bpy.types.Image | gpu.types.GPUTexture | None,
-	roughTex: bpy.types.Image | gpu.types.GPUTexture | None
-) -> None:
+	matInfo: MatInfo
+) -> list[gpu.types.GPUTexture] | None:
 	nodeOut = None
 	for node in nodeTree.nodes:
 		if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
 			nodeOut = node
 			break
 	if not nodeOut:
-		return
+		return None
 	nodeBsdf = getNode(nodeTree, 'BSDF_PRINCIPLED', nodeOut, "Surface")
 	if not nodeBsdf:
-		return
+		return None
 	
 	missingTex = getMissingTex()
-
-	albedoTex = getMatTex(nodeTree, nodeBsdf, "Base Color")
-	if albedoTex:
-		albedoTex = gpu.texture.from_image(albedoTex)
+	texInfo = getMatTex(nodeBsdf, "Base Color")
+	if texInfo:
+		albedoTex = gpu.texture.from_image(texInfo[0]) #type:ignore
+		matInfo.albedoChannel = texInfo[1]
 		matInfo.albedoUseTex = True
 	else:
 		albedoTex = missingTex
 		col = nodeBsdf.inputs["Base Color"].default_value #type:ignore
 		setArrFromArr(matInfo.albedoUniform, col, 3)
-	metalTex = getMatTex(nodeTree, nodeBsdf, "Metallic")
-	if metalTex:
-		metalTex = gpu.texture.from_image(metalTex)
+	texInfo = getMatTex(nodeBsdf, "Normal", True)
+	if texInfo:
+		normalTex = gpu.texture.from_image(texInfo[0]) #type:ignore
+		matInfo.normalUseTex = True
+	else:
+		normalTex = missingTex
+	texInfo = getMatTex(nodeBsdf, "Metallic")
+	if texInfo:
+		metalTex = gpu.texture.from_image(texInfo[0]) #type:ignore
+		matInfo.metalChannel = texInfo[1]
 		matInfo.metalUseTex = True
 	else:
 		metalTex = missingTex
 		matInfo.metalUniform = nodeBsdf.inputs["Metallic"].default_value #type:ignore
-	roughTex = getMatTex(nodeTree, nodeBsdf, "Roughness")
-	if roughTex:
-		roughTex = gpu.texture.from_image(roughTex)
+	texInfo = getMatTex(nodeBsdf, "Roughness")
+	if texInfo:
+		roughTex = gpu.texture.from_image(texInfo[0]) #type:ignore
+		matInfo.roughChannel = texInfo[1]
 		matInfo.roughUseTex = True
 	else:
 		roughTex = missingTex
 		matInfo.roughUniform = nodeBsdf.inputs["Roughness"].default_value #type:ignore
+
+	return [albedoTex, normalTex, metalTex, roughTex]
 
 def arrPow(arr, exp: float, size: int) -> None:
 	i = 0
@@ -227,7 +358,7 @@ def arrPow(arr, exp: float, size: int) -> None:
 
 def drawMeshForMat(
 	mesh: stuc.StucMesh,
-	pos, uv, normal,
+	pos, uv, normal, tangent, tSign,
 	corners: stuc.PixtyI32Arr,
 	matIdx: int,
 	matName: str
@@ -251,19 +382,19 @@ def drawMeshForMat(
 	)
 
 	matInfo = MatInfo()
-	albedoTex = None
-	metalTex = None
-	roughTex = None
+	texArr = None
 	if mat.node_tree:
-		getMatParams(mat.node_tree, matInfo, albedoTex, metalTex, roughTex)
-	if not albedoTex or not metalTex or not roughTex:
-		albedoTex = metalTex = roughTex = getMissingTex()
+		texArr = getMatParams(mat.node_tree, matInfo)
+	if not texArr:
+		texArr = []
+		texArr[2] = texArr[1] = texArr[0] = getMissingTex()
 		setArrFromArr(matInfo.albedoUniform, mat.diffuse_color, 3)
 		matInfo.metalUniform = mat.metallic
 		matInfo.roughUniform = mat.roughness
-	shader.uniform_sampler("albedoTex", albedoTex)
-	shader.uniform_sampler("metalTex", metalTex)
-	shader.uniform_sampler("roughTex", roughTex)
+	shader.uniform_sampler("albedoTex", texArr[0])
+	shader.uniform_sampler("normalTex", texArr[1])
+	shader.uniform_sampler("metalTex", texArr[2])
+	shader.uniform_sampler("roughTex", texArr[3])
 	matInfoUbo = gpu.types.GPUUniformBuf(
 		gpu.types.Buffer('UBYTE', ctypes.sizeof(MatInfo), matInfo) #type:ignore
 	)
@@ -276,12 +407,18 @@ def drawMeshForMat(
 			"position" : pos, #type:ignore
 			"uv" : uv,
 			"normal" : normal,
+			"tangent" : tangent,
+			"tSign" : tSign,
 		},
 		indices = cornerNumpy
 	)
 	batch.draw(shader)
 
-def drawStucMesh(mesh, idxAttribs) -> None:
+def drawStucMesh(
+	mesh: stuc.StucMesh,
+	idxAttribs: stuc.StucAttribIndexedArr,
+	modelMatrix: mathutils.Matrix
+) -> None:
 	area = getArea()
 	if not area:
 		return
@@ -302,18 +439,23 @@ def drawStucMesh(mesh, idxAttribs) -> None:
 	
 	envTexGl = gpu.texture.from_image(envTex)
 	getEnvTexConv(envTexGl)
-
+	
 	pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
 	uv = numpyFromStucAttrib(mesh, stuc.StucAttribUse.UV, 2)
 	normal = numpyFromStucAttrib(mesh, stuc.StucAttribUse.NORMAL, 3)
+	tangent = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TANGENT, 3)
+	tSign = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TSIGN, 1)
 	
 	shader.bind()
 	perpMat = bpy.context.region_data.perspective_matrix
 	shader.uniform_float("viewProjectionMatrix", perpMat) #type:ignore
+	shader.uniform_float("modelMatrix", modelMatrix) #type:ignore
 	viewPos = area.spaces.active.region_3d.view_matrix.inverted().translation #type:ignore
 	shader.uniform_float("viewPos", viewPos)
 	shader.uniform_sampler("envTex", envTexGl)
 	shader.uniform_sampler("envTexConv", offscreen.texture_color)
+
+	#shader.uniform_sampler("tmLut", tmLut)
 
 	gpu.state.depth_test_set('LESS_EQUAL')
 	gpu.state.depth_mask_set(True)
@@ -329,7 +471,7 @@ def drawStucMesh(mesh, idxAttribs) -> None:
 	while i < outMats.count:
 		matName = attribUtils.pyStrFromC(outMatsCast[i])
 		print(f"drawing for mat {matName}")
-		drawMeshForMat(mesh, pos, uv, normal, corners, i, matName)
+		drawMeshForMat(mesh, pos, uv, normal, tangent, tSign, corners, i, matName)
 		i += 1
 	stucLib.stucBlenderCallFree(corners.pArr)
 	gpu.state.depth_mask_set(False)

@@ -645,6 +645,8 @@ PixErr stucBlenderTargetCacheAdd(
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pMesh && pIdxAttribs, "");
 	PIX_ERR_ASSERT("", pMesh->faceCount);
+	err = stucMeshBuildTangentsForTris(pStucCtx, pMesh);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	err = stucMeshAttribsCornerToVert(pStucCtx, pMesh);
 	PIX_ERR_RETURN_IFNOT(err, "");
 

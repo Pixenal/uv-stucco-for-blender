@@ -1,24 +1,14 @@
 #define PI 3.14159265359
 #define MIN 1.0e-6
-#define SPEC_SAMPLES 128
-
-float trowbridgeReitzGgx(float a, vec3 n, vec3 h) {
-	float a2 = a * a;
-	float noh = max(dot(n, h), .0f);
-	float base = noh * noh * (a2 - 1.0f) + 1.0f;
-	float denom = PI * base * base;
-	return a2 / denom;
-}
+#define SPEC_SAMPLES 64
 
 float geoSchlickGgx(float nov, float a) {
-	float aP1 = a + 1.0f;
-	float a2 = (aP1 * aP1) / 8.0f;
+	float a2 = (a * a) / 2.0f;
 	return nov / (nov * (1.0f - a2) + a2);
 }
 
-float geoSmith(float hov, float a) {
-	float geo = geoSchlickGgx(hov, a);
-	return 1.0f / (1.0f + geo * geo);
+float geoSmith(float nov, float nol, float a) {
+	return geoSchlickGgx(nov, a) * geoSchlickGgx(nol, a);
 }
 
 vec3 fresnelSchlick(vec3 refl, float voh) {
@@ -30,48 +20,31 @@ vec2 dirToUv(vec3 dir) {
 }
 
 vec3 sampleEnvSpec(
+	vec3 h,
 	vec3 v,
 	vec3 l,
 	vec3 n,
 	vec3 albedo,
 	float metal,
-	float a
+	float a2,
+	float mip
 ) {
-	float a2 = a * a;
-	a2 = a; //<- testing without a2
-	vec3 h = normalize(l + v);
 	float hov = max(dot(h, v), .0f);
-
-	float d = trowbridgeReitzGgx(a2, h, l);
-	vec3 f0 = fresnelSchlick(
-		mix(vec3(.04f), albedo, metal),
-		hov
-	);
-	float g = geoSmith(hov, a2);
-
 	float nol = max(dot(n, l), .0f);
 	float nov = max(dot(n, v), .0f);
 	float noh = max(dot(n, h), .0f);
 
-	float denom = 4.0f * nol * nov + MIN;
-	vec3 brdf = d * f0 * g / denom;
-
-	float pdf = d * noh / (4.0f * hov) + MIN;
-
-	float mip = a >= 1.0f ? 100.0f : -2.0f / log(a) - 1.0f;
-	mip = clamp(mip, .0f, 6.0f);
-	vec3 lightCol = textureLod(envTex, dirToUv(l), mip).xyz;
-
-	return dot(n, l) >= .0f ? brdf / pdf * lightCol * nol : vec3(.0f);
-}
-
-vec3 calcAmbient(vec3 v, vec3 normal, vec3 albedo, float metal, float rough, vec3 spec) {
 	vec3 f0 = fresnelSchlick(
 		mix(vec3(.04f), albedo, metal),
-		max(dot(normal, v), .0f)
+		hov
 	);
-	vec3 irr = texture(envTexConv, dirToUv(normal)).xyz;
-	return (1.0f - f0 * spec) * irr * albedo * (1.0f - metal);
+	float g = geoSmith(nov, nol, a2);
+	float denom = 4.0f * noh * nov + MIN;
+	vec3 brdf = f0 * g / denom;
+
+	vec3 light = textureLod(envTex, dirToUv(l), mip).xyz * 4.0f;
+
+	return brdf * light * nol;
 }
 
 float radicalInvVdc(uint i) {
@@ -109,49 +82,100 @@ float randFromDir(vec3 dir) {
 	return float(iRand % iSize) / fSize * 2.0f * float(PI);
 }
 
-vec3 calcLights(vec3 v, vec3 n, vec3 albedo, float metal, float a) {
-	mat3 rMat;
+mat3 matrixForN(vec3 t, vec3 b, vec3 n) {
+	vec3 left = cross(t == n ? b : t, n);
+	vec3 right = cross(left, n);
+	return mat3(right, left, n);
+}
+
+vec3 calcLights(vec3 v, mat3 tbn, vec3 n, vec3 albedo, float metal, float a) {
 	vec3 r = reflect(-v, n);
-	{
-		vec3 up = vec3(.0f, .0f, 1.0f);
-		up = up == r ? normalize(vec3(.5f, .0f, .5f)) : up;
-		vec3 right = normalize(cross(up, r));
-		up = normalize(cross(r, right));
-		rMat = mat3(right, up, r);
-	}
-	a = max(a * 1.5f, .01);
+	mat3 nMat = matrixForN(tbn[0], tbn[1], n);
 	vec3 light = vec3(.0f);
 	float halfPi = PI / 2.0f;
 	float rand = randFromDir(r);
-	for (int i = 0; i < SPEC_SAMPLES; ++i) {
-		vec2 sampleUv = hammersley2d(i + 1, SPEC_SAMPLES + 1);
-		float phi = 2.0f * PI * sampleUv.x + rand;
-		float a2 = a * a;
-		float cosTheta = sqrt((1.0f - sampleUv.y) / (1.0f + (a2 * a2 - 1.0f) * sampleUv.y));
-		float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
-		vec3 l = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
-		l = rMat * normalize(l);
+	float a2 = a * a;
 
-		vec3 spec = sampleEnvSpec(v, l, n, albedo, metal, a);
-		light += spec;
+	float mip = a >= 1.0f ? 100.0f : -2.0f / log(a) - 1.0f;
+	mip = clamp(mip, .0f, 6.0f);
+	mip = .0f;
+
+	vec3 fDiff = fresnelSchlick(
+		mix(vec3(.04f), albedo, metal),
+		max(dot(n, v), .0f)
+	);
+
+	for (int i = 0; i < SPEC_SAMPLES; ++i) {
+		vec2 xi = hammersley2d(i + 1, SPEC_SAMPLES + 1);
+		float phi = xi.y * 2.0f * PI + rand;
+
+		float cosTheta = sqrt((1.0f - xi.x) / (1.0f + (a2 * a2 - 1.0f) * xi.x));
+		float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+		vec3 h = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+		h = nMat * normalize(h);
+		vec3 lSpec = reflect(-v, h);
+
+		cosTheta = 1.0f - xi.x;
+		sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+		vec3 lDiff = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+		lDiff = nMat * normalize(lDiff);
+
+		vec3 spec = sampleEnvSpec(h, v, lSpec, n, albedo, metal, a2, mip);
+		vec3 diff = textureLod(envTex, dirToUv(lDiff), mip).xyz * 4.0f * max(dot(n, lDiff), .0f);
+		diff = diff * albedo * (1.0f - metal);
+		light += spec + diff;
 	}
 	return light / float(SPEC_SAMPLES);
+}
+
+vec3 v3SwizzleChannel(vec4 vec, int channel) {
+	if (channel == -1) {
+		return vec.xyz;
+	}
+	if (channel >= 0 && channel <= 3) {
+		return vec3(vec[channel]);
+	}
+	return vec3(1.0f, .0f, 1.0f);
+}
+
+float fSwizzleChannel(vec4 vec, int channel) {
+	if (channel == -1) {
+		return vec.x;
+	}
+	if (channel >= 0 && channel <= 3) {
+		return vec[channel];
+	}
+	return 1.0f;
+}
+
+vec3 normalizeToRange(vec3 col, float min, float max) {
+	return (col - min) / (max - min);
+}
+
+vec3 denormalizeFromRange(vec3 col, float min, float max) {
+	return col * (max - min) + min;
 }
 
 void main() {
 	vec3 v = normalize(v_viewPos - v_pos);
 
-	vec3 albedo = texture(albedoTex, v_uv).xyz;
+	vec3 albedo = v3SwizzleChannel(texture(albedoTex, v_uv), int(matInfo.albedoChannel));
 	albedo = mix(matInfo.albedoUniform, albedo, matInfo.albedoUseTex);
-	float metal = texture(metalTex, v_uv).x;
+	vec3 normal = texture(normalTex, v_uv).xyz;
+	//normal.y = 1.0f - normal.y;
+	normal = mix(vec3(.5f, .5f, 1.0f), normal, matInfo.normalUseTex);
+	normal = normal * 2.0f - 1.0f;
+	normal = m_tbn * normal;
+	float metal = fSwizzleChannel(texture(metalTex, v_uv), int(matInfo.metalChannel));
 	metal = mix(matInfo.metalUniform, metal, matInfo.metalUseTex);
-	float rough = texture(roughTex, v_uv).x;
+	float rough = fSwizzleChannel(texture(roughTex, v_uv), int(matInfo.roughChannel));
 	rough = mix(matInfo.roughUniform, rough, matInfo.roughUseTex);
 
-	vec3 light = calcLights(v, v_normal, albedo, metal, rough);
-	vec3 ambient = calcAmbient(v, v_normal, albedo, metal, rough, light);
+	vec3 col = calcLights(v, m_tbn, normal, albedo, metal, rough);
 
-	vec3 col = light + ambient;
+	//col = normalizeToRange(log2(col / .18), -10, 15);
+	//col = texture(tmLut, col).xyz;
+	//col = pow(col, vec3(2.4f));
 	col = col / (col + vec3(1.0f));
-	FragColor = vec4(col, 1.0f);
+	FragColor = vec4(vec3(col), 1.0f);
 }

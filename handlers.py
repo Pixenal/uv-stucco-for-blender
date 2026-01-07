@@ -84,7 +84,7 @@ def stucDrawHandler() -> None:
 			if cache:
 				if not cache[1]:
 					raise Exception("idx attribs missing from target cache")
-				draw.drawStucMesh(cache[0], cache[1])
+				draw.drawStucMesh(cache[0], cache[1], target.obj.matrix_world) #type:ignore
 		for obj in bpy.context.objects_in_mode:
 			if type(obj.data) != bpy.types.Mesh:
 				continue

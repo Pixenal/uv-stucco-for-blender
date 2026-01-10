@@ -163,30 +163,54 @@ vec3 normalizeToRange(vec3 col, float min, float max) {
 	return (col - min) / (max - min);
 }
 
-vec3 denormalizeFromRange(vec3 col, float min, float max) {
-	return col * (max - min) + min;
-}
-
 void main() {
 	vec3 v = normalize(v_viewPos - v_pos);
-
-	vec3 albedo = v3SwizzleChannel(texture(albedoTex, v_uv), int(matInfo.albedoChannel));
+	vec3 viewUvw = vec3(gl_FragCoord.xy / v_viewRes, 1.0f);
+	
+	vec4 v4Albedo = texture(albedoTex, v_uv);
+	vec3 albedo = v3SwizzleChannel(v4Albedo, int(matInfo.albedoChannel));
 	albedo = mix(matInfo.albedoUniform, albedo, matInfo.albedoUseTex);
 	vec3 normal = texture(normalTex, v_uv).xyz;
 	//normal.y = 1.0f - normal.y;
 	normal = mix(vec3(.5f, .5f, 1.0f), normal, matInfo.normalUseTex);
-	normal = normal * 2.0f - 1.0f;
-	normal = m_tbn * normal;
+	normal = m_tbn * (normal * 2.0f - 1.0f);
+	normal *= float(gl_FrontFacing) * 2.0f - 1.0f;
 	float metal = fSwizzleChannel(texture(metalTex, v_uv), int(matInfo.metalChannel));
 	metal = mix(matInfo.metalUniform, metal, matInfo.metalUseTex);
 	float rough = fSwizzleChannel(texture(roughTex, v_uv), int(matInfo.roughChannel));
 	rough = mix(matInfo.roughUniform, rough, matInfo.roughUseTex);
 
-	vec3 col = calcLights(vec3(gl_FragCoord.xy, gl_FragDepth), v, m_tbn, normal, albedo, metal, rough);
+	vec3 col = .000000001f * (albedo + normal + vec3(metal, rough, .0f) + v);
+	float opac = 1.0f;
+	switch (i_matParam) {
+		case 0:
+			col += albedo;
+			break;
+		case 1:
+			normal.y = -normal.y;
+			normal = normal * .5f + .5f;
+			col += normal;
+			break;
+		case 2:
+			col += vec3(.0f, rough, metal);
+			break;
+		default:
+			if (v4Albedo.w < .5) {
+				discard;
+			}
+			col = calcLights(viewUvw, v, m_tbn, normal, albedo, metal, rough);
+			//col = v_pos;
+			vec4 edit = texture(editTex, viewUvw.xy);
+			float mask = edit.x > .4f ? edit.w : .0f;
+			//col = edit.xyz;
+			edit = edit * 2.0f - 1.0f;
+			col = mix(col, edit.xyz, mask * matInfo.isEditMode);
 
-	//col = normalizeToRange(log2(col / .18), -10, 15);
-	//col = texture(tmLut, col).xyz;
-	//col = pow(col, vec3(2.4f));
-	col = col / (col + vec3(1.0f));
-	FragColor = vec4(vec3(col), 1.0f);
+			//col = normalizeToRange(log2(col / .18), -10, 15);
+			//col = texture(tmLut, col).xyz;
+			//col = pow(col, vec3(2.4f));
+			col = col / (col + vec3(1.0f));
+			break;
+	}
+	FragColor = vec4(col, opac);
 }

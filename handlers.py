@@ -9,10 +9,12 @@ import ctypes
 import bpy
 from bpy.app.handlers import persistent
 import bmesh
+import mathutils
 
 from . import c_lib
 stucLib = c_lib.stucLib
 from . import utils
+from . import mesh_utils as meshUtils
 from . import mapping
 from . import draw
 from . import stuc
@@ -76,15 +78,35 @@ def getTargetMesh(
 	else:
 		return None
 
-@persistent
-def stucDrawHandler() -> None:
-	try :
-		for target in bpy.context.scene.stucTargets: #type:ignore
+def drawTarget(target: props.StucTarget) -> None:
+	match target.obj.mode:
+		case 'OBJECT':
 			cache = getTargetMesh(target)
 			if cache:
 				if not cache[1]:
 					raise Exception("idx attribs missing from target cache")
-				draw.drawStucMesh(cache[0], cache[1], target.obj.matrix_world) #type:ignore
+				draw.drawStucMeshInViewport(cache[0], cache[1], target.obj.matrix_world) #type:ignore
+		case 'EDIT':
+			info = mapping.prepTargetForMapping(bpy.context, None, target)
+			if info[0]:
+				mesh = info[0].stucObj.meshData.mesh
+				meshRender = meshUtils.cpyStucMeshForRender(mesh)
+				draw.drawEditMeshInViewport(
+					info[0].objEval,
+					meshRender,
+					info[0].inIndexedArr,
+					info[0].mapArr
+				)
+				stucLib.stucBlenderMeshDestroy(ctypes.pointer(meshRender))
+				
+
+@persistent
+def stucDrawHandler() -> None:
+	try :
+		for target in bpy.context.scene.stucTargets: #type:ignore
+			drawTarget(target)
+			
+		'''
 		for obj in bpy.context.objects_in_mode:
 			if type(obj.data) != bpy.types.Mesh:
 				continue
@@ -93,6 +115,7 @@ def stucDrawHandler() -> None:
 			bm.to_mesh(mesh)
 			draw.drawEditOverlay(mesh)
 			bpy.data.meshes.remove(mesh)
+		'''
 	except Exception as e:
 		raise e
 

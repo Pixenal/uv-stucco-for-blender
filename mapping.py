@@ -128,7 +128,7 @@ def removeHiddenInEditMesh(bm: bmesh.types.BMesh)-> bool:
 #returns None if aborted
 def prepTargetForMapping(
 	context: bpy.types.Context,
-	depsgraph: bpy.types.Depsgraph,
+	depsgraph: bpy.types.Depsgraph | None,
 	target: props.StucTarget
 ) -> tuple[MappingInfo, int] | tuple[None, int]:
 	if target.obj not in context.selected_objects or\
@@ -171,7 +171,10 @@ def prepTargetForMapping(
 	if receiveLen == None:
 		receiveLen = -1.0
 	
-	objEval = obj.evaluated_get(depsgraph)
+	if depsgraph:
+		objEval = obj.evaluated_get(depsgraph)
+	else:
+		objEval = obj
 	meshEval = objEval.data
 	
 	mapArr = createMapArr(context, objEval, meshEval, commonAttribs) #type:ignore
@@ -323,6 +326,10 @@ def mapToSelTargets(context: bpy.types.Context) -> None:
 		depsgraph = context.evaluated_depsgraph_get()
 		targetCache = []
 		for target in context.scene.stucTargets: #type:ignore
+			if target.obj.mode == 'EDIT':
+				#TODO add a ui option to enable mapping in edit mode
+				#it's just laggy
+				continue
 			result = pushMappingJobToQueue(context, depsgraph, target, targetCache)
 			if result:
 				err = stucLib.stucBlenderTargetCacheClear(target.id)

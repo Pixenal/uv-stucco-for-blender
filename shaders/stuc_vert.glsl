@@ -11,6 +11,8 @@ void main() {
 
 	v_uv = uv;
 	v_viewPos = viewPos;
-
+	v_viewRes = viewRes;
+	i_matParam = matParam;
+	
 	gl_Position = viewProjectionMatrix * vec4(v_pos, 1.0f);
 }

@@ -378,9 +378,12 @@ def updateCommonAttribs(
 		obj: bpy.types.Object,
 		table: bpy.types.Collection,
 		activeNames: bpy.types.Collection,
-		depsgraph: bpy.types.Depsgraph
+		depsgraph: bpy.types.Depsgraph | None,
 ) -> ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]] | None:
-	objEval = cast(bpy.types.Object, obj).evaluated_get(depsgraph)
+	if depsgraph:
+		objEval = obj.evaluated_get(depsgraph)
+	else:
+		objEval = obj
 	meshEval = objEval.data
 	if type(meshEval) != bpy.types.Mesh:
 		raise Exception("target object isn't a mesh")

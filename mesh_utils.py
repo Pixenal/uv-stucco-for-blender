@@ -202,12 +202,12 @@ def copyStucMeshToBlenderMesh(
 def formatAsStucObj(
 	obj: bpy.types.Object,
 	isEval : bool,
-	depsgraph: bpy.types.Depsgraph,
+	depsgraph: bpy.types.Depsgraph | None,
 	mats: bool = False,
 	activeNames: bpy.types.Collection | None = None
 ) -> StucObjData:
 	stucObj = stuc.StucObject()
-	if isEval:
+	if isEval or not depsgraph:
 		objEval = obj
 	else:
 		objEval = obj.evaluated_get(depsgraph)
@@ -248,15 +248,26 @@ def getUsgCountInSelObjs(context: bpy.types.Context) -> int:
 	return count
 
 def getMapMesh(
-	name: str
+	name: str,
+	forRender: bool = False
 ) -> list[stuc.StucMesh | stuc.StucAttribIndexedArr]:
 	mesh = ctypes.POINTER(stuc.StucMesh)()
 	idxAttribs = ctypes.POINTER(stuc.StucAttribIndexedArr)()
 	err = stucLib.stucBlenderMapMeshGet(
 		name.encode('utf-8'),
 		ctypes.pointer(mesh),
-		ctypes.pointer(idxAttribs)
+		ctypes.pointer(idxAttribs),
+		forRender
 	)
 	if err != 1:
 		raise Exception("unable to get map mesh")
 	return [mesh.contents, idxAttribs.contents]
+
+def cpyStucMeshForRender(src: stuc.StucMesh) -> stuc.StucMesh:
+	if not src.faceCount:
+		raise Exception("src mesh is empty")
+	dest = stuc.StucMesh()
+	err = stucLib.stucBlenderMeshCpyForRender(ctypes.pointer(dest), ctypes.pointer(src))
+	if err != 1 or not dest.faceCount:
+		raise Exception("unable to make render mesh")
+	return dest

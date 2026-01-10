@@ -12,6 +12,8 @@ SPDX-License-Identifier: GPL-3.0-only
 
 #include <uv_stucco_blender.h>
 
+#include <pixenals_math_utils.h>
+
 typedef int8_t I8;
 typedef int16_t I16;
 typedef int32_t I32;
@@ -28,6 +30,7 @@ typedef double F64;
 typedef struct MapEntry {
 	PixuctHTableEntryCore core;
 	StucMap pMap;
+	StucMesh meshRender;
 } MapEntry;
 
 typedef struct TargetEntry {
@@ -55,6 +58,8 @@ void clearMapEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pK
 		*(PixErr *)pUserData = stucMapFileUnload(pStucCtx, pEntry->pMap);
 		pEntry->pMap = NULL;
 	}
+	*(PixErr *)pUserData = PIX_ERR_SUCCESS == stucMeshDestroy(pStucCtx, &pEntry->meshRender);
+	pEntry->meshRender = (StucMesh){0};
 }
 
 static
@@ -63,6 +68,15 @@ void clearTargetEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void 
 	if (pEntry->mesh.faceCount) {
 		*(PixErr *)pUserData = stucMeshDestroy(pStucCtx, &pEntry->mesh);
 	}
+}
+
+PixErr stucBlenderMapNameGet(StucMap pMap, const char **ppName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pMap, "");
+	const char *pName = NULL;
+	err = stucMapNameGet(pStucCtx, pMap, ppName);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
 static
@@ -440,6 +454,50 @@ PixErr stucBlenderMapFileLoad(
 PixErr stucBlenderMapMeshGet(
 	const char *pMap,
 	StucMesh **ppMesh,
+	StucAttribIndexedArr **ppIdxAttribs,
+	bool forRender
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	MapEntry *pEntry = NULL;
+	err = mapEntryGet(pMap, &pEntry, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
+	if (forRender) {
+		PIX_ERR_RETURN_IFNOT_COND(err, pEntry->meshRender.faceCount, "");
+		*ppMesh = &pEntry->meshRender;
+		err = stucMapFileMeshGet(pStucCtx, pEntry->pMap, NULL, ppIdxAttribs);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
+	else {
+		err = stucMapFileMeshGet(pStucCtx, pEntry->pMap, ppMesh, ppIdxAttribs);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
+	PIX_ERR_CATCH(0, err,
+		*ppMesh = NULL;
+		*ppIdxAttribs = NULL;
+	);
+	return err;
+}
+
+PixErr stucBlenderMeshCpyForRender(StucMesh *pDest, const StucMesh *pSrc) {
+	StucErr err = PIX_ERR_SUCCESS;
+	err = stucMeshAllocCopy(pStucCtx, pDest, pSrc);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = stucMeshTriangulate(pStucCtx, pDest);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = stucMeshBuildTangentsForTris(pStucCtx, pDest);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = stucMeshAttribsCornerToVert(pStucCtx, pDest);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	PIX_ERR_CATCH(0, err,
+		stucMeshDestroy(pStucCtx, pDest);
+	);
+	return err;
+}
+
+PixErr stucBlenderMapMeshRenderGet(
+	const char *pMap,
+	StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
@@ -447,7 +505,29 @@ PixErr stucBlenderMapMeshGet(
 	err = mapEntryGet(pMap, &pEntry, NULL);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
-	return stucMapFileMeshGet(pStucCtx, pEntry->pMap, ppMesh, ppIdxAttribs);
+	return err;
+}
+
+PixErr stucBlenderMapMeshRenderUpdate(const char *pMap) {
+	PixErr err = PIX_ERR_SUCCESS;
+	MapEntry *pEntry = NULL;
+	err = mapEntryGet(pMap, &pEntry, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	PIX_ERR_RETURN_IFNOT_COND(err, pEntry, "");
+
+	stucMeshDestroy(pStucCtx, &pEntry->meshRender);
+	pEntry->meshRender = (StucMesh){0};
+
+	const StucMesh *pMesh = NULL;
+	err = stucMapFileMeshGet(pStucCtx, pEntry->pMap, &pMesh, NULL);
+	PIX_ERR_RETURN_IFNOT_COND(err, pMesh, "");
+	err = stucBlenderMeshCpyForRender(&pEntry->meshRender, pMesh);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	PIX_ERR_CATCH(0, err,
+		stucMeshDestroy(pStucCtx, &pEntry->meshRender);
+		pEntry->meshRender = (StucMesh){0};
+	);
+	return err;
 }
 
 PixErr stucBlenderQueryCommonAttribs(
@@ -739,5 +819,38 @@ PixErr stucBlenderCornersForMat(StucMesh *pMesh, I32 mat, PixtyI32Arr *pCorners)
 			*pCorners = (PixtyI32Arr){0};
 		}
 	);
+	return err;
+}
+
+PixErr stucBlenderEditOverlayCol(
+	I32 edgeCount,
+	const PixtyV2_I32 *pEdges,
+	const bool *pSelect,
+	I32 vertCount,
+	PixtyV3_F32 *pPos,
+	PixtyV4_F32 *pCol
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pCol && pEdges && pSelect, "");
+	PIX_ERR_RETURN_IFNOT_COND(err, edgeCount > 0 && vertCount >= 2, "");
+	const PixtyV4_F32 col =
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {127.0f, 127.0f, 127.0f, 255.0f}}, 255.0f);
+	const PixtyV4_F32 colSelect =
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {255.0f, 255.0f, 255.0f, 255.0f}}, 255.0f);
+	for (I32 i = 0; i < edgeCount; ++i) {
+		for (I32 j = 0; j < 2; ++j) {
+			I32 vert = pEdges[i].d[j];
+			PIX_ERR_ASSERT("", vert < vertCount);
+			/*
+			pCol[vert].d[0] = pPos[vert].d[0];
+			pCol[vert].d[1] = pPos[vert].d[1];
+			pCol[vert].d[2] = pPos[vert].d[2];
+			pCol[vert].d[3] = 1.0f;
+			*/
+			if (pCol[vert].d[0] != colSelect.d[0]) {
+				pCol[vert] = pSelect[i] ? colSelect : col;
+			}
+		}
+	}
 	return err;
 }

@@ -20,6 +20,7 @@ from . import stuc
 from . import mapping
 from . import props
 from . import attrib_utils as attribUtils
+from . import draw
 
 class CutoffTable():
 	def __init__(self):
@@ -302,9 +303,11 @@ def addOrUpdateMap(
 
 	map.attribs.clear() #type:ignore
 	mapInfo = meshUtils.getMapMesh(name)
-	if type(mapInfo[0]) != stuc.StucMesh:
+	if type(mapInfo[0]) != stuc.StucMesh or type(mapInfo[1]) != stuc.StucAttribIndexedArr:
 		raise Exception()
 	mesh = mapInfo[0]
+	idxAttribs = mapInfo[1]
+
 	attrib = attribUtils.getActiveAttrib(mesh, stuc.StucAttribUse.POS)
 	if not attrib:
 		raise Exception("map mesh missing position attrib")
@@ -324,6 +327,11 @@ def addOrUpdateMap(
 	attribUtils.attribArrToCol(map.attribs, mesh.cornerAttribs, map) #type:ignore
 	attribUtils.attribArrToCol(map.attribs, mesh.edgeAttribs, map) #type:ignore
 	attribUtils.attribArrToCol(map.attribs, mesh.vertAttribs, map) #type:ignore
+
+	stucLib.stucBlenderMapMeshRenderUpdate(name.encode('utf-8'))
+	#meshRender = meshUtils.cpyStucMeshForRender(mesh)
+	#draw.drawStucPreview(name, meshRender, idxAttribs)
+	#stucLib.stucBlenderMeshDestroy(meshRender)
 	return map
 
 @ctypes.CFUNCTYPE(

@@ -174,6 +174,11 @@ PixErr stucBlenderEditOverlayCol(
 	const PixtyV2_I32 *pEdges,
 	const bool *pSelect,
 	I32 vertCount,
-	PixtyV3_F32 *pPos,
 	PixtyV4_F32 *pCol
+);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSelCornersFromFaces(
+	const StucMesh *pMesh,
+	float *pSelCorners,
+	const int8_t *pSelFaces
 );

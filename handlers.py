@@ -5,6 +5,8 @@ SPDX-License-Identifier: GPL-3.0-only
 
 from typing import Any, cast
 import ctypes
+import numpy
+import pdb
 
 import bpy
 from bpy.app.handlers import persistent
@@ -15,6 +17,7 @@ from . import c_lib
 stucLib = c_lib.stucLib
 from . import utils
 from . import mesh_utils as meshUtils
+from . import attrib_utils as attribUtils
 from . import mapping
 from . import draw
 from . import stuc
@@ -78,7 +81,63 @@ def getTargetMesh(
 	else:
 		return None
 
+def drawFallback(
+	target: props.StucTarget,
+	objOverride: bpy.types.Object | None = None,
+	edit: bool = False
+) -> None:
+	obj = objOverride if objOverride else target.obj
+	if not obj:
+		return
+	stucObj = meshUtils.formatAsStucObj(
+		obj,
+		True,
+		None,
+		True,
+		target.activeAttribs #type:ignore
+	)
+	if edit:
+		appendSelAttrib(obj, stucObj.meshData.mesh)
+	mesh = stucObj.meshData.mesh
+	meshRender = meshUtils.cpyStucMeshForRender(mesh)
+	draw.drawNoCache(meshRender, obj.matrix_world)
+	if edit:
+		draw.drawEditOverlay(obj, meshRender)
+	stucLib.stucBlenderMeshDestroy(ctypes.pointer(meshRender))
+
+def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh):
+	selFlag = (ctypes.c_float * mesh.cornerCount)()
+	attribUtils.appendAttrib(
+		mesh.cornerAttribs,
+		"select",
+		stuc.StucAttribType.F32.value,
+		stuc.StucAttribUse.MISC.value,
+		ctypes.cast(selFlag, ctypes.c_void_p)
+	)
+	selFaces = numpy.empty(mesh.faceCount, dtype = numpy.int8)
+	obj.data.polygons.foreach_get("select", selFaces) #type:ignore
+	stucLib.stucBlenderSelCornersFromFaces(
+		ctypes.pointer(mesh),
+		selFlag,
+		numpy.ctypeslib.as_ctypes(selFaces)
+	)
+
+def drawTargetInEditMode(info: tuple[mapping.MappingInfo, int]) -> None:
+	mesh = info[0].stucObj.meshData.mesh
+	appendSelAttrib(info[0].objEval, mesh)
+	meshRender = meshUtils.cpyStucMeshForRender(mesh)
+	draw.drawStucMeshInViewport(
+		meshRender,
+		info[0].inIndexedArr,
+		info[0].objEval.matrix_world,
+		info[0].mapArr
+	)
+	draw.drawEditOverlay(info[0].objEval, meshRender)
+	stucLib.stucBlenderMeshDestroy(ctypes.pointer(meshRender))
+
 def drawTarget(target: props.StucTarget) -> None:
+	if type(target.obj.data) != bpy.types.Mesh:
+		return
 	match target.obj.mode:
 		case 'OBJECT':
 			cache = getTargetMesh(target)
@@ -86,19 +145,19 @@ def drawTarget(target: props.StucTarget) -> None:
 				if not cache[1]:
 					raise Exception("idx attribs missing from target cache")
 				draw.drawStucMeshInViewport(cache[0], cache[1], target.obj.matrix_world) #type:ignore
+			else:
+				drawFallback(target)
 		case 'EDIT':
 			info = mapping.prepTargetForMapping(bpy.context, None, target)
 			if info[0]:
-				mesh = info[0].stucObj.meshData.mesh
-				meshRender = meshUtils.cpyStucMeshForRender(mesh)
-				draw.drawEditMeshInViewport(
-					info[0].objEval,
-					meshRender,
-					info[0].inIndexedArr,
-					info[0].mapArr
-				)
-				stucLib.stucBlenderMeshDestroy(ctypes.pointer(meshRender))
-				
+				drawTargetInEditMode(info) #type:ignore
+			elif info[2]:
+				drawFallback(target, objOverride = info[2], edit = True)
+			else:
+				drawFallback(target)
+		case _:
+			drawFallback(target)
+	
 
 @persistent
 def stucDrawHandler() -> None:

@@ -19,20 +19,52 @@ def stucMapDirUpdate(self, context) -> None:
 	if dir:
 		self.dir = dir
 
+def isMatReleventToStuc(context: bpy.types.Context, mat: bpy.types.Material) -> bool:
+	matMap = context.scene.stucMats.get(mat.name, None) #type:ignore
+	if matMap and matMap.map:
+		for target in context.scene.stucTargets: #type:ignore
+			if type(target.obj.data) != bpy.types.Mesh:
+				continue
+			if target.obj.data.materials.get(mat.name, None):
+				return True
+	return False
+
+def targetSetInvisible(context: bpy.types.Context, obj: bpy.types.Object, value: bool) -> None:
+	if type(obj.data) != bpy.types.Mesh:
+		return
+	for mat in obj.data.materials:
+		if not value and isMatReleventToStuc(context, mat):
+			continue
+		mat.use_nodes = True
+		if mat.node_tree:
+			nodeOut = None
+			for node in mat.node_tree.nodes:
+				if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
+					nodeOut = node
+					break
+			if nodeOut:
+				emisNode = mat.node_tree.nodes.new('ShaderNodeBsdfTransparent')
+				emisNode.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0) #type:ignore
+				links = mat.node_tree.links
+				links.new(emisNode.outputs[0], nodeOut.inputs[0])
+		mat.diffuse_color[3] = .0 if value else 1.0
+		mat.blend_method = 'HASHED' if value else 'OPAQUE'
+		mat.shadow_method = 'NONE' if value else 'OPAQUE' #type:ignore
+
 def targetObjUpdate(self, context) -> None:
 	try:
-		if self.obj:
-			self.name = self.obj.name
-		else:
-			self.name = ""
-		if self.displayType:
-			if self.lastObj and self.lastObj != self.obj:
-				self.lastObj.display_type = self.displayType
+		if self.obj != self.lastObj:
+			if self.obj:
+				self.name = self.obj.name
+				targetSetInvisible(context, self.obj, True)
+			else:
+				self.name = ""
+			if self.lastObj:
+				targetSetInvisible(context, self.lastObj, False)
 				err = stucLib.stucBlenderTargetCacheClear(self.id)
 				if err != 1:
 					raise Exception("error clearing target mesh cache")
-			self.displayType = ""
-		self.lastObj = self.obj
+			self.lastObj = self.obj
 	except Exception as e:
 		raise e
 
@@ -114,7 +146,6 @@ class StucTarget(bpy.types.PropertyGroup):
 	lastObj : bpy.props.PointerProperty( type = bpy.types.Object)
 	activeAttribIdx : bpy.props.IntProperty()
 	id : bpy.props.IntProperty()
-	displayType : bpy.props.StringProperty()
 
 class StucMapActiveAttrib(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty(update = mapActiveAttribUpdate)

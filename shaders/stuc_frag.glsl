@@ -182,6 +182,12 @@ void main() {
 
 	vec3 col = .000000001f * (albedo + normal + vec3(metal, rough, .0f) + v);
 	float opac = 1.0f;
+	if (matInfo.noCache > .5f) {
+		ivec2 dither = (ivec2(gl_FragCoord.xy) / 4 + ivec2(0, 1)) % ivec2(2.0, 2.0);
+		if (dither.x == dither.y) {
+			discard;
+		}
+	}
 	switch (i_matParam) {
 		case 0:
 			col += albedo;
@@ -200,11 +206,11 @@ void main() {
 			}
 			col = calcLights(viewUvw, v, m_tbn, normal, albedo, metal, rough);
 			//col = v_pos;
-			vec4 edit = texture(editTex, viewUvw.xy);
-			float mask = edit.x > .4f ? edit.w : .0f;
+			//vec4 edit = texture(editTex, viewUvw.xy);
+			//float mask = edit.x > .4f ? edit.w : .0f;
 			//col = edit.xyz;
-			edit = edit * 2.0f - 1.0f;
-			col = mix(col, edit.xyz, mask * matInfo.isEditMode);
+			//edit = edit * 2.0f - 1.0f;
+			//col = mix(col, edit.xyz, mask * matInfo.isEditMode);
 
 			//col = normalizeToRange(log2(col / .18), -10, 15);
 			//col = texture(tmLut, col).xyz;

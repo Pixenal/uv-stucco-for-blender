@@ -171,7 +171,7 @@ def getAttribCounts(
 				raise Exception("invalid attrib domain")
 			
 def allocAttribs(mesh: stuc.StucMesh, attribCounts: dict[str, int]) -> None:
-	FaceAttribsArray = stuc.StucAttrib * attribCounts["face"]
+	FaceAttribsArray = stuc.StucAttrib * (attribCounts["face"] + 1)# +1 for select flag (unused outside of edit mode)
 	mesh.faceAttribs.pArr = FaceAttribsArray()
 	CornerAttribsArray = stuc.StucAttrib * (attribCounts["corner"] + 3) # +3 for normals, tangents, & tsign
 	mesh.cornerAttribs.pArr = CornerAttribsArray()
@@ -287,7 +287,7 @@ def appendAttrib(
 	use: int,
 	data: ctypes.c_void_p,
 	activeAttribs: ctypes.Array[stuc.StucAttribActive] | None = None
-) -> None:
+) -> stuc.StucAttrib:
 	attribEntry = attribs.pArr[attribs.count]
 	utils.copyString(attribEntry.core.name, name, stuc.STUC_ATTRIB_NAME_MAX_LEN)
 	attribEntry.core.type = type
@@ -298,6 +298,7 @@ def appendAttrib(
 		activeAttribs[use].idx = attribs.count
 	attribEntry.core.pData = data
 	attribs.count += 1
+	return attribEntry
 
 def setTargetCommonAttribs(
 	targetAttribs: bpy.types.Collection,

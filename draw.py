@@ -17,7 +17,6 @@ from . import mesh_utils as meshUtils
 from . import c_lib
 stucLib = c_lib.stucLib
 
-offscreenEdit = gpu.types.GPUOffScreen(4096, 4096, format = 'RGBA8') #type:ignore
 offscreenAlbedo = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA8') #type:ignore
 offscreenNormal = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA16F') #type:ignore
 offscreenHrm = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA8') #type:ignore
@@ -46,11 +45,10 @@ parentDir = os.path.dirname(__file__)
 
 vertOut = gpu.types.GPUStageInterfaceInfo("comp_interface") #type:ignore
 vertOut.smooth('VEC3', "v_pos")
-vertOut.smooth('VEC2', "v_uv")
-
+vertOut.flat('FLOAT', "i_select")
 info = gpu.types.GPUShaderCreateInfo()
 info.vertex_in(0, 'VEC3', "position")
-info.vertex_in(1, 'VEC2', "uv")
+info.vertex_in(1, 'FLOAT', "select")
 info.push_constant('MAT4', "viewProjectionMatrix")
 info.push_constant('MAT4', "modelMatrix")
 info.push_constant('VEC3', "viewPos")
@@ -59,21 +57,64 @@ info.fragment_out(0, 'VEC4', "FragColor")
 info.vertex_source("\
 	void main() {\
 		v_pos = (modelMatrix * vec4(position, 1.0f)).xyz;\
-		v_uv = uv;\
+		i_select = select;\
 		\
 		vec3 v = normalize(viewPos - v_pos);\
-		v_pos -= v * .01f;\
+		v_pos -= v * .001f;\
 		\
 		gl_Position = viewProjectionMatrix * vec4(v_pos, 1.0f);\
 	}\
 ")
 info.fragment_source("\
 	void main() {\
-		FragColor = vec4(vec3(v_uv, .0f) * .00001f + vec3(0.0f, .0f, .0f), 1.0f);\
+		if (i_select != 1) {\
+			discard;\
+		}\
+		ivec2 dither = (ivec2(gl_FragCoord.xy) + ivec2(0, 1)) % ivec2(2.0, 2.0);\
+		if (dither.x == dither.y) {\
+			discard;\
+		}\
+		vec3 col = vec3(227.0f, 62.0f, 191.0f) / vec3(255.0f);\
+		FragColor = vec4(col, 1.0f);\
 	}\
 ")
 compShader = gpu.shader.create_from_info(info)
 del vertOut
+del info
+
+
+vertOut = gpu.types.GPUStageInterfaceInfo("noCache_interface") #type:ignore
+vertOut.smooth('VEC3', "v_pos")
+info = gpu.types.GPUShaderCreateInfo()
+info.vertex_in(0, 'VEC3', "position")
+info.push_constant('MAT4', "viewProjectionMatrix")
+info.push_constant('MAT4', "modelMatrix")
+info.push_constant('VEC3', "viewPos")
+info.vertex_out(vertOut)
+info.fragment_out(0, 'VEC4', "FragColor")
+info.vertex_source("\
+	void main() {\
+		v_pos = (modelMatrix * vec4(position, 1.0f)).xyz;\
+		\
+		vec3 v = normalize(viewPos - v_pos);\
+		v_pos -= v * .001f;\
+		\
+		gl_Position = viewProjectionMatrix * vec4(v_pos, 1.0f);\
+	}\
+")
+info.fragment_source("\
+	void main() {\
+		ivec2 dither = (ivec2(gl_FragCoord.xy) / 4 + ivec2(0, 1)) % ivec2(2.0, 2.0);\
+		if (dither.x == dither.y) {\
+			discard;\
+		}\
+		vec3 col = vec3(18.0f, 119.0f, 106.0f) / vec3(255.0f);\
+		FragColor = vec4(col, 1.0f);\
+	}\
+")
+noCacheShader = gpu.shader.create_from_info(info)
+del vertOut
+del info
 
 
 vertOut = gpu.types.GPUStageInterfaceInfo("my_interface") #type:ignore
@@ -103,17 +144,17 @@ info.typedef_source("\
 		float metalChannel;\
 		float roughChannel;\
 		float isEditMode;\
-		vec3 padding;\
+		float noCache;\
+		vec2 padding;\
 	};\
 ")
 info.uniform_buf(0, "MatInfo", "matInfo")
 info.sampler(0, 'FLOAT_2D', "envTex")
-info.sampler(1, 'FLOAT_2D', "editTex")
-info.sampler(2, 'FLOAT_2D', "albedoTex")
-info.sampler(3, 'FLOAT_2D', "normalTex")
-info.sampler(4, 'FLOAT_2D', "metalTex")
-info.sampler(5, 'FLOAT_2D', "roughTex")
-#info.sampler(6, 'FLOAT_3D', "tmLut")
+info.sampler(1, 'FLOAT_2D', "albedoTex")
+info.sampler(2, 'FLOAT_2D', "normalTex")
+info.sampler(3, 'FLOAT_2D', "metalTex")
+info.sampler(4, 'FLOAT_2D', "roughTex")
+#info.sampler(5, 'FLOAT_3D', "tmLut")
 info.vertex_in(0, 'VEC3', "position")
 info.vertex_in(1, 'VEC2', "uv")
 info.vertex_in(2, 'VEC3', "normal")
@@ -292,7 +333,8 @@ class MatInfo(ctypes.Structure):
 		("metalChannel", ctypes.c_float),
 		("roughChannel", ctypes.c_float),
 		("isEditMode", ctypes.c_float),
-		("padding", ctypes.c_float * 3)
+		("noCache", ctypes.c_float),
+		("padding", ctypes.c_float * 2)
 	]
 
 def getMissingTex() -> gpu.types.GPUTexture:
@@ -361,11 +403,13 @@ def drawMeshForMat(
 	pos, uv, normal, tangent, tSign,
 	corners: numpy.ndarray,
 	matName: str,
-	isEditMode: bool,
-	texOverride: list[gpu.types.GPUTexture] | None = None
+	isEditMode: bool = False,
+	texOverride: list[gpu.types.GPUTexture] | None = None,
+	noCache: bool = False
 ) -> None:
 	matInfo = MatInfo()
 	matInfo.isEditMode = float(isEditMode)
+	matInfo.noCache = float(noCache)
 	texArr = None
 	if texOverride:
 		if len(texOverride) != 4:
@@ -444,7 +488,6 @@ def drawMeshInit(
 	idxAttribs: stuc.StucAttribIndexedArr,
 	modelMatrix: mathutils.Matrix,
 	perpMatrix: mathutils.Matrix,
-	editTex: gpu.types.GPUTexture | None = None,
 	matParam: int = -1,
 	envFileName: str = "",
 	viewPos: mathutils.Vector = mathutils.Vector((.0, .0, .0))
@@ -467,10 +510,6 @@ def drawMeshInit(
 	meshShader.uniform_float("viewPos", viewPos) #type:ignore
 	meshShader.uniform_sampler("envTex", envTex)
 	meshShader.uniform_int("matParam", matParam) #type:ignore
-	if (editTex):
-		meshShader.uniform_sampler("editTex", editTex)
-	else:
-		meshShader.uniform_sampler("editTex", getMissingTex())
 	#shader.uniform_sampler("tmLut", tmLut)
 
 	depthTestMode = gpu.state.depth_test_get()
@@ -490,7 +529,8 @@ def drawStucMeshInViewport(
 	idxAttribs: stuc.StucAttribIndexedArr,
 	modelMatrix: mathutils.Matrix,
 	mapArr: stuc.StucMapArr | None = None, #<- enables preview
-	editTex: gpu.types.GPUTexture | None = None
+	editTex: gpu.types.GPUTexture | None = None,
+	noCache: bool = False
 ) -> None:
 	perpMatrix = bpy.context.region_data.perspective_matrix
 	drawStucMesh(
@@ -500,26 +540,7 @@ def drawStucMeshInViewport(
 		perpMatrix,
 		modelMatrix,
 		mapArr = mapArr,
-		editTex = editTex
-	)
-
-def drawEditMeshInViewport(
-	obj: bpy.types.Object,
-	mesh: stuc.StucMesh,
-	idxAttribs: stuc.StucAttribIndexedArr,
-	mapArr: stuc.StucMapArr,
-
-) -> None:
-	area = getArea()
-	if not area:
-		return
-	drawEditOverlay(obj, mesh)
-	drawStucMeshInViewport(
-		mesh,
-		idxAttribs,
-		obj.matrix_world,
-		mapArr = mapArr,
-		editTex = offscreenEdit.texture_color
+		noCache = noCache
 	)
 
 def getStucCorners(
@@ -547,10 +568,10 @@ def drawStucMesh(
 	modelMatrix: mathutils.Matrix,
 	perpMatrix: mathutils.Matrix,
 	mapArr: stuc.StucMapArr | None = None, #<- enables preview
-	editTex: gpu.types.GPUTexture | None = None,
 	matParam: int = -1,
 	envFileName: str = "",
 	viewPos: mathutils.Vector = mathutils.Vector((.0, .0, .0)),
+	noCache: bool = False
 ) -> None:
 	pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
 	uv = numpyFromStucAttrib(mesh, stuc.StucAttribUse.UV, 2)
@@ -600,7 +621,6 @@ def drawStucMesh(
 			idxAttribs,
 			perpMatrix,
 			modelMatrix, 
-			editTex = editTex,
 			matParam = matParam,
 			envFileName = envFileName,
 			viewPos = viewPos
@@ -611,8 +631,8 @@ def drawStucMesh(
 			pos, uv, normal, tangent, tSign,
 			cornerNumpy,
 			matName,
-			editTex != None,
-			texOverride
+			texOverride = texOverride,
+			noCache = noCache
 		)
 		drawMeshEnd(drawState)
 		i += 1
@@ -633,10 +653,22 @@ def drawEditOverlay(
 		raise Exception()
 	
 	stucPos = numpyFromStucAttrib(stucMesh, stuc.StucAttribUse.POS, 3)
-	stucUv = numpyFromStucAttrib(stucMesh, stuc.StucAttribUse.UV, 2)
 	stucCorner = numpy.ctypeslib.as_array(
     	ctypes.cast(stucMesh.pCorners, ctypes.POINTER(ctypes.c_int32)),
     	shape = (stucMesh.faceCount, 3)
+	)
+	selAttrib = ctypes.POINTER(stuc.StucAttrib)()
+	err = stucLib.stucBlenderAttribGet(
+		ctypes.pointer(stucMesh),
+		b"select",
+		ctypes.pointer(selAttrib),
+		None, None
+	)
+	if err != 1:
+		raise Exception("error while getting sel attrib")
+	faceSel = numpy.ctypeslib.as_array(
+		ctypes.cast(selAttrib.contents.core.pData, ctypes.POINTER(ctypes.c_float)),
+		shape = (stucMesh.vertCount, 1)
 	)
 
 	edgeCount = len(mesh.edges)
@@ -659,7 +691,6 @@ def drawEditOverlay(
 		edges,
 		numpy.ctypeslib.as_ctypes(select),
 		vertCount,
-		pos,
 		color
 	)
 	if err != 1:
@@ -684,35 +715,64 @@ def drawEditOverlay(
 		'TRIS',
 		{
 			"position" : stucPos, #type:ignore
-			"uv" : stucUv
+			"select" : faceSel
    		},
 		indices = stucCorner
 	)
+	with gpu.matrix.push_pop():
+		perpMatrix = bpy.context.region_data.perspective_matrix
+		gpu.matrix.load_projection_matrix(perpMatrix)
+		compShader.uniform_float("viewProjectionMatrix", perpMatrix) #type:ignore
+		compShader.uniform_float("modelMatrix", obj.matrix_world) #type:ignore
+		viewPos = gpu.matrix.get_model_view_matrix().inverted().translation
+		compShader.uniform_float("viewPos", viewPos) #type:ignore
 
-	with offscreenEdit.bind():
-		framebuf: gpu.types.GPUFrameBuffer = gpu.state.active_framebuffer_get() #type:ignore
-		framebuf.clear(color = (.0, .0, .0, .0), depth = (1.0))
-		with gpu.matrix.push_pop():
-			perpMatrix = bpy.context.region_data.perspective_matrix
-			gpu.matrix.load_projection_matrix(perpMatrix)
-			compShader.uniform_float("viewProjectionMatrix", perpMatrix) #type:ignore
-			compShader.uniform_float("modelMatrix", obj.matrix_world) #type:ignore
-			viewPos = gpu.matrix.get_model_view_matrix().inverted().translation
-			compShader.uniform_float("viewPos", viewPos) #type:ignore
+		gpu.matrix.load_matrix(obj.matrix_world)
+		editShader.uniform_float("viewportSize", gpu.state.viewport_get()[2:])
+		editShader.uniform_float("lineWidth", 1.0)
+		#col = mathutils.Vector((127.0, 127.0, 127.0)) / 225.0
+		#colSelect = mathutils.Vector((227.0, 62.0, 191.0)) / 225.0
+		#editShader.uniform_float("color", (col.x, col.y, col.z, 1.0))
+		depthTestMode = gpu.state.depth_test_get()
+		gpu.state.depth_test_set('LESS_EQUAL')
+		gpu.state.depth_mask_set(True)
+		compBatch.draw(compShader)
+		editBatch.draw(editShader)
+		gpu.state.depth_mask_set(False)
+		gpu.state.depth_test_set(depthTestMode)
 
-			gpu.matrix.load_matrix(obj.matrix_world)
-			editShader.uniform_float("viewportSize", gpu.state.viewport_get()[2:])
-			editShader.uniform_float("lineWidth", 4.0)
-			#col = mathutils.Vector((127.0, 127.0, 127.0)) / 225.0
-			#colSelect = mathutils.Vector((227.0, 62.0, 191.0)) / 225.0
-			#editShader.uniform_float("color", (col.x, col.y, col.z, 1.0))
-			depthTestMode = gpu.state.depth_test_get()
-			gpu.state.depth_test_set('LESS_EQUAL')
-			gpu.state.depth_mask_set(True)
-			compBatch.draw(compShader)
-			editBatch.draw(editShader)
-			gpu.state.depth_mask_set(False)
-			gpu.state.depth_test_set(depthTestMode)
+def drawNoCache(
+	mesh: stuc.StucMesh,
+	modelMatrix: mathutils.Matrix
+) -> None:
+	area = getArea()
+	if not area:
+		return
+	pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
+	corner = numpy.ctypeslib.as_array(
+    	ctypes.cast(mesh.pCorners, ctypes.POINTER(ctypes.c_int32)),
+    	shape = (mesh.faceCount, 3)
+	)
+	batch = gpu_extras.batch.batch_for_shader(
+		noCacheShader,
+		'TRIS',
+		{
+			"position" : pos, #type:ignore
+   		},
+		indices = corner
+	)
+	perpMatrix = bpy.context.region_data.perspective_matrix
+	noCacheShader.uniform_float("viewProjectionMatrix", perpMatrix) #type:ignore
+	noCacheShader.uniform_float("modelMatrix", modelMatrix) #type:ignore
+	viewPos = gpu.matrix.get_model_view_matrix().inverted().translation
+	noCacheShader.uniform_float("viewPos", viewPos) #type:ignore
+
+	depthTestMode = gpu.state.depth_test_get()
+	gpu.state.depth_test_set('LESS_EQUAL')
+	gpu.state.depth_mask_set(True)
+	batch.draw(noCacheShader)
+	gpu.state.depth_mask_set(False)
+	gpu.state.depth_test_set(depthTestMode)
 
 def imageFromFrame(name: str, offscreen: gpu.types.GPUOffScreen) -> None:
 	prevImage = bpy.data.images.get(name, None)

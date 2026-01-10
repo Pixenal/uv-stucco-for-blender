@@ -827,29 +827,41 @@ PixErr stucBlenderEditOverlayCol(
 	const PixtyV2_I32 *pEdges,
 	const bool *pSelect,
 	I32 vertCount,
-	PixtyV3_F32 *pPos,
 	PixtyV4_F32 *pCol
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pCol && pEdges && pSelect, "");
 	PIX_ERR_RETURN_IFNOT_COND(err, edgeCount > 0 && vertCount >= 2, "");
 	const PixtyV4_F32 col =
-		pixmV4F32DivideScalar((PixtyV4_F32){.d = {127.0f, 127.0f, 127.0f, 255.0f}}, 255.0f);
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {.0f, .0f, .0f, 255.0f}}, 255.0f);
 	const PixtyV4_F32 colSelect =
-		pixmV4F32DivideScalar((PixtyV4_F32){.d = {255.0f, 255.0f, 255.0f, 255.0f}}, 255.0f);
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {227.0f, 62.0f, 191.0f, 255.0f}}, 255.0f);
 	for (I32 i = 0; i < edgeCount; ++i) {
 		for (I32 j = 0; j < 2; ++j) {
 			I32 vert = pEdges[i].d[j];
 			PIX_ERR_ASSERT("", vert < vertCount);
-			/*
-			pCol[vert].d[0] = pPos[vert].d[0];
-			pCol[vert].d[1] = pPos[vert].d[1];
-			pCol[vert].d[2] = pPos[vert].d[2];
-			pCol[vert].d[3] = 1.0f;
-			*/
 			if (pCol[vert].d[0] != colSelect.d[0]) {
 				pCol[vert] = pSelect[i] ? colSelect : col;
 			}
+		}
+	}
+	return err;
+}
+
+PixErr stucBlenderSelCornersFromFaces(
+	const StucMesh *pMesh,
+	F32 *pSelCorners,
+	const I8 *pSelFaces
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pMesh && pSelCorners && pSelFaces, "");
+	for (I32 i = 0; i < pMesh->faceCount; ++i) {
+		I32 faceStart = pMesh->pFaces[i];
+		PIX_ERR_ASSERT("", faceStart >= 0);
+		I32 faceSize = pMesh->pFaces[i + 1] - faceStart;
+		PIX_ERR_ASSERT("", faceSize >= 3 && faceStart + faceSize <= pMesh->cornerCount);
+		for (I32 j = 0; j < faceSize; ++j) {
+			pSelCorners[faceStart + j] = (F32)pSelFaces[i];
 		}
 	}
 	return err;

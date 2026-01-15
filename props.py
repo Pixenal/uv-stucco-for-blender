@@ -22,45 +22,47 @@ def stucMapDirUpdate(self, context) -> None:
 def isMatReleventToStuc(context: bpy.types.Context, mat: bpy.types.Material) -> bool:
 	matMap = context.scene.stucMats.get(mat.name, None) #type:ignore
 	if matMap and matMap.map:
+		return True
+		'''
 		for target in context.scene.stucTargets: #type:ignore
 			if type(target.obj.data) != bpy.types.Mesh:
 				continue
 			if target.obj.data.materials.get(mat.name, None):
 				return True
+		'''
 	return False
 
-def targetSetInvisible(context: bpy.types.Context, obj: bpy.types.Object, value: bool) -> None:
-	if type(obj.data) != bpy.types.Mesh:
+def matSetInvisible(context: bpy.types.Context, mat: bpy.types.Material, value: bool) -> None:
+	if not value and isMatReleventToStuc(context, mat):
 		return
-	for mat in obj.data.materials:
-		if not value and isMatReleventToStuc(context, mat):
-			continue
-		mat.use_nodes = True
-		if mat.node_tree:
-			nodeOut = None
-			for node in mat.node_tree.nodes:
-				if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
-					nodeOut = node
-					break
-			if nodeOut:
-				emisNode = mat.node_tree.nodes.new('ShaderNodeBsdfTransparent')
-				emisNode.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0) #type:ignore
-				links = mat.node_tree.links
-				links.new(emisNode.outputs[0], nodeOut.inputs[0])
-		mat.diffuse_color[3] = .0 if value else 1.0
-		mat.blend_method = 'HASHED' if value else 'OPAQUE'
-		mat.shadow_method = 'NONE' if value else 'OPAQUE' #type:ignore
+	mat.use_nodes = True
+	if mat.node_tree:
+		nodeOut = None
+		for node in mat.node_tree.nodes:
+			if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
+				nodeOut = node
+				break
+		if nodeOut:
+			emisNode = mat.node_tree.nodes.new('ShaderNodeBsdfTransparent')
+			emisNode.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0) #type:ignore
+			links = mat.node_tree.links
+			links.new(emisNode.outputs[0], nodeOut.inputs[0])
+	mat.diffuse_color[3] = .0 if value else 1.0
+	mat.blend_method = 'HASHED' if value else 'OPAQUE'
+	mat.shadow_method = 'NONE' if value else 'OPAQUE' #type:ignore
+	if value:
+		mat["StucMat"] = True
+	else:
+		del mat["StucMat"]
 
 def targetObjUpdate(self, context) -> None:
 	try:
 		if self.obj != self.lastObj:
 			if self.obj:
 				self.name = self.obj.name
-				targetSetInvisible(context, self.obj, True)
 			else:
 				self.name = ""
 			if self.lastObj:
-				targetSetInvisible(context, self.lastObj, False)
 				err = stucLib.stucBlenderTargetCacheClear(self.id)
 				if err != 1:
 					raise Exception("error clearing target mesh cache")
@@ -96,10 +98,13 @@ def usgFlatCutoffPoll(self, obj: bpy.types.Object) -> bool | None:
 
 def stucMatUpdate(self, context) -> None:
 	if self.matCpy and self.mat != self.matCpy:
-		del self.matCpy["StucMat"]
+		matSetInvisible(context, self.matCpy, False)
 	self.matCpy = self.mat
 	if self.mat:
-		self.mat["StucMat"] = True
+		self.name = self.mat.name
+		matSetInvisible(context, self.mat, True)
+	else:
+		self.name = ""
 
 def relPathsUpdate(self, context) -> None:
 	if not bpy.data.filepath:

@@ -12,11 +12,13 @@ void main() {
 	v_uv = uv;
 	v_viewPos = viewPos;
 	v_viewRes = viewRes;
+	m_viewMat = viewMat;
 	i_matParam = matParam;
+	i_select = select;
 
 	if (matParam == -1) {
 		vec3 v = normalize(viewPos - v_pos);
-		v_pos -= v * .002f;
+		v_pos -= v * .004f;
 	}
 	gl_Position = viewProjectionMatrix * vec4(v_pos, 1.0f);
 }

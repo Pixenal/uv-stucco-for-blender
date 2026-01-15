@@ -102,7 +102,7 @@ def createMapArr(
 		i += 1
 	return mapArr
 
-def removeHiddenInEditMesh(bm: bmesh.types.BMesh)-> bool:
+def removeHiddenInEditMesh(bm: bmesh.types.BMesh, requireSelInEdit: bool)-> bool:
 	noSelFaces = True
 	toDel = []
 	for face in bm.faces:
@@ -120,7 +120,7 @@ def removeHiddenInEditMesh(bm: bmesh.types.BMesh)-> bool:
 			if edge.select:
 				noSelFaces = False
 				break
-	if noSelFaces or len(toDel) == len(bm.faces):
+	if noSelFaces and requireSelInEdit or len(toDel) == len(bm.faces):
 		return True
 	bmesh.ops.delete(bm, geom = toDel, context = 'FACES')
 	return False
@@ -129,7 +129,8 @@ def removeHiddenInEditMesh(bm: bmesh.types.BMesh)-> bool:
 def prepTargetForMapping(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph | None,
-	target: props.StucTarget
+	target: props.StucTarget,
+	requireSelInEdit: bool = True
 ) -> tuple[MappingInfo, int, None] | tuple[None, int, None] | tuple[None, int, bpy.types.Object]:
 	#return tuple/ lists like this should probably be dicts
 	if target.obj not in context.selected_objects or\
@@ -144,7 +145,7 @@ def prepTargetForMapping(
 		obj.data.name = "STUC_TEMP_WORK_MESH"
 		bm = bmesh.from_edit_mesh(target.obj.data) #type:ignore
 		bm = bm.copy()
-		if removeHiddenInEditMesh(bm):
+		if removeHiddenInEditMesh(bm, requireSelInEdit):
 			bm.clear()
 			return (None, 1, None)
 		bm.to_mesh(obj.data)

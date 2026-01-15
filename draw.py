@@ -4,6 +4,8 @@ import pdb
 import os
 import re
 import io
+from enum import Enum
+from datetime import datetime
 
 import bpy
 import gpu
@@ -16,6 +18,14 @@ from . import attrib_utils as attribUtils
 from . import mesh_utils as meshUtils
 from . import c_lib
 stucLib = c_lib.stucLib
+
+class ShaderErr(Enum):
+	NONE = 0
+	ERROR = 1
+	NO_MAP = 2
+	MAP_NOT_LOADED = 3
+	NO_MAT = 4
+	INVALID_SHADER = 5
 
 offscreenAlbedo = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA8') #type:ignore
 offscreenNormal = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA16F') #type:ignore
@@ -42,22 +52,88 @@ def getArea() -> bpy.types.Area | None:
 
 parentDir = os.path.dirname(__file__)
 
+def insertIncludes(text: str) -> str:
+	newText = text
+	iter = re.finditer("#include \".+\"", newText)
+	for i in iter:
+		path = re.search("\"(.*?)\"", i.group())
+		if not path:
+			continue
+		file = open(f"{parentDir}/shaders/{path.group(1)}")
+		newText = newText[:i.span()[0]] + file.read() + newText[i.span()[1]:]
+		file.close()
+	return newText
+
+def loadTex(name: str, colSpace: str, reload: bool = False) -> bpy.types.Image | None:
+	tex = None
+	if len(name):
+		tex = bpy.data.images.get(f"T_{name}.png", None)
+		if not tex:
+			tex = bpy.data.images.load(f"{parentDir}/textures/T_{name}.png")
+		elif reload:
+			tex.reload()
+		tex.colorspace_settings.name = colSpace #type:ignore
+	return tex
+
+fluidTextures: list[gpu.types.GPUTexture] | None = None
+
+def loadFluidTextures() -> list[gpu.types.GPUTexture] | None:
+	flowTex = loadTex(f"StucNoise_Curl_A_FLOW", 'Non-Color', True)
+	macroNoiseTex = loadTex(f"StucNoise_Macro_A_MASK", 'Non-Color', True)
+	microNoiseTex = loadTex(f"StucNoise_Micro_A_MASK", 'Non-Color', True)
+	sparkleTex = loadTex(f"StucNoise_Sparkle_A_MASK", 'Non-Color', True)
+	crystalTex = loadTex(f"StucNoise_Crystal_A_N", 'Non-Color', True)
+	if flowTex and macroNoiseTex and microNoiseTex and sparkleTex and crystalTex:
+		return [
+			gpu.texture.from_image(flowTex),
+			gpu.texture.from_image(macroNoiseTex),
+			gpu.texture.from_image(microNoiseTex),
+			gpu.texture.from_image(sparkleTex),
+			gpu.texture.from_image(crystalTex)
+		]
+	else:
+		raise Exception("failed to find textures for stuc mesh shader")
+		'''
+		missingTex = getMissingTex()
+		shader.uniform_sampler("flowTex", missingTex)
+		shader.uniform_sampler("macroNoiseTex", missingTex)
+		shader.uniform_sampler("microNoiseTex", missingTex)
+		shader.uniform_sampler("sparkleTex", missingTex)
+		shader.uniform_sampler("crystalTex", missingTex)
+		'''
+		return None
 
 vertOut = gpu.types.GPUStageInterfaceInfo("comp_interface") #type:ignore
 vertOut.smooth('VEC3', "v_pos")
+vertOut.smooth('VEC3', "v_normal")
 vertOut.flat('FLOAT', "i_select")
+vertOut.flat('FLOAT', "f_time")
+vertOut.flat('VEC2', "v_viewRes")
 info = gpu.types.GPUShaderCreateInfo()
 info.vertex_in(0, 'VEC3', "position")
-info.vertex_in(1, 'FLOAT', "select")
+info.vertex_in(1, 'VEC3', "normal")
+info.vertex_in(2, 'FLOAT', "select")
 info.push_constant('MAT4', "viewProjectionMatrix")
 info.push_constant('MAT4', "modelMatrix")
 info.push_constant('VEC3', "viewPos")
+info.push_constant('FLOAT', "time")
+info.push_constant('VEC2', "viewRes")
+info.sampler(0, 'FLOAT_2D', "flowTex")
+info.sampler(1, 'FLOAT_2D', "macroNoiseTex")
+info.sampler(2, 'FLOAT_2D', "microNoiseTex")
+info.sampler(3, 'FLOAT_2D', "sparkleTex")
+info.sampler(4, 'FLOAT_2D', "crystalTex")
 info.vertex_out(vertOut)
 info.fragment_out(0, 'VEC4', "FragColor")
 info.vertex_source("\
 	void main() {\
 		v_pos = (modelMatrix * vec4(position, 1.0f)).xyz;\
+		mat3 normalMatrix = transpose(inverse(mat3(modelMatrix)));\
+		v_normal = normalMatrix * normal;\
+		\
 		i_select = select;\
+		f_time = time;\
+		v_viewRes = viewRes;\
 		\
 		vec3 v = normalize(viewPos - v_pos);\
 		v_pos -= v * .001f;\
@@ -65,23 +141,12 @@ info.vertex_source("\
 		gl_Position = viewProjectionMatrix * vec4(v_pos, 1.0f);\
 	}\
 ")
-info.fragment_source("\
-	void main() {\
-		if (i_select != 1) {\
-			discard;\
-		}\
-		ivec2 dither = (ivec2(gl_FragCoord.xy) + ivec2(0, 1)) % ivec2(2.0, 2.0);\
-		if (dither.x == dither.y) {\
-			discard;\
-		}\
-		vec3 col = vec3(227.0f, 62.0f, 191.0f) / vec3(255.0f);\
-		FragColor = vec4(col, 1.0f);\
-	}\
-")
+fragSrc = open(f"{parentDir}/shaders/stuc_edit_frag.glsl")
+info.fragment_source(insertIncludes(fragSrc.read()))
+fragSrc.close()
 compShader = gpu.shader.create_from_info(info)
 del vertOut
 del info
-
 
 vertOut = gpu.types.GPUStageInterfaceInfo("noCache_interface") #type:ignore
 vertOut.smooth('VEC3', "v_pos")
@@ -121,9 +186,11 @@ vertOut = gpu.types.GPUStageInterfaceInfo("my_interface") #type:ignore
 vertOut.smooth('VEC3', "v_pos")
 vertOut.smooth('VEC2', "v_uv")
 vertOut.smooth('MAT3', "m_tbn")
+vertOut.flat('FLOAT', "i_select")
 vertOut.flat('VEC3', "v_viewPos")
 vertOut.flat('INT', "i_matParam")
 vertOut.flat('VEC2', "v_viewRes")
+vertOut.flat('MAT3', "m_viewMat")
 
 info = gpu.types.GPUShaderCreateInfo()
 info.push_constant('MAT4', "viewProjectionMatrix")
@@ -131,6 +198,7 @@ info.push_constant('MAT4', "modelMatrix")
 info.push_constant('VEC3', "viewPos")
 info.push_constant('INT', "matParam")
 info.push_constant('VEC2', "viewRes")
+info.push_constant('MAT3', "viewMat")
 info.typedef_source("\
 	struct MatInfo { \
 		vec3 albedoUniform;\
@@ -144,8 +212,9 @@ info.typedef_source("\
 		float metalChannel;\
 		float roughChannel;\
 		float isEditMode;\
-		float noCache;\
-		vec2 padding;\
+		float error;\
+		float time;\
+		float padding;\
 	};\
 ")
 info.uniform_buf(0, "MatInfo", "matInfo")
@@ -154,12 +223,19 @@ info.sampler(1, 'FLOAT_2D', "albedoTex")
 info.sampler(2, 'FLOAT_2D', "normalTex")
 info.sampler(3, 'FLOAT_2D', "metalTex")
 info.sampler(4, 'FLOAT_2D', "roughTex")
-#info.sampler(5, 'FLOAT_3D', "tmLut")
+info.sampler(5, 'FLOAT_2D', "errTex")
+#info.sampler(6, 'FLOAT_3D', "tmLut")
+info.sampler(6, 'FLOAT_2D', "flowTex")
+info.sampler(7, 'FLOAT_2D', "macroNoiseTex")
+info.sampler(8, 'FLOAT_2D', "microNoiseTex")
+info.sampler(9, 'FLOAT_2D', "sparkleTex")
+info.sampler(10, 'FLOAT_2D', "crystalTex")
 info.vertex_in(0, 'VEC3', "position")
 info.vertex_in(1, 'VEC2', "uv")
 info.vertex_in(2, 'VEC3', "normal")
 info.vertex_in(3, 'VEC3', "tangent")
 info.vertex_in(4, 'FLOAT', "tSign")
+info.vertex_in(5, 'FLOAT', "select")
 info.vertex_out(vertOut)
 info.fragment_out(0, 'VEC4', "FragColor")
 
@@ -168,13 +244,16 @@ info.vertex_source(vertSrc.read())
 vertSrc.close()
 
 fragSrc = open(f"{parentDir}/shaders/stuc_frag.glsl")
-info.fragment_source(fragSrc.read())
+info.fragment_source(insertIncludes(fragSrc.read()))
 fragSrc.close()
 meshShader = gpu.shader.create_from_info(info)
 del vertOut
 del info
 
-'''
+def initShaders() -> None:
+	global fluidTextures
+	fluidTextures = loadFluidTextures()
+
 def readCubeLutFile(file: io.TextIOWrapper) -> numpy.ndarray | None:
 	while True:
 		line = file.readline()
@@ -224,7 +303,7 @@ tmLut = gpu.types.GPUTexture(
 	format = 'RGBA32F',	#type:ignore
 	data = tmLutBuf	#type:ignore
 )
-'''
+
 
 def getNode(
 	nodeTree: bpy.types.NodeTree,
@@ -333,8 +412,9 @@ class MatInfo(ctypes.Structure):
 		("metalChannel", ctypes.c_float),
 		("roughChannel", ctypes.c_float),
 		("isEditMode", ctypes.c_float),
-		("noCache", ctypes.c_float),
-		("padding", ctypes.c_float * 2)
+		("error", ctypes.c_float),
+		("time", ctypes.c_float),
+		("padding", ctypes.c_float)
 	]
 
 def getMissingTex() -> gpu.types.GPUTexture:
@@ -399,19 +479,52 @@ def arrPow(arr, exp: float, size: int) -> None:
 		arr[i] = pow(arr[i], exp)
 		i += 1
 
+def getErrTex(error: ShaderErr) -> bpy.types.Image | None:
+	texName = None
+	match error:
+		case ShaderErr.ERROR:
+			texName = "Error"
+		case ShaderErr.NO_MAP:
+			texName = "NoMap"
+		case ShaderErr.MAP_NOT_LOADED:
+			texName = "MapNotLoaded"
+		case ShaderErr.NO_MAT:
+			texName = "NoMat"
+		case ShaderErr.INVALID_SHADER:
+			texName = "InvalidShader"
+	return loadTex(f"StucErr_{texName}_MASK", 'Non-Color')
+
 def drawMeshForMat(
-	pos, uv, normal, tangent, tSign,
+	pos, uv, normal, tangent, tSign, faceSel,
 	corners: numpy.ndarray,
-	matName: str,
+	mat: bpy.types.Material | None,
 	isEditMode: bool = False,
 	texOverride: list[gpu.types.GPUTexture] | None = None,
-	noCache: bool = False
+	errorParam: ShaderErr = ShaderErr.NONE
 ) -> None:
 	matInfo = MatInfo()
 	matInfo.isEditMode = float(isEditMode)
-	matInfo.noCache = float(noCache)
 	texArr = None
-	if texOverride:
+	error = errorParam
+	map = None
+	if mat:
+		stucMat = bpy.context.scene.stucMats.get(mat.name, None) #type:ignore
+		if stucMat and len(stucMat.map):
+			map = bpy.context.scene.stucMaps.get(stucMat.map, None) #type:ignore
+			mapHandle = None if not map else stucLib.stucBlenderMapHandleGet(map.name)
+	else:
+		stucMat = None
+	if error != ShaderErr.NONE:
+		pass
+	if not mat:
+		error = ShaderErr.NO_MAT
+	elif not stucMat:
+		return
+	elif not len(stucMat.map):
+		error = ShaderErr.NO_MAP
+	elif not map or not mapHandle:
+		error = ShaderErr.MAP_NOT_LOADED
+	elif texOverride:
 		if len(texOverride) != 4:
 			raise Exception("tex override list is wrong size")
 		texArr = texOverride
@@ -423,15 +536,22 @@ def drawMeshForMat(
 		matInfo.roughChannel = 1
 		matInfo.metalChannel = 2
 	else:
-		mat = bpy.data.materials.get(matName, None)
+		newMat: bool = False
 		if not mat:
+			newMat = True
 			mat = bpy.data.materials.new(name = matName)
 			mat.use_fake_user = True
 		if mat.node_tree:
 			texArr = getMatParams(mat.node_tree, matInfo)
 		if not texArr:
-			missingTex = getMissingTex()
-			texArr = [missingTex, missingTex, missingTex, missingTex]
+			if newMat:
+				raise Exception()
+			error = ShaderErr.INVALID_SHADER
+	matInfo.error = float(error.value)
+	if not texArr:
+		missingTex = getMissingTex()
+		texArr = [missingTex, missingTex, missingTex, missingTex]
+		if mat:
 			setArrFromArr(matInfo.albedoUniform, mat.diffuse_color, 3)
 			matInfo.metalUniform = mat.metallic
 			matInfo.roughUniform = mat.roughness
@@ -439,10 +559,27 @@ def drawMeshForMat(
 	meshShader.uniform_sampler("normalTex", texArr[1])
 	meshShader.uniform_sampler("metalTex", texArr[2])
 	meshShader.uniform_sampler("roughTex", texArr[3])
+	errTex = getErrTex(error)
+	if errTex:
+		meshShader.uniform_sampler("errTex", gpu.texture.from_image(errTex))
+	else:
+		meshShader.uniform_sampler("errTex", getMissingTex())
+
+	delta = (datetime.now() - datetime(1970, 1, 1))
+	matInfo.time = float(delta.seconds % 60) + delta.microseconds / 1000000.0
+
 	matInfoUbo = gpu.types.GPUUniformBuf(
 		gpu.types.Buffer('UBYTE', ctypes.sizeof(MatInfo), matInfo) #type:ignore
 	)
 	meshShader.uniform_block("matInfo", matInfoUbo)
+
+	if not fluidTextures:
+		raise Exception()
+	meshShader.uniform_sampler("flowTex", fluidTextures[0])
+	meshShader.uniform_sampler("macroNoiseTex", fluidTextures[1])
+	meshShader.uniform_sampler("microNoiseTex", fluidTextures[2])
+	meshShader.uniform_sampler("sparkleTex", fluidTextures[3])
+	meshShader.uniform_sampler("crystalTex", fluidTextures[4])
 
 	batch = gpu_extras.batch.batch_for_shader(
 		meshShader,
@@ -453,10 +590,13 @@ def drawMeshForMat(
 			"normal" : normal,
 			"tangent" : tangent,
 			"tSign" : tSign,
+			"select" : faceSel if isEditMode else tSign
 		},
 		indices = corners
 	)
 	batch.draw(meshShader)
+	if errTex:
+		bpy.data.images.remove(errTex, do_unlink = True)
 
 def getEnvTex(area: bpy.types.Area, name: str) -> gpu.types.GPUTexture | None:
 	if len(name):
@@ -483,9 +623,7 @@ class DrawMeshState():
 		self.depthTestMode = depthDestMode
 
 def drawMeshInit(
-	mesh: stuc.StucMesh,
 	backfaceCull: bool,
-	idxAttribs: stuc.StucAttribIndexedArr,
 	modelMatrix: mathutils.Matrix,
 	perpMatrix: mathutils.Matrix,
 	matParam: int = -1,
@@ -505,12 +643,16 @@ def drawMeshInit(
 	meshShader.uniform_float("viewRes", (viewRes[2], viewRes[3]))
 	meshShader.uniform_float("modelMatrix", modelMatrix) #type:ignore
 	meshShader.uniform_float("viewProjectionMatrix", perpMatrix) #type:ignore
+
+	viewMat = gpu.matrix.get_model_view_matrix()
 	if not viewPos[0] and not viewPos[1] and not viewPos[2]:
-		viewPos = gpu.matrix.get_model_view_matrix().inverted().translation
+		viewPos = viewMat.inverted().translation
 	meshShader.uniform_float("viewPos", viewPos) #type:ignore
+	meshShader.uniform_float("viewMat", viewMat.inverted().to_3x3()) #type:ignore
+
 	meshShader.uniform_sampler("envTex", envTex)
 	meshShader.uniform_int("matParam", matParam) #type:ignore
-	#shader.uniform_sampler("tmLut", tmLut)
+	#meshShader.uniform_sampler("tmLut", tmLut)
 
 	depthTestMode = gpu.state.depth_test_get()
 	gpu.state.depth_test_set('LESS_EQUAL')
@@ -526,21 +668,23 @@ def drawMeshEnd(state: DrawMeshState) -> None:
 
 def drawStucMeshInViewport(
 	mesh: stuc.StucMesh,
-	idxAttribs: stuc.StucAttribIndexedArr,
 	modelMatrix: mathutils.Matrix,
-	mapArr: stuc.StucMapArr | None = None, #<- enables preview
-	editTex: gpu.types.GPUTexture | None = None,
-	noCache: bool = False
+	editMode: bool,
+	mapArr: stuc.StucMapArr | None = None,
+	mats: list[bpy.types.Material | None] | None = None,
+	idxAttribs: stuc.StucAttribIndexedArr | None = None
+
 ) -> None:
 	perpMatrix = bpy.context.region_data.perspective_matrix
 	drawStucMesh(
 		mesh,
 		mapArr == None,
-		idxAttribs,
 		perpMatrix,
 		modelMatrix,
+		editMode = editMode,
 		mapArr = mapArr,
-		noCache = noCache
+		mats = mats,
+		idxAttribs = idxAttribs
 	)
 
 def getStucCorners(
@@ -561,64 +705,93 @@ def getStucCorners(
 		shape = (int(corners.count / 3), 3) #assumes mesh has been triangulated #type:ignore
 	)
 
+def getMatForPrev(
+	map: ctypes.c_void_p,
+	texOverride: list[gpu.types.GPUTexture] | None
+) -> None:
+	mapName = ctypes.c_char_p()
+	err = stucLib.stucBlenderMapNameGet(
+		map,
+		ctypes.pointer(mapName)
+	)
+	if err != 1 or not mapName.value:
+		raise Exception("unable to get stuc map name")
+	result = meshUtils.getMapMesh(mapName.value.decode('utf-8'), True)
+	if type(result[0]) != stuc.StucMesh or type(result[1]) != stuc.StucAttribIndexedArr:
+		raise Exception()
+	drawStucPreview(result[0], result[1])
+	texOverride = [
+		offscreenAlbedo.texture_color,
+		offscreenNormal.texture_color,
+		offscreenHrm.texture_color,
+		offscreenHrm.texture_color
+	]
+
 def drawStucMesh(
 	mesh: stuc.StucMesh,
 	backfaceCull: bool,
-	idxAttribs: stuc.StucAttribIndexedArr,
 	modelMatrix: mathutils.Matrix,
 	perpMatrix: mathutils.Matrix,
-	mapArr: stuc.StucMapArr | None = None, #<- enables preview
+	editMode: bool = False,
+	mapArr: stuc.StucMapArr | None = None,
 	matParam: int = -1,
 	envFileName: str = "",
 	viewPos: mathutils.Vector = mathutils.Vector((.0, .0, .0)),
-	noCache: bool = False
+	mats: list[bpy.types.Material | None] | None = None,
+	idxAttribs: stuc.StucAttribIndexedArr | None = None,
 ) -> None:
 	pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
 	uv = numpyFromStucAttrib(mesh, stuc.StucAttribUse.UV, 2)
 	normal = numpyFromStucAttrib(mesh, stuc.StucAttribUse.NORMAL, 3)
 	tangent = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TANGENT, 3)
 	tSign = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TSIGN, 1)
+	faceSel = None
+	if editMode:
+		selAttrib = ctypes.POINTER(stuc.StucAttrib)()
+		err = stucLib.stucBlenderAttribGet(
+			ctypes.pointer(mesh),
+			b"select",
+			ctypes.pointer(selAttrib),
+			None, None
+		)
+		if err != 1:
+			raise Exception("error while getting sel attrib")
+		faceSel = numpy.ctypeslib.as_array(
+			ctypes.cast(selAttrib.contents.core.pData, ctypes.POINTER(ctypes.c_float)),
+			shape = (mesh.vertCount, 1)
+		)
 
-	attrib = attribUtils.getAttribFromUse(mesh.faceAttribs, stuc.StucAttribUse.IDX.value)
-	attribName = attribUtils.pyStrFromC(attrib.core.name) #type:ignore
-	outMats = attribUtils.getIdxAttrib(idxAttribs, attribName.encode('utf-8'))
-	if mapArr and outMats.count != mapArr.count:
-		raise Exception()
-	StucString = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN
-	outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
+	if not mats:
+		if not idxAttribs:
+			raise Exception("'idxAttribs' must be passed if 'mats' is None")
+		mats = []
+		attrib = attribUtils.getAttribFromUse(mesh.faceAttribs, stuc.StucAttribUse.IDX.value)
+		attribName = attribUtils.pyStrFromC(attrib.core.name) #type:ignore
+		attrib = attribUtils.getIdxAttrib(idxAttribs, attribName.encode('utf-8'))
+		StucString = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN
+		matsByteStr = ctypes.cast(attrib.core.pData, ctypes.POINTER(StucString))
+		i = 0
+		while i < attrib.count:
+			mats.append(bpy.data.materials.get(matsByteStr[i].decode('utf-8'), None))
+			i += 1
 
 	corners = stuc.PixtyI32Arr()
-	i = 0
-	while i < outMats.count:
+	for i, mat in enumerate(mats):
 		cornerNumpy = getStucCorners(mesh, i, corners)
-		if mapArr:
-			matName = ""
-			map = mapArr.pArr[i].map.ptr
-			mapName = ctypes.c_char_p()
-			err = stucLib.stucBlenderMapNameGet(
-				ctypes.cast(map, ctypes.c_void_p),
-				ctypes.pointer(mapName)
-			)
-			if err != 1 or not mapName.value:
-				raise Exception("unable to get stuc map name")
-			result = meshUtils.getMapMesh(mapName.value.decode('utf-8'), True)
-			if type(result[0]) != stuc.StucMesh or type(result[1]) != stuc.StucAttribIndexedArr:
-				raise Exception()
-			drawStucPreview(result[0], result[1])
-			texOverride = [
-				offscreenAlbedo.texture_color,
-				offscreenNormal.texture_color,
-				offscreenHrm.texture_color,
-				offscreenHrm.texture_color
-			]
-		else:
-			matName = attribUtils.pyStrFromC(outMatsCast[i])
-			texOverride = None
+		texOverride = None
+		if editMode and mapArr:
+			map = None
+			j = 0
+			while j < mapArr.count:
+				if mapArr.pArr[j].matIdx:
+					map = mapArr.pArr[j].map.ptr
+					break
+				j += 1
+			if map:
+				getMatForPrev(map, texOverride)
 
 		drawState = drawMeshInit(
-			mesh,
 			backfaceCull,
-			idxAttribs,
 			perpMatrix,
 			modelMatrix, 
 			matParam = matParam,
@@ -628,14 +801,13 @@ def drawStucMesh(
 		if not drawState:
 			continue
 		drawMeshForMat(
-			pos, uv, normal, tangent, tSign,
+			pos, uv, normal, tangent, tSign, faceSel,
 			cornerNumpy,
-			matName,
+			mat,
 			texOverride = texOverride,
-			noCache = noCache
+			isEditMode = editMode
 		)
 		drawMeshEnd(drawState)
-		i += 1
 	stucLib.stucBlenderCallFree(corners.pArr)
 
 editShader = gpu.shader.from_builtin('POLYLINE_SMOOTH_COLOR')
@@ -653,6 +825,7 @@ def drawEditOverlay(
 		raise Exception()
 	
 	stucPos = numpyFromStucAttrib(stucMesh, stuc.StucAttribUse.POS, 3)
+	stucNormal = numpyFromStucAttrib(stucMesh, stuc.StucAttribUse.NORMAL, 3)
 	stucCorner = numpy.ctypeslib.as_array(
     	ctypes.cast(stucMesh.pCorners, ctypes.POINTER(ctypes.c_int32)),
     	shape = (stucMesh.faceCount, 3)
@@ -715,11 +888,27 @@ def drawEditOverlay(
 		'TRIS',
 		{
 			"position" : stucPos, #type:ignore
+			"normal" : stucNormal,
 			"select" : faceSel
    		},
 		indices = stucCorner
 	)
+
+	if not fluidTextures:
+		raise Exception()
+	compShader.uniform_sampler("flowTex", fluidTextures[0])
+	compShader.uniform_sampler("macroNoiseTex", fluidTextures[1])
+	compShader.uniform_sampler("microNoiseTex", fluidTextures[2])
+	compShader.uniform_sampler("sparkleTex", fluidTextures[3])
+	meshShader.uniform_sampler("crystalTex", fluidTextures[4])
+
 	with gpu.matrix.push_pop():
+		delta = (datetime.now() - datetime(1970, 1, 1))
+		time = float(delta.seconds % 60) + delta.microseconds / 1000000.0
+		compShader.uniform_float("time", time)
+		frameBuf = gpu.state.active_framebuffer_get() #type:ignore
+		compShader.uniform_float("viewRes", frameBuf.viewport_get())
+
 		perpMatrix = bpy.context.region_data.perspective_matrix
 		gpu.matrix.load_projection_matrix(perpMatrix)
 		compShader.uniform_float("viewProjectionMatrix", perpMatrix) #type:ignore
@@ -736,7 +925,7 @@ def drawEditOverlay(
 		depthTestMode = gpu.state.depth_test_get()
 		gpu.state.depth_test_set('LESS_EQUAL')
 		gpu.state.depth_mask_set(True)
-		compBatch.draw(compShader)
+		#compBatch.draw(compShader)
 		editBatch.draw(editShader)
 		gpu.state.depth_mask_set(False)
 		gpu.state.depth_test_set(depthTestMode)
@@ -810,12 +999,12 @@ def prevSinglePass(
 		drawStucMesh(
 			mesh,
 			True,
-			idxAttribs,
 			perpMatrix,
 			mathutils.Matrix.Identity(4),
 			matParam = matParam,
 			envFileName = "forest.exr",
-			viewPos = viewPos
+			viewPos = viewPos,
+			idxAttribs = idxAttribs,
 		)
 
 def drawStucPreview(

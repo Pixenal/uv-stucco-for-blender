@@ -25,6 +25,7 @@ from . import props
 
 @persistent
 def stucLoadPostHandler(dummy) -> None:
+	draw.initShaders()
 	stucLib.stucBlenderInit()
 	bpy.context.scene.stucAgeNext = 0 #type:ignore
 	for map in bpy.context.scene.stucMaps: #type:ignore
@@ -97,10 +98,11 @@ def drawFallback(
 		target.activeAttribs #type:ignore
 	)
 	if edit:
+		pdb.set_trace()
 		appendSelAttrib(obj, stucObj.meshData.mesh)
 	mesh = stucObj.meshData.mesh
 	meshRender = meshUtils.cpyStucMeshForRender(mesh)
-	draw.drawNoCache(meshRender, obj.matrix_world)
+	draw.drawStucMeshInViewport(meshRender, obj.matrix_world, editMode = edit)
 	if edit:
 		draw.drawEditOverlay(obj, meshRender)
 	stucLib.stucBlenderMeshDestroy(ctypes.pointer(meshRender))
@@ -128,33 +130,78 @@ def drawTargetInEditMode(info: tuple[mapping.MappingInfo, int]) -> None:
 	meshRender = meshUtils.cpyStucMeshForRender(mesh)
 	draw.drawStucMeshInViewport(
 		meshRender,
-		info[0].inIndexedArr,
 		info[0].objEval.matrix_world,
-		info[0].mapArr
+		editMode = True,
+		mapArr = info[0].mapArr,
+		idxAttribs = info[0].inIndexedArr,
 	)
 	draw.drawEditOverlay(info[0].objEval, meshRender)
+	stucLib.stucBlenderMeshDestroy(ctypes.pointer(meshRender))
+
+def drawObj(
+	target: props.StucTarget,
+	edit: bool = False,
+	objOverride: bpy.types.Object | None = None,
+	stucMesh: stuc.StucMesh | None = None,
+	idxAttribs: stuc.StucAttribIndexedArr | None = None
+) -> None:
+	obj = objOverride if objOverride else target.obj
+	if not obj or type(obj.data) != bpy.types.Mesh:
+		return
+	if bool(stucMesh) != bool(idxAttribs):
+		raise Exception()
+	mats: list[bpy.types.Material | None] | None = None
+	if not stucMesh:
+		mats = [mat for mat in obj.data.materials] #no stucMesh means no mapping cache
+		stucObj = meshUtils.formatAsStucObj(
+			obj,
+			True,
+			None,
+			True,
+			target.activeAttribs #type:ignore
+		)
+		stucMesh = stucObj.meshData.mesh
+	if edit:
+		appendSelAttrib(obj, stucMesh)
+	meshRender = meshUtils.cpyStucMeshForRender(stucMesh)
+	draw.drawStucMeshInViewport(
+		meshRender,
+		obj.matrix_world,
+		editMode = edit,
+		idxAttribs = idxAttribs,
+		mats = mats
+	)
+	if edit:
+		draw.drawEditOverlay(obj, meshRender)
 	stucLib.stucBlenderMeshDestroy(ctypes.pointer(meshRender))
 
 def drawTarget(target: props.StucTarget) -> None:
 	if type(target.obj.data) != bpy.types.Mesh:
 		return
+	#pdb.set_trace()
 	match target.obj.mode:
 		case 'OBJECT':
 			cache = getTargetMesh(target)
 			if cache:
-				if not cache[1]:
-					raise Exception("idx attribs missing from target cache")
-				draw.drawStucMeshInViewport(cache[0], cache[1], target.obj.matrix_world) #type:ignore
+				if type(cache[0]) != stuc.StucMesh or\
+				   type(cache[1]) != stuc.StucAttribIndexedArr:
+					raise Exception()
+				drawObj(target, stucMesh = cache[0], idxAttribs = cache[1])
 			else:
-				drawFallback(target)
+				drawObj(target)
 		case 'EDIT':
-			info = mapping.prepTargetForMapping(bpy.context, None, target)
+			info = mapping.prepTargetForMapping(
+				bpy.context,
+				None,
+				target,
+				requireSelInEdit = False
+			)
 			if info[0]:
-				drawTargetInEditMode(info) #type:ignore
+				drawObj(target, stucMesh = info[0].stucObj.meshData.mesh) #type:ignore
 			elif info[2]:
-				drawFallback(target, objOverride = info[2], edit = True)
+				drawObj(target, objOverride = info[2], edit = True)
 			else:
-				drawFallback(target)
+				drawObj(target, edit = True)
 		case _:
 			drawFallback(target)
 	

@@ -82,26 +82,26 @@ def loadFluidTextures() -> list[gpu.types.GPUTexture] | None:
 	macroNoiseTex = loadTex(f"StucNoise_Macro_A_MASK", 'Non-Color', True)
 	microNoiseTex = loadTex(f"StucNoise_Micro_A_MASK", 'Non-Color', True)
 	sparkleTex = loadTex(f"StucNoise_Sparkle_A_MASK", 'Non-Color', True)
-	crystalTex = loadTex(f"StucNoise_Crystal_A_N", 'Non-Color', True)
-	if flowTex and macroNoiseTex and microNoiseTex and sparkleTex and crystalTex:
+	errErrTex = loadTex(f"StucErr_Error_MASK", 'Non-Color')
+	errNoMapTex = loadTex(f"StucErr_NoMap_MASK", 'Non-Color')
+	errMapNotLoadedTex = loadTex(f"StucErr_MapNotLoaded_MASK", 'Non-Color')
+	errNoMatTex = loadTex(f"StucErr_NoMat_MASK", 'Non-Color')
+	errInvalidShaderTex = loadTex(f"StucErr_InvalidShader_MASK", 'Non-Color')
+	if flowTex and macroNoiseTex and microNoiseTex and sparkleTex and errErrTex and\
+	   errNoMapTex and errMapNotLoadedTex and errNoMatTex and errInvalidShaderTex:
 		return [
 			gpu.texture.from_image(flowTex),
 			gpu.texture.from_image(macroNoiseTex),
 			gpu.texture.from_image(microNoiseTex),
 			gpu.texture.from_image(sparkleTex),
-			gpu.texture.from_image(crystalTex)
+			gpu.texture.from_image(errErrTex),
+			gpu.texture.from_image(errNoMapTex),
+			gpu.texture.from_image(errMapNotLoadedTex),
+			gpu.texture.from_image(errNoMatTex),
+			gpu.texture.from_image(errInvalidShaderTex)
 		]
 	else:
 		raise Exception("failed to find textures for stuc mesh shader")
-		'''
-		missingTex = getMissingTex()
-		shader.uniform_sampler("flowTex", missingTex)
-		shader.uniform_sampler("macroNoiseTex", missingTex)
-		shader.uniform_sampler("microNoiseTex", missingTex)
-		shader.uniform_sampler("sparkleTex", missingTex)
-		shader.uniform_sampler("crystalTex", missingTex)
-		'''
-		return None
 
 vertOut = gpu.types.GPUStageInterfaceInfo("comp_interface") #type:ignore
 vertOut.smooth('VEC3', "v_pos")
@@ -122,7 +122,6 @@ info.sampler(0, 'FLOAT_2D', "flowTex")
 info.sampler(1, 'FLOAT_2D', "macroNoiseTex")
 info.sampler(2, 'FLOAT_2D', "microNoiseTex")
 info.sampler(3, 'FLOAT_2D', "sparkleTex")
-info.sampler(4, 'FLOAT_2D', "crystalTex")
 info.vertex_out(vertOut)
 info.fragment_out(0, 'VEC4', "FragColor")
 info.vertex_source("\
@@ -229,7 +228,6 @@ info.sampler(6, 'FLOAT_2D', "flowTex")
 info.sampler(7, 'FLOAT_2D', "macroNoiseTex")
 info.sampler(8, 'FLOAT_2D', "microNoiseTex")
 info.sampler(9, 'FLOAT_2D', "sparkleTex")
-info.sampler(10, 'FLOAT_2D', "crystalTex")
 info.vertex_in(0, 'VEC3', "position")
 info.vertex_in(1, 'VEC2', "uv")
 info.vertex_in(2, 'VEC3', "normal")
@@ -479,20 +477,22 @@ def arrPow(arr, exp: float, size: int) -> None:
 		arr[i] = pow(arr[i], exp)
 		i += 1
 
-def getErrTex(error: ShaderErr) -> bpy.types.Image | None:
-	texName = None
+def getErrTex(error: ShaderErr) -> gpu.types.GPUTexture | None:
+	if not fluidTextures:
+		raise Exception()
 	match error:
 		case ShaderErr.ERROR:
-			texName = "Error"
+			return fluidTextures[4]
 		case ShaderErr.NO_MAP:
-			texName = "NoMap"
+			return fluidTextures[5]
 		case ShaderErr.MAP_NOT_LOADED:
-			texName = "MapNotLoaded"
+			return fluidTextures[6]
 		case ShaderErr.NO_MAT:
-			texName = "NoMat"
+			return fluidTextures[7]
 		case ShaderErr.INVALID_SHADER:
-			texName = "InvalidShader"
-	return loadTex(f"StucErr_{texName}_MASK", 'Non-Color')
+			return fluidTextures[8]
+		case _:
+			return None
 
 def drawMeshForMat(
 	pos, uv, normal, tangent, tSign, faceSel,
@@ -559,9 +559,10 @@ def drawMeshForMat(
 	meshShader.uniform_sampler("normalTex", texArr[1])
 	meshShader.uniform_sampler("metalTex", texArr[2])
 	meshShader.uniform_sampler("roughTex", texArr[3])
+	
 	errTex = getErrTex(error)
 	if errTex:
-		meshShader.uniform_sampler("errTex", gpu.texture.from_image(errTex))
+		meshShader.uniform_sampler("errTex", errTex)
 	else:
 		meshShader.uniform_sampler("errTex", getMissingTex())
 
@@ -579,7 +580,6 @@ def drawMeshForMat(
 	meshShader.uniform_sampler("macroNoiseTex", fluidTextures[1])
 	meshShader.uniform_sampler("microNoiseTex", fluidTextures[2])
 	meshShader.uniform_sampler("sparkleTex", fluidTextures[3])
-	meshShader.uniform_sampler("crystalTex", fluidTextures[4])
 
 	batch = gpu_extras.batch.batch_for_shader(
 		meshShader,
@@ -595,8 +595,6 @@ def drawMeshForMat(
 		indices = corners
 	)
 	batch.draw(meshShader)
-	if errTex:
-		bpy.data.images.remove(errTex, do_unlink = True)
 
 def getEnvTex(area: bpy.types.Area, name: str) -> gpu.types.GPUTexture | None:
 	if len(name):
@@ -673,7 +671,6 @@ def drawStucMeshInViewport(
 	mapArr: stuc.StucMapArr | None = None,
 	mats: list[bpy.types.Material | None] | None = None,
 	idxAttribs: stuc.StucAttribIndexedArr | None = None
-
 ) -> None:
 	perpMatrix = bpy.context.region_data.perspective_matrix
 	drawStucMesh(
@@ -900,7 +897,6 @@ def drawEditOverlay(
 	compShader.uniform_sampler("macroNoiseTex", fluidTextures[1])
 	compShader.uniform_sampler("microNoiseTex", fluidTextures[2])
 	compShader.uniform_sampler("sparkleTex", fluidTextures[3])
-	meshShader.uniform_sampler("crystalTex", fluidTextures[4])
 
 	with gpu.matrix.push_pop():
 		delta = (datetime.now() - datetime(1970, 1, 1))

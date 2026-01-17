@@ -4,7 +4,7 @@ SPDX-License-Identifier: GPL-3.0-only
 '''
 
 import ctypes
-from math import e
+import numpy
 from numpy._typing import NDArray
 from typing import Any, cast
 import pdb
@@ -19,6 +19,7 @@ from . import attrib_utils as attribUtils
 from . import mesh_utils as meshUtils
 from . import props
 from . import stuc
+from . import draw
 
 class MappingInfo:
 	def __init__(
@@ -43,7 +44,7 @@ class MappingInfo:
 		self.receiveLen = receiveLen
 		self.editMode = editMode
 
-class TargetCache: 
+class TargetJob: 
 	done = False
 	def __init__(
 		self,
@@ -207,7 +208,7 @@ def pushMappingJobToQueue(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget,
-	targetCache: list[TargetCache]
+	targetCache: list[TargetJob]
 ) -> int:
 	infoTuple = prepTargetForMapping(context, depsgraph, target)
 	if not infoTuple[0]:
@@ -233,7 +234,7 @@ def pushMappingJobToQueue(
 		return 1
 	if result != 1:
 		raise Exception("error pushing job to queue")
-	targetCache.append(TargetCache(
+	targetCache.append(TargetJob(
 		info,
 		jobHandle,
 		workMesh,
@@ -241,7 +242,7 @@ def pushMappingJobToQueue(
 	))
 	return 0
 
-def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
+def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetJob) -> None:
 	nameStuc = item.info.target.obj.name + ".Stuc"
 	objStuc = bpy.data.objects.get(nameStuc, None)
 	if not(objStuc):
@@ -274,12 +275,12 @@ def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetCache) -> None:
 
 def waitForAndCopyOutMeshes(
 	context: bpy.types.Context,
-	targetCache: list[TargetCache],
-	cacheCount: int
+	jobs: list[TargetJob]
 ) -> None:
 	doneCount = 0
-	while doneCount < cacheCount:
-		for item in targetCache:
+	jobCount = len(jobs)
+	while doneCount < jobCount:
+		for item in jobs:
 			if item.done:
 				continue
 			jobHandlePtr = ctypes.POINTER(ctypes.c_void_p)()
@@ -303,36 +304,121 @@ def waitForAndCopyOutMeshes(
 				continue
 			#print(f"Stuc python, map to mesh returned success on obj {item.info.objEval.name}")
 
-			if item.outMesh.faceCount:
-				err = stucLib.stucBlenderTargetCacheAdd(
-					item.info.target.id,
-					ctypes.pointer(item.outMesh),
-					ctypes.pointer(item.outIndexedAttribs)
-				)
-				if err != 1:
-					raise Exception("Failed to cache target mesh")
-				#addOrUpdateBlendMesh(context, item)
+			cacheTarget(
+				item.info.target,
+				stucMesh = item.outMesh,
+				idxAttribs = item.outIndexedAttribs
+			)
+			#addOrUpdateBlendMesh(context, item)
 				
 			#print("FinishedUpdating")
+
+def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
+	selFlag = (ctypes.c_float * mesh.cornerCount)()
+	attribUtils.appendAttrib(
+		mesh.cornerAttribs,
+		"select",
+		stuc.StucAttribType.F32.value,
+		stuc.StucAttribUse.MISC.value,
+		ctypes.cast(selFlag, ctypes.c_void_p)
+	)
+	selFaces = numpy.empty(mesh.faceCount, dtype = numpy.int8)
+	obj.data.polygons.foreach_get("select", selFaces) #type:ignore
+	stucLib.stucBlenderSelCornersFromFaces(
+		ctypes.pointer(mesh),
+		selFlag,
+		numpy.ctypeslib.as_ctypes(selFaces)
+	)
+
+def cacheTarget(
+	target: props.StucTarget,
+	edit: bool = False,
+	objOverride: bpy.types.Object | None = None,
+	stucMesh: stuc.StucMesh | None = None,
+	idxAttribs: stuc.StucAttribIndexedArr | None = None
+) -> None:
+	obj = objOverride if objOverride else target.obj
+	if stucMesh and not stucMesh.faceCount or\
+	   not obj or type(obj.data) != bpy.types.Mesh or not len(obj.data.polygons):
+		err = stucLib.stucBlenderTargetCacheClear(target.id)
+		if err != 1:
+			raise Exception()
+		return
+	if bool(stucMesh) != bool(idxAttribs):
+		raise Exception()
+	cacheType =\
+		stuc.MeshCacheType.MESH_CACHE_OUT if stucMesh\
+		else stuc.MeshCacheType.MESH_CACHE_IN_EDIT if edit\
+		else stuc.MeshCacheType.MESH_CACHE_IN
+	meshRender = None
+	if stucMesh:
+		meshRender = meshUtils.prepStucMeshForRender(stucMesh, False, False) #type:ignore
+	else:
+		stucObj = meshUtils.formatAsStucObj(
+			obj,
+			True,
+			None,
+			mats = True,
+			activeNames = target.activeAttribs, #type:ignore
+			getTangents = False,
+			getEdges = False,
+			getVertNormals = False
+		)
+		stucMesh = stucObj.meshData.mesh
+		if edit:
+			appendSelAttrib(obj, stucMesh) #type:ignore
+		meshRender = meshUtils.prepStucMeshForRender(stucMesh, True, True) #type:ignore
+		
+	err = stucLib.stucBlenderTargetCacheAdd(
+		target.id,
+		meshRender,
+		idxAttribs,
+		cacheType.value
+	)
+	if err != 1:
+		raise Exception()
+
+def mapToTarget(
+	context: bpy.types.Context,
+	depsgraph: bpy.types.Depsgraph,
+	target: props.StucTarget,
+	jobs: list[TargetJob]
+) -> None:
+	if type(target.obj.data) != bpy.types.Mesh:
+		return
+	match target.obj.mode:
+		case 'OBJECT':
+			result = pushMappingJobToQueue(context, depsgraph, target, jobs)
+			if result:
+				cacheTarget(target)
+		case 'EDIT':
+			#TODO add a ui option to enable mapping in edit mode
+			#it's just laggy
+			info = prepTargetForMapping(
+				bpy.context,
+				None,
+				target,
+				requireSelInEdit = False
+			)
+			if info[0]:
+				cacheTarget(target, stucMesh = info[0].stucObj.meshData.mesh) #type:ignore
+			elif info[2]:
+				cacheTarget(target, objOverride = info[2], edit = True)
+			else:
+				cacheTarget(target, edit = True)
+		case _:
+			cacheTarget(target)
 
 def mapToSelTargets(context: bpy.types.Context) -> None:
 	try:
 		depsgraph = context.evaluated_depsgraph_get()
-		targetCache = []
+		jobs = []
 		for target in context.scene.stucTargets: #type:ignore
-			if target.obj.mode == 'EDIT':
-				#TODO add a ui option to enable mapping in edit mode
-				#it's just laggy
-				continue
-			result = pushMappingJobToQueue(context, depsgraph, target, targetCache)
-			if result:
-				err = stucLib.stucBlenderTargetCacheClear(target.id)
-				if err != 1:
-					raise Exception("error clearing target mesh cache")
-		cacheCount = len(targetCache)
-		if not cacheCount:
+			print("mapping target")
+			mapToTarget(context, depsgraph, target, jobs)
+		if not len(jobs):
 			return
 		#print("waiting for finished jobs")
-		waitForAndCopyOutMeshes(context, targetCache, cacheCount)
+		waitForAndCopyOutMeshes(context, jobs)
 	except Exception as e:
 		raise e

@@ -22,16 +22,20 @@ class StucMeshData:
 	def __init__(
 		self,
 		mesh : stuc.StucMesh,
-		edges : NDArray[Any],
+		edges : NDArray[Any] | None,
 		normals : ctypes.c_void_p | None,
-		matIdx : NDArray[Any] | None,
-		vertNormals : ctypes.c_void_p | None
+		matIdx : ctypes.c_void_p | None,
+		vertNormals : ctypes.c_void_p | None,
+		tangents : ctypes.c_void_p | None,
+		tSign : ctypes.c_void_p | None
 	) -> None:
 		self.mesh = mesh
 		self.edges = edges
 		self.normals = normals
 		self.matIdx = matIdx
 		self.vertNormals = vertNormals
+		self.tangents = tangents
+		self.tSign = tSign
 
 class StucObjData:
 	def __init__(self, obj : stuc.StucObject, meshData : StucMeshData) -> None:
@@ -46,7 +50,10 @@ def formatAsStucMesh(
 	metaOnly: bool,
 	getNormals: bool,
 	mats: bool = False,
-	activeNames: bpy.types.Collection | None = None
+	activeNames: bpy.types.Collection | None = None,
+	getTangents: bool = False,
+	getEdges: bool = True,
+	getVertNormals: bool = True
 ) -> StucMeshData:
 	mesh = stuc.StucMesh()
 	mesh.type.type = stuc.StucObjectType.MESH.value
@@ -61,10 +68,12 @@ def formatAsStucMesh(
 
 	loopsPtr = target.loops[0].as_pointer()
 	mesh.pCorners = ctypes.cast(loopsPtr, ctypes.POINTER(ctypes.c_int32))
-
-	edges = numpy.empty(mesh.cornerCount, dtype = numpy.int32)
-	target.loops.foreach_get("edge_index", cast(Any, edges))
-	mesh.pEdges = edges.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
+	
+	edges = None
+	if getEdges:
+		edges = numpy.empty(mesh.cornerCount, dtype = numpy.int32)
+		target.loops.foreach_get("edge_index", cast(Any, edges))
+		mesh.pEdges = edges.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
 
 	attribCount = {"face" : 0, "corner" : 0, "edge" : 0, "vert" : 0}
 	attribUtils.getAttribCounts(attribCount, target, getNormals)
@@ -75,29 +84,39 @@ def formatAsStucMesh(
 
 	matIndices = None
 	if mats:
-		matIndices = numpy.empty(mesh.faceCount, dtype = numpy.int8)
-		target.polygons.foreach_get("material_index", cast(Any, matIndices))
+		matIndices = (ctypes.c_int8 * mesh.faceCount)()
+		matAttrib = target.attributes.get("material_index", None)
+		#mat idx attrib won't be present if all faces are assigned to slot 0
+		if matAttrib:
+			indicesI32 = ctypes.cast(
+				matAttrib.data[0].as_pointer(), #type:ignore
+				ctypes.POINTER(ctypes.c_int32)
+			)
+			stucLib.stucBlenderArrayCast(matIndices, 1, indicesI32, 4, mesh.faceCount)
+		matIndices = ctypes.cast(matIndices, ctypes.c_void_p)
 		attribUtils.appendAttrib(
 			mesh.faceAttribs,
 			"materials",
 			0,
 			stuc.StucAttribUse.IDX.value,
-			matIndices.ctypes.data_as(ctypes.c_void_p),
+			matIndices,
 			mesh.activeAttribs
 		)
 
 	if not getNormals:
-			return StucMeshData(mesh, edges, None, None, None)
-	vertNormalsPtr = target.vertex_normals[0].as_pointer()
-	vertNormals = ctypes.cast(vertNormalsPtr, ctypes.c_void_p)
-	attribUtils.appendAttrib(
-		mesh.vertAttribs,
-		"vertNormals",
-		stuc.StucAttribType.V3_F32.value,
-		stuc.StucAttribUse.NORMALS_VERT.value,
-		vertNormals,
-		mesh.activeAttribs
-	)
+			return StucMeshData(mesh, edges, None, None, None, None, None)
+	vertNormals = None
+	if getVertNormals:
+		vertNormalsPtr = target.vertex_normals[0].as_pointer()
+		vertNormals = ctypes.cast(vertNormalsPtr, ctypes.c_void_p)
+		attribUtils.appendAttrib(
+			mesh.vertAttribs,
+			"vertNormals",
+			stuc.StucAttribType.V3_F32.value,
+			stuc.StucAttribUse.NORMALS_VERT.value,
+			vertNormals,
+			mesh.activeAttribs
+		)
 	normals = None
 	if not mesh.activeAttribs[stuc.StucAttribUse.NORMAL.value].active:
 		#normal attrib wasn't overriden, so we need to add it
@@ -107,8 +126,7 @@ def formatAsStucMesh(
 		if bpy.app.version < (4, 1, 0) and not len(target.corner_normals):
 			target.calc_normals_split() #type:ignore
 		normalsPtr = target.corner_normals[0].as_pointer()
-		normals = ctypes.cast(normalsPtr, ctypes.c_void_p)
-			
+		normals = ctypes.cast(normalsPtr, ctypes.c_void_p)		
 		attribUtils.appendAttrib(
 			mesh.cornerAttribs,
 			"normal",
@@ -117,11 +135,49 @@ def formatAsStucMesh(
 			normals,
 			mesh.activeAttribs
 		)
+	tangents = None
+	tSign = None
+	if getTangents:
+			target.calc_tangents()
+			tangents = (ctypes.c_float * 3 * mesh.cornerCount)()
+			tangentsNumpy = numpy.ctypeslib.as_array(
+				ctypes.cast(tangents, ctypes.POINTER(ctypes.c_float)),
+				shape = (mesh.cornerCount * 3, 1)
+			)
+			target.loops.foreach_get(
+				"tangent",
+				tangentsNumpy #type:ignore
+			)
+			tangents = ctypes.cast(tangents, ctypes.c_void_p)
+			tSign = (ctypes.c_float * mesh.cornerCount)()
+			target.loops.foreach_get(
+				"bitangent_sign",
+				numpy.ctypeslib.as_array(tSign, shape = (mesh.cornerCount, 1)) #type:ignore
+			)
+			tSign = ctypes.cast(tSign, ctypes.c_void_p)
+			target.free_tangents()
+			attribUtils.appendAttrib(
+				mesh.cornerAttribs,
+				"tangent",
+				stuc.StucAttribType.V3_F32.value,
+				stuc.StucAttribUse.TANGENT.value,
+				tangents,
+				mesh.activeAttribs
+			)
+			attribUtils.appendAttrib(
+				mesh.cornerAttribs,
+				"tSign",
+				stuc.StucAttribType.F32.value,
+				stuc.StucAttribUse.TSIGN.value,
+				tSign,
+				mesh.activeAttribs
+			)
+
 
 	#to avoid garbage collection, edges, normals, & matIndices are returned as well
 	#is there a better way to do this? TODO maybe make edges, normals, & matIndices
 	#out params, so there's a reference in the calling function. Probably cleaner than this.
-	return StucMeshData(mesh, edges, normals, matIndices, vertNormals)
+	return StucMeshData(mesh, edges, normals, matIndices, vertNormals, tangents, tSign)
 
 def copyStucMeshToBlenderMesh(
 		stucLib: ctypes.CDLL,
@@ -204,7 +260,10 @@ def formatAsStucObj(
 	isEval : bool,
 	depsgraph: bpy.types.Depsgraph | None,
 	mats: bool = False,
-	activeNames: bpy.types.Collection | None = None
+	activeNames: bpy.types.Collection | None = None,
+	getTangents: bool = False,
+	getEdges: bool = True,
+	getVertNormals: bool = True
 ) -> StucObjData:
 	stucObj = stuc.StucObject()
 	if isEval or not depsgraph:
@@ -215,7 +274,7 @@ def formatAsStucObj(
 	
 	if type(meshEval) != bpy.types.Mesh:
 		raise Exception("object is not a mesh")
-	meshTuple = formatAsStucMesh(meshEval, False, True, mats, activeNames)
+	meshTuple = formatAsStucMesh(meshEval, False, True, mats, activeNames, getTangents, getEdges, getVertNormals)
 	stucObj.pData = ctypes.cast(ctypes.pointer(meshTuple.mesh), ctypes.POINTER(stuc.StucObjectData))
 	utils.setStucMatrix(stucObj.transform, obj.matrix_world)
 	return StucObjData(stucObj, meshTuple)
@@ -263,11 +322,26 @@ def getMapMesh(
 		raise Exception("unable to get map mesh")
 	return [mesh.contents, idxAttribs.contents]
 
-def cpyStucMeshForRender(src: stuc.StucMesh) -> stuc.StucMesh:
+def prepStucMeshForRender(
+	src: stuc.StucMesh,
+	cpy: bool,
+	triangulate: bool
+) -> stuc.StucMesh:
 	if not src.faceCount:
 		raise Exception("src mesh is empty")
-	dest = stuc.StucMesh()
-	err = stucLib.stucBlenderMeshCpyForRender(ctypes.pointer(dest), ctypes.pointer(src))
-	if err != 1 or not dest.faceCount:
+	meshRender = None
+	if cpy:
+		meshRender = stuc.StucMesh()
+		err = stucLib.stucBlenderMeshCpy(ctypes.pointer(meshRender), ctypes.pointer(src))
+		if err != 1 or not meshRender.faceCount:
+			raise Exception("unable to copy mesh")
+	else:
+		meshRender = src
+		
+	err = stucLib.stucBlenderMeshPrepForRender(
+		ctypes.pointer(meshRender),
+		ctypes.c_bool(triangulate)
+	)
+	if err != 1:
 		raise Exception("unable to make render mesh")
-	return dest
+	return meshRender

@@ -9,6 +9,12 @@ from enum import Enum
 STUC_ATTRIB_NAME_MAX_LEN = 96
 STUC_ATTRIB_STRING_MAX_LEN = 64
 
+class MeshCacheType(Enum):
+	MESH_CACHE_NONE = 0
+	MESH_CACHE_IN = 1
+	MESH_CACHE_IN_EDIT = 2
+	MESH_CACHE_OUT = 3
+
 class StucAttribType(Enum):
 	I8 = 0
 	I16 = 1

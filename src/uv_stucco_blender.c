@@ -38,6 +38,7 @@ typedef struct TargetEntry {
 	StucMesh mesh;
 	StucAttribIndexedArr idxAttribs;
 	I32 id;
+	TargetCacheType type;
 } TargetEntry;
 
 static PixalcFPtrs allocPtrs = {
@@ -126,7 +127,11 @@ void initTargetEntry(
 	TargetEntry *pEntry = (TargetEntry *)pCore;
 	pEntry->id = *(I32 *)pKeyData;
 	pEntry->mesh = *(StucMesh *)ppInitArr[0];
-	pEntry->idxAttribs = *(StucAttribIndexedArr *)ppInitArr[1];
+	pEntry->type = *(TargetCacheType *)ppInitArr[2];
+	if (pEntry->type == MESH_CACHE_OUT) {
+		PIX_ERR_ASSERT("", ppInitArr[1]);
+		pEntry->idxAttribs = *(StucAttribIndexedArr *)ppInitArr[1];
+	}
 }
 
 static
@@ -153,11 +158,12 @@ PixErr targetEntryGet(
 	I32 id,
 	TargetEntry **ppEntry,
 	StucMesh *pMesh,
-	StucAttribIndexedArr *pIdxAttribs
+	StucAttribIndexedArr *pIdxAttribs,
+	TargetCacheType type
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, !(!pMesh ^ !pIdxAttribs), "");
-	void *init[] = {pMesh, pIdxAttribs};
+	PIX_ERR_RETURN_IFNOT_COND(err, !(!pMesh ^ !pIdxAttribs) || type != MESH_CACHE_OUT, "");
+	void *init[] = {pMesh, pIdxAttribs, &type};
 	SearchResult result = pixuctHTableGet(
 		&targetCache,
 		0,
@@ -479,15 +485,32 @@ PixErr stucBlenderMapMeshGet(
 	return err;
 }
 
-PixErr stucBlenderMeshCpyForRender(StucMesh *pDest, const StucMesh *pSrc) {
+PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate) {
+	PixErr err = PIX_ERR_SUCCESS;
+	if (triangulate) {
+		err = stucMeshTriangulate(pStucCtx, pMesh);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	//else assume already triangulated
+	PIX_ERR_ASSERT(
+		"tangent and tsign attribs must be mutually inclusive",
+		!(
+			pMesh->activeAttribs[STUC_ATTRIB_USE_TANGENT].active ^
+			pMesh->activeAttribs[STUC_ATTRIB_USE_TSIGN].active
+		)
+	);
+	if (!pMesh->activeAttribs[STUC_ATTRIB_USE_TANGENT].active) {
+		err = stucMeshBuildTangentsForTris(pStucCtx, pMesh);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	err = stucMeshAttribsCornerToVert(pStucCtx, pMesh);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderMeshCpy(StucMesh *pDest, const StucMesh *pSrc) {
 	StucErr err = PIX_ERR_SUCCESS;
-	err = stucMeshAllocCopy(pStucCtx, pDest, pSrc);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = stucMeshTriangulate(pStucCtx, pDest);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = stucMeshBuildTangentsForTris(pStucCtx, pDest);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = stucMeshAttribsCornerToVert(pStucCtx, pDest);
+	err = stucMeshAllocCopy(pStucCtx, pDest, pSrc, true);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err,
 		stucMeshDestroy(pStucCtx, pDest);
@@ -521,7 +544,9 @@ PixErr stucBlenderMapMeshRenderUpdate(const char *pMap) {
 	const StucMesh *pMesh = NULL;
 	err = stucMapFileMeshGet(pStucCtx, pEntry->pMap, &pMesh, NULL);
 	PIX_ERR_RETURN_IFNOT_COND(err, pMesh, "");
-	err = stucBlenderMeshCpyForRender(&pEntry->meshRender, pMesh);
+	err = stucBlenderMeshCpy(&pEntry->meshRender, pMesh);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err = stucBlenderMeshPrepForRender(&pEntry->meshRender, true);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err,
 		stucMeshDestroy(pStucCtx, &pEntry->meshRender);
@@ -706,7 +731,7 @@ PixErr stucBlenderTargetCacheRemove(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
 
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, NULL, NULL);
+	err = targetEntryGet(id, &pEntry, NULL, NULL, MESH_CACHE_NONE);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (!pEntry) {
 		return err;
@@ -720,42 +745,41 @@ PixErr stucBlenderTargetCacheRemove(I32 id) {
 PixErr stucBlenderTargetCacheAdd(
 	I32 id,
 	StucMesh *pMesh,
-	StucAttribIndexedArr *pIdxAttribs
+	StucAttribIndexedArr *pIdxAttribs,
+	TargetCacheType type
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, pMesh && pIdxAttribs, "");
-	PIX_ERR_ASSERT("", pMesh->faceCount);
-	err = stucMeshBuildTangentsForTris(pStucCtx, pMesh);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	err = stucMeshAttribsCornerToVert(pStucCtx, pMesh);
-	PIX_ERR_RETURN_IFNOT(err, "");
-
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, pMesh, pIdxAttribs);
+	err = targetEntryGet(id, &pEntry, pMesh, pIdxAttribs, type);
 	PIX_ERR_RETURN_IFNOT(err, "");
 
 	*pMesh = (StucMesh){0};
-	*pIdxAttribs = (StucAttribIndexedArr){0};
+	if (pIdxAttribs) {
+		*pIdxAttribs = (StucAttribIndexedArr){0};
+	}
 	return err;
 }
 
 PixErr stucBlenderTargetCacheGet(
 	I32 id,
 	StucMesh **ppMesh,
-	StucAttribIndexedArr **ppIdxAttribs
+	StucAttribIndexedArr **ppIdxAttribs,
+	TargetCacheType *pType
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, ppMesh || ppIdxAttribs, "");
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, NULL, NULL);
+	err = targetEntryGet(id, &pEntry, NULL, NULL, MESH_CACHE_NONE);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	if (pEntry && pEntry->mesh.faceCount) {
+	if (pEntry && pEntry->type != MESH_CACHE_NONE) {
+		PIX_ERR_ASSERT("", pEntry->mesh.faceCount);
 		if (ppMesh) {
 			*ppMesh = &pEntry->mesh;
 		}
 		if (ppIdxAttribs) {
 			*ppIdxAttribs = &pEntry->idxAttribs;
 		}
+		*pType = pEntry->type;
 	}
 	return err;
 }
@@ -763,7 +787,7 @@ PixErr stucBlenderTargetCacheGet(
 PixErr stucBlenderTargetCacheClear(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, NULL, NULL);
+	err = targetEntryGet(id, &pEntry, NULL, NULL, MESH_CACHE_NONE);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->mesh.faceCount) {
 		err = stucMeshDestroy(pStucCtx, &pEntry->mesh);
@@ -772,6 +796,7 @@ PixErr stucBlenderTargetCacheClear(I32 id) {
 		err = stucAttribIndexedArrDestroy(pStucCtx, &pEntry->idxAttribs);
 		PIX_ERR_RETURN_IFNOT(err, "");
 		pEntry->idxAttribs = (StucAttribIndexedArr){0};
+		pEntry->type = MESH_CACHE_NONE;
 	}
 	return err;
 }
@@ -865,4 +890,19 @@ PixErr stucBlenderSelCornersFromFaces(
 		}
 	}
 	return err;
+}
+
+void stucBlenderArrayCast(
+	void *pDest, I32 sizeDest,
+	void *pSrc, I32 sizeSrc,
+	I32 len
+) {
+	PIX_ERR_ASSERT("", sizeDest < sizeSrc && sizeDest > 0);
+	for (I32 i = 0; i < len; ++i) {
+		memcpy(
+			(U8 *)pDest + i * sizeDest,
+			(U8 *)pSrc + i * sizeSrc,
+			sizeDest
+		);
+	}
 }

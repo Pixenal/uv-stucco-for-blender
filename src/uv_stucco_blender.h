@@ -12,6 +12,13 @@ SPDX-License-Identifier: GPL-3.0-only
 	#define STUC_BLENDER_EXPORT __attribute__((visibility("default")))
 #endif
 
+typedef enum TargetCacheType {
+	MESH_CACHE_NONE,
+	MESH_CACHE_IN,
+	MESH_CACHE_IN_EDIT,
+	MESH_CACHE_OUT
+} TargetCacheType;
+
 typedef struct StucBlenderMatTable{
 	int8_t *pArr;
 	int32_t count;
@@ -91,7 +98,9 @@ PixErr stucBlenderMapMeshGet(
 	bool forRender
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMeshCpyForRender(StucMesh *pDest, const StucMesh *pSrc);
+PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderMeshCpy(StucMesh *pDest, const StucMesh *pSrc);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapMeshRenderUpdate(const char *pMap);
 STUC_BLENDER_EXPORT
@@ -154,13 +163,15 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheAdd(
 	int32_t id,
 	StucMesh *pMesh,
-	StucAttribIndexedArr *pIdxAttribs
+	StucAttribIndexedArr *pIdxAttribs,
+	TargetCacheType type
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheGet(
 	int32_t id,
 	StucMesh **ppMesh,
-	StucAttribIndexedArr **ppIdxAttribs
+	StucAttribIndexedArr **ppIdxAttribs,
+	TargetCacheType *pType
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheClear(int32_t id);
@@ -181,4 +192,10 @@ PixErr stucBlenderSelCornersFromFaces(
 	const StucMesh *pMesh,
 	float *pSelCorners,
 	const int8_t *pSelFaces
+);
+STUC_BLENDER_EXPORT
+void stucBlenderArrayCast(
+	void *pDest, int32_t sizeDest,
+	void *pSrc, int32_t sizeSrc,
+	int32_t len
 );

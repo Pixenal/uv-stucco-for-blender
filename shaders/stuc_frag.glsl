@@ -236,6 +236,18 @@ vec3 makeSparkles(mat3 pMat, mat3 viewMat, vec2 viewUv, mat3 tbn, float time, fl
 }
 
 void main() {
+	float time;
+	#ifdef USE_TIME
+		time = matInfo.time;
+	#else
+		{
+			float a = atan(m_viewMat[2].y, m_viewMat[2].x);
+			float b = atan(m_viewMat[2].y, m_viewMat[2].z);
+			time = (sin(a) * sin(b)) * .5f + .5f;
+			time *= 60.0f;
+		}
+	#endif
+
 	vec3 v = normalize(v_viewPos - v_pos);
 	vec3 viewUvw = vec3(gl_FragCoord.xy / v_viewRes, 1.0f);
 	float aspect = v_viewRes.x / v_viewRes.y;
@@ -261,7 +273,7 @@ void main() {
 	bool textInner = false;
 	vec3 errCol = vec3(.0f);
 	vec3 crystal = vec3(.0f);
-	float sinTimeSlow = sin(matInfo.time / 45.0f * PI);
+	float sinTimeSlow = sin(time / 45.0f * PI);
 	{
 		crystal = mod(v_pos + sinTimeSlow, vec3(1.0f));
 		vec3 crystalRefl = mod(reflect(normalize(-v), crystal), vec3(.5f)) * 2.0f;
@@ -283,7 +295,7 @@ void main() {
 		for (int i = 0; i < sparklePasses; ++i) {
 			float weight = 1.0f - (1.0f / float(sparklePasses) * float(i));
 			vec3 flowOut = vec3(.0f);
-			vec3 passCol = makeSparkles(pMat, m_viewMat, viewUvw.xy, m_tbn, matInfo.time, pow(float(i) * 4.0f, 1.25f), flowOut);
+			vec3 passCol = makeSparkles(pMat, m_viewMat, viewUvw.xy, m_tbn, time, pow(float(i) * 4.0f, 1.25f), flowOut);
 			float luminance = .2126f * passCol.x + .7152 * passCol.y + .0722 * passCol.z;
 			passCol = mix(passCol, (-v * .5f + .5f), .75f) * luminance;
 
@@ -316,13 +328,17 @@ void main() {
 		luminance = clamp(luminance, .0f, 1.0f);
 		sparkles = pow(sparkles + 1.0f, vec3(4.0f)) - 1.0f;
 
-		float timeScroll = matInfo.time / 60.0f;
+		#ifdef USE_TIME
+			float timeScroll = time / 60.0f;
+		#else
+			float timeScroll = .0f;
+		#endif
 		vec2 vFakeViewUv = vec2(dot(pMat[2], viewMat[0]), dot(pMat[2], viewMat[1]));
 		vec2 textUv = viewUvw.xy + vFakeViewUv * .0625f;
 		textUv = (textUv + timeScroll) * 12.0f * vec2(aspect, 1.0f);
 		float text = texture(errTex, textUv).x;
 		text *= selFace ? .0f : 1.0f;
-		float sinTime = sin(matInfo.time / 60.0f * 24.0f * PI) * .5f + .5f;
+		float sinTime = sin(time / 60.0f * 3.0f * PI) * .5f + .5f;
 		float timeMask = invMul(sinTime, .05f);
 		float timeMaskInner = invMul(sinTime, .1f);
 		bool textInner = text > invMul(.425f, timeMaskInner);
@@ -348,14 +364,14 @@ void main() {
 		}
 
 		/*
-		checker = (ivec2(gl_FragCoord.xy + ivec2(vec2(matInfo.time / 60.0f) * v_viewRes.xy)) / 18 + ivec2(0, 1)) % ivec2(2.0, 2.0);
+		checker = (ivec2(gl_FragCoord.xy + ivec2(vec2(time / 60.0f) * v_viewRes.xy)) / 18 + ivec2(0, 1)) % ivec2(2.0, 2.0);
 		
 		errCol = textOuter ? normalize(m_tbn[2] + vec3(.0f, .0f, sinTimeSlow)) : crystal * .5f + .5f;
 		errCol = pow(errCol, vec3(2.0f));
 		errCol = !textInner && textOuter ? vec3(.0f) : errCol;
 		errCol = !selFace && !textOuter && checker.x == checker.y ? vec3(.0f, .0f, .0f) : errCol;
 		
-		ivec2 colChecker = ((ivec2(gl_FragCoord.xy + ivec2(vec2(matInfo.time / 60.0f) * v_viewRes.xy))) / 32 + ivec2(0, 1)) % ivec2(2.0, 2.0);
+		ivec2 colChecker = ((ivec2(gl_FragCoord.xy + ivec2(vec2(time / 60.0f) * v_viewRes.xy))) / 32 + ivec2(0, 1)) % ivec2(2.0, 2.0);
 		errCol = mix(
 			errCol,
 			clamp(errCol * 2.0f, .0f, 1.0f),
@@ -395,7 +411,7 @@ void main() {
 
 	if (matInfo.error != 0.0f) {
 		/*
-		ivec2 dither = (ivec2(gl_FragCoord.xy + ivec2(vec2(matInfo.time / 60.0f) * v_viewRes.xy)) + ivec2(0, 1)) % ivec2(2.0, 2.0);
+		ivec2 dither = (ivec2(gl_FragCoord.xy + ivec2(vec2(time / 60.0f) * v_viewRes.xy)) + ivec2(0, 1)) % ivec2(2.0, 2.0);
 		float envDither = (textOuter ? dither.x == .0f || dither.y == .0f : dither.x == dither.y) ? 1.0f : .0f;
 		float envDitherFresnel = (textOuter ? dither.x == .0f && dither.y == .0f : false) ? 1.0f : .0f;
 		float luminance = .2126f * col.x + .7152 * col.y + .0722 * col.z;

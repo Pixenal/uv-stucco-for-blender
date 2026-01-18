@@ -4,6 +4,7 @@ SPDX-License-Identifier: GPL-3.0-only
 '''
 
 import ctypes
+from pickletools import int4
 import numpy
 from numpy._typing import NDArray
 from typing import Any, cast
@@ -103,29 +104,6 @@ def createMapArr(
 		i += 1
 	return mapArr
 
-def removeHiddenInEditMesh(bm: bmesh.types.BMesh, requireSelInEdit: bool)-> bool:
-	noSelFaces = True
-	toDel = []
-	for face in bm.faces:
-		if face.hide:
-			toDel.append(face)
-		elif noSelFaces and face.select:
-			noSelFaces = False
-	if noSelFaces:
-		for vert in bm.verts:
-			if vert.select:
-				noSelFaces = False
-				break
-	if noSelFaces:
-		for edge in bm.edges:
-			if edge.select:
-				noSelFaces = False
-				break
-	if noSelFaces and requireSelInEdit or len(toDel) == len(bm.faces):
-		return True
-	bmesh.ops.delete(bm, geom = toDel, context = 'FACES')
-	return False
-
 #returns None if aborted
 def prepTargetForMapping(
 	context: bpy.types.Context,
@@ -140,17 +118,9 @@ def prepTargetForMapping(
 	if target.obj.mode == 'OBJECT':
 		obj = target.obj
 	elif target.obj.mode == 'EDIT':
-		obj = target.obj.copy()
-		obj.name = "STUC_TEMP_WORK_OBJ"
-		obj.data = target.obj.data.copy()
-		obj.data.name = "STUC_TEMP_WORK_MESH"
-		bm = bmesh.from_edit_mesh(target.obj.data) #type:ignore
-		bm = bm.copy()
-		if removeHiddenInEditMesh(bm, requireSelInEdit):
-			bm.clear()
+		obj = meshUtils.bmEditToObj(target.obj, requireSelInEdit)
+		if not obj or not obj.data or type(obj.data) != bpy.types.Mesh:
 			return (None, 1, None)
-		bm.to_mesh(obj.data)
-		bm.clear()
 	else:
 		return (None, 1, None)
 
@@ -164,7 +134,7 @@ def prepTargetForMapping(
 	)
 	#hide_viewport is the moniter icon, and hide_get is the eye
 	if not commonAttribs or obj.hide_viewport or obj.hide_get():
-		return (None, 1, obj if target.obj.mode == 'EDIT' else None)
+		return (None, 1, obj if target.obj.mode == 'EDIT' else None) #type:ignore
 	wScale = obj.get("stucWScale", None)
 	if wScale == None:
 		wScale = context.scene.stuc.wScale #type:ignore
@@ -182,7 +152,7 @@ def prepTargetForMapping(
 	
 	mapArr = createMapArr(context, objEval, meshEval, commonAttribs) #type:ignore
 	if not mapArr:
-		return (None, 1, obj if target.obj.mode == 'EDIT' else None)
+		return (None, 1, obj if target.obj.mode == 'EDIT' else None) #type:ignore
 	inIndexedArr = createMatIdxAttrib(meshEval) #type:ignore
 	stucObj = meshUtils.formatAsStucObj(
 		objEval,
@@ -314,21 +284,51 @@ def waitForAndCopyOutMeshes(
 			#print("FinishedUpdating")
 
 def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
-	selFlag = (ctypes.c_float * mesh.cornerCount)()
+	selFaces = (ctypes.c_float * mesh.cornerCount)()
+	selEdges = (ctypes.c_float * mesh.edgeCount)()
+	size = mesh.edgeCount * 2
+	edges = (ctypes.c_int32 * size)()
 	attribUtils.appendAttrib(
 		mesh.cornerAttribs,
-		"select",
+		"selFaces",
 		stuc.StucAttribType.F32.value,
 		stuc.StucAttribUse.MISC.value,
-		ctypes.cast(selFlag, ctypes.c_void_p)
+		ctypes.cast(selFaces, ctypes.c_void_p),
+		activeAttribs = mesh.activeAttribs,
+		domain = stuc.StucDomain.CORNER
 	)
-	selFaces = numpy.empty(mesh.faceCount, dtype = numpy.int8)
-	obj.data.polygons.foreach_get("select", selFaces) #type:ignore
-	stucLib.stucBlenderSelCornersFromFaces(
+	attribUtils.appendAttrib(
+		mesh.edgeAttribs,
+		"selEdges",
+		stuc.StucAttribType.F32.value,
+		stuc.StucAttribUse.MASK.value,
+		ctypes.cast(selEdges, ctypes.c_void_p),
+		activeAttribs = mesh.activeAttribs,
+		domain = stuc.StucDomain.EDGE
+	)
+	attribUtils.appendAttrib(
+		mesh.edgeAttribs,
+		"edgeCorners",
+		stuc.StucAttribType.V2_I32.value,
+		stuc.StucAttribUse.EDGE_CORNERS.value,
+		ctypes.cast(edges, ctypes.c_void_p),
+		activeAttribs = mesh.activeAttribs,
+		domain = stuc.StucDomain.EDGE
+	)
+
+	selFacesNumpy = numpy.empty(mesh.faceCount, dtype = numpy.int8)
+	obj.data.polygons.foreach_get("select", selFacesNumpy) #type:ignore
+	selEdgesNumpy = numpy.empty(mesh.edgeCount, dtype = numpy.int8)
+	obj.data.edges.foreach_get("select", selEdgesNumpy) #type:ignore
+	stucLib.stucBlenderMeshCastSel(
 		ctypes.pointer(mesh),
-		selFlag,
-		numpy.ctypeslib.as_ctypes(selFaces)
+		selFaces,
+		numpy.ctypeslib.as_ctypes(selFacesNumpy),
+		selEdges,
+		numpy.ctypeslib.as_ctypes(selEdgesNumpy)
 	)
+	edgesNumpy = numpy.ctypeslib.as_array(edges, shape = (size, 1))
+	obj.data.edges.foreach_get("vertices", edgesNumpy) #type:ignore
 
 def cacheTarget(
 	target: props.StucTarget,
@@ -405,7 +405,9 @@ def mapToTarget(
 			elif info[2]:
 				cacheTarget(target, objOverride = info[2], edit = True)
 			else:
-				cacheTarget(target, edit = True)
+				err = stucLib.stucBlenderTargetCacheClear(target.id)
+				if err != 1:
+					raise Exception()
 		case _:
 			cacheTarget(target)
 

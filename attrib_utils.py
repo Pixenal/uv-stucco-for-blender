@@ -171,11 +171,11 @@ def getAttribCounts(
 				raise Exception("invalid attrib domain")
 			
 def allocAttribs(mesh: stuc.StucMesh, attribCounts: dict[str, int]) -> None:
-	FaceAttribsArray = stuc.StucAttrib * (attribCounts["face"] + 1)# +1 for select flag (unused outside of edit mode)
+	FaceAttribsArray = stuc.StucAttrib * (attribCounts["face"] + 1)
 	mesh.faceAttribs.pArr = FaceAttribsArray()
-	CornerAttribsArray = stuc.StucAttrib * (attribCounts["corner"] + 3) # +3 for normals, tangents, & tsign
+	CornerAttribsArray = stuc.StucAttrib * (attribCounts["corner"] + 3)# +4 for normals, tangents, tsign, & select
 	mesh.cornerAttribs.pArr = CornerAttribsArray()
-	EdgeAttribsArray = stuc.StucAttrib * attribCounts["edge"]
+	EdgeAttribsArray = stuc.StucAttrib * attribCounts["edge"]# +2 for edge corners/verts and select
 	mesh.edgeAttribs.pArr = EdgeAttribsArray()
 	VertAttribsArray = stuc.StucAttrib * (attribCounts["vert"] + 1) # +1 for vert normals
 	mesh.vertAttribs.pArr = VertAttribsArray()
@@ -286,7 +286,8 @@ def appendAttrib(
 	type: int,
 	use: int,
 	data: ctypes.c_void_p,
-	activeAttribs: ctypes.Array[stuc.StucAttribActive] | None = None
+	activeAttribs: ctypes.Array[stuc.StucAttribActive] | None = None,
+	domain: stuc.StucDomain | None = None
 ) -> stuc.StucAttrib:
 	attribEntry = attribs.pArr[attribs.count]
 	utils.copyString(attribEntry.core.name, name, stuc.STUC_ATTRIB_NAME_MAX_LEN)
@@ -296,6 +297,8 @@ def appendAttrib(
 		#attrib is active
 		activeAttribs[use].active = True
 		activeAttribs[use].idx = attribs.count
+		if (domain):
+			activeAttribs[use].domain = domain.value
 	attribEntry.core.pData = data
 	attribs.count += 1
 	return attribEntry

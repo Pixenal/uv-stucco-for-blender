@@ -105,7 +105,7 @@ def drawTarget(target: props.StucTarget) -> None:
 		mats = None if idxAttribs else [mat for mat in target.obj.data.materials]
 	)
 	if edit:
-		draw.drawEditOverlay(target.obj, cache[0])
+		draw.drawEditOverlay(cache[0], target.obj)
 
 @persistent
 def stucDrawHandler() -> None:

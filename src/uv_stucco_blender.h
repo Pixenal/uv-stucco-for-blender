@@ -188,10 +188,12 @@ PixErr stucBlenderEditOverlayCol(
 	PixtyV4_F32 *pCol
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderSelCornersFromFaces(
+PixErr stucBlenderMeshCastSel(
 	const StucMesh *pMesh,
 	float *pSelCorners,
-	const int8_t *pSelFaces
+	const int8_t *pSelFaces,
+	float *pfSelEdges,
+	const int8_t *piSelEdges
 );
 STUC_BLENDER_EXPORT
 void stucBlenderArrayCast(

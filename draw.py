@@ -34,14 +34,31 @@ offscreenHrm = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA8') #type:ignore
 def numpyFromStucAttrib(
 	mesh: stuc.StucMesh,
 	use: stuc.StucAttribUse,
-	size: int
+	size: int,
+	domain: stuc.StucDomain = stuc.StucDomain.VERT,
+	attribType: type = ctypes.c_float
 ):
-	attrib = attribUtils.getAttribFromUse(mesh.vertAttribs, use.value)
+	match domain:
+		case stuc.StucDomain.FACE:
+			attribArray = mesh.faceAttribs
+			count = mesh.faceCount
+		case stuc.StucDomain.CORNER:
+			attribArray = mesh.cornerAttribs
+			count = mesh.cornerCount
+		case stuc.StucDomain.EDGE:
+			attribArray = mesh.edgeAttribs
+			count = mesh.edgeCount
+		case stuc.StucDomain.VERT:
+			attribArray = mesh.vertAttribs
+			count = mesh.vertCount
+		case _:
+			raise Exception("invalid domain")
+	attrib = attribUtils.getAttribFromUse(attribArray, use.value)
 	if not attrib:
 		return None
 	return numpy.ctypeslib.as_array(
-    	ctypes.cast(attrib.core.pData, ctypes.POINTER(ctypes.c_float)),
-    	shape = (mesh.vertCount, size)
+    	ctypes.cast(attrib.core.pData, ctypes.POINTER(attribType)),
+    	shape = (count, size)
 	)
 
 def getArea() -> bpy.types.Area | None:
@@ -810,62 +827,35 @@ def drawStucMesh(
 editShader = gpu.shader.from_builtin('POLYLINE_SMOOTH_COLOR')
 
 def drawEditOverlay(
-	obj: bpy.types.Object,
-	stucMesh: stuc.StucMesh
+	mesh: stuc.StucMesh,
+	obj: bpy.types.Object
 ) -> None:
 	area = getArea()
 	if not area:
 		return
+	pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
+	edgeSel = numpyFromStucAttrib(mesh, stuc.StucAttribUse.MASK, 1, stuc.StucDomain.EDGE)
+	edges = numpyFromStucAttrib(
+		mesh,
+		stuc.StucAttribUse.EDGE_CORNERS,
+		2,
+		stuc.StucDomain.EDGE,
+		ctypes.c_int32
+	)
+	if not pos or not edgeSel or not edges:
+		raise Exception("unable to get mesh attribs")
 
-	mesh = obj.data
-	if type(mesh) != bpy.types.Mesh:
-		raise Exception()
-	
-	stucPos = numpyFromStucAttrib(stucMesh, stuc.StucAttribUse.POS, 3)
-	stucNormal = numpyFromStucAttrib(stucMesh, stuc.StucAttribUse.NORMAL, 3)
-	stucCorner = numpy.ctypeslib.as_array(
-    	ctypes.cast(stucMesh.pCorners, ctypes.POINTER(ctypes.c_int32)),
-    	shape = (stucMesh.faceCount, 3)
-	)
-	selAttrib = ctypes.POINTER(stuc.StucAttrib)()
-	err = stucLib.stucBlenderAttribGet(
-		ctypes.pointer(stucMesh),
-		b"select",
-		ctypes.pointer(selAttrib),
-		None, None
-	)
-	if err != 1:
-		raise Exception("error while getting sel attrib")
-	faceSel = numpy.ctypeslib.as_array(
-		ctypes.cast(selAttrib.contents.core.pData, ctypes.POINTER(ctypes.c_float)),
-		shape = (stucMesh.vertCount, 1)
-	)
-
-	edgeCount = len(mesh.edges)
-	vertCount = len(mesh.vertices)
-	edges = ctypes.c_void_p(mesh.edges[0].as_pointer())
-	pos = ctypes.c_void_p(mesh.vertices[0].as_pointer())
-	posNumpy = numpy.ctypeslib.as_array(
-		ctypes.cast(pos, ctypes.POINTER(ctypes.c_float)),
-		shape = (vertCount, 3)
-	)
-	edgesNumpy = numpy.ctypeslib.as_array(
-		ctypes.cast(edges, ctypes.POINTER(ctypes.c_int32)),
-		shape = (edgeCount, 2)
-	)
-	select = numpy.empty(edgeCount, dtype = numpy.bool)
-	mesh.edges.foreach_get("select", select) #type:ignore
-	color = (ctypes.c_float * 4 * vertCount)()
+	color = (ctypes.c_float * 4 * mesh.vertCount)()
 	err = stucLib.stucBlenderEditOverlayCol(
-		edgeCount,
+		mesh.edgeCount,
 		edges,
-		numpy.ctypeslib.as_ctypes(select),
-		vertCount,
+		numpy.ctypeslib.as_ctypes(edgeSel),
+		mesh.vertCount,
 		color
 	)
 	if err != 1:
 		raise Exception("error while making colors for edit overlay")
-	colorNumpy = numpy.ctypeslib.as_array(color, shape = (vertCount, 4))
+	colorNumpy = numpy.ctypeslib.as_array(color, shape = (mesh.vertCount, 4))
 
 	#vertSelIsOn = bpy.context.tool_settings.mesh_select_mode[0]
 	#shaderType = 'POLYLINE_SMOOTH_COLOR' if vertSelIsOn else 'POLYLINE_FLAT_COLOR'
@@ -874,43 +864,14 @@ def drawEditOverlay(
 		editShader,
 		'LINES',
 		{
-			"pos" : posNumpy, #type:ignore
+			"pos" : pos, #type:ignore
 			"color" : colorNumpy
    		},
-		indices = edgesNumpy
+		indices = edges
 	)
-
-	compBatch = gpu_extras.batch.batch_for_shader(
-		compShader,
-		'TRIS',
-		{
-			"position" : stucPos, #type:ignore
-			"normal" : stucNormal,
-			"select" : faceSel
-   		},
-		indices = stucCorner
-	)
-
-	if not fluidTextures:
-		raise Exception()
-	compShader.uniform_sampler("flowTex", fluidTextures[0])
-	compShader.uniform_sampler("macroNoiseTex", fluidTextures[1])
-	compShader.uniform_sampler("microNoiseTex", fluidTextures[2])
-	compShader.uniform_sampler("sparkleTex", fluidTextures[3])
-
 	with gpu.matrix.push_pop():
-		delta = (datetime.now() - datetime(1970, 1, 1))
-		time = float(delta.seconds % 60) + delta.microseconds / 1000000.0
-		compShader.uniform_float("time", time)
-		frameBuf = gpu.state.active_framebuffer_get() #type:ignore
-		compShader.uniform_float("viewRes", frameBuf.viewport_get())
-
 		perpMatrix = bpy.context.region_data.perspective_matrix
 		gpu.matrix.load_projection_matrix(perpMatrix)
-		compShader.uniform_float("viewProjectionMatrix", perpMatrix) #type:ignore
-		compShader.uniform_float("modelMatrix", obj.matrix_world) #type:ignore
-		viewPos = gpu.matrix.get_model_view_matrix().inverted().translation
-		compShader.uniform_float("viewPos", viewPos) #type:ignore
 
 		gpu.matrix.load_matrix(obj.matrix_world)
 		editShader.uniform_float("viewportSize", gpu.state.viewport_get()[2:])
@@ -921,7 +882,6 @@ def drawEditOverlay(
 		depthTestMode = gpu.state.depth_test_get()
 		gpu.state.depth_test_set('LESS_EQUAL')
 		gpu.state.depth_mask_set(True)
-		#compBatch.draw(compShader)
 		editBatch.draw(editShader)
 		gpu.state.depth_mask_set(False)
 		gpu.state.depth_test_set(depthTestMode)

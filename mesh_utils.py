@@ -345,3 +345,45 @@ def prepStucMeshForRender(
 	if err != 1:
 		raise Exception("unable to make render mesh")
 	return meshRender
+
+def removeHiddenInEditMesh(bm: bmesh.types.BMesh, requireSelInEdit: bool)-> bool:
+	noSelFaces = True
+	toDel = []
+	for face in bm.faces:
+		if face.hide:
+			toDel.append(face)
+		elif noSelFaces and face.select:
+			noSelFaces = False
+	if noSelFaces:
+		for vert in bm.verts:
+			if vert.select:
+				noSelFaces = False
+				break
+	if noSelFaces:
+		for edge in bm.edges:
+			if edge.select:
+				noSelFaces = False
+				break
+	if noSelFaces and requireSelInEdit or len(toDel) == len(bm.faces):
+		return True
+	bmesh.ops.delete(bm, geom = toDel, context = 'FACES')
+	return False
+
+def bmEditToObj(
+	targetObj: bpy.types.Object,
+	requireSel: bool = True
+) -> bpy.types.Object | None:
+	if not targetObj.data or type(targetObj.data) != bpy.types.Mesh:
+		return None
+	bm = bmesh.from_edit_mesh(targetObj.data) #type:ignore
+	bm = bm.copy()
+	if removeHiddenInEditMesh(bm, requireSel):
+		bm.clear()
+		return None
+	obj = targetObj.copy()
+	obj.name = "STUC_TEMP_WORK_OBJ"
+	obj.data = targetObj.data.copy()
+	obj.data.name = "STUC_TEMP_WORK_MESH"
+	bm.to_mesh(obj.data)
+	bm.clear()
+	return obj

@@ -184,6 +184,8 @@ PixErr targetEntryGet(
 				err = stucMeshDestroy(pStucCtx, &(*ppEntry)->mesh);
 				PIX_ERR_RETURN_IFNOT(err, "");
 			}
+			PIX_ERR_ASSERT("", type != MESH_CACHE_NONE);
+			(*ppEntry)->type = type;
 			(*ppEntry)->mesh = *pMesh;
 		}
 		if (pIdxAttribs) {
@@ -873,13 +875,19 @@ PixErr stucBlenderEditOverlayCol(
 	return err;
 }
 
-PixErr stucBlenderSelCornersFromFaces(
+PixErr stucBlenderMeshCastSel(
 	const StucMesh *pMesh,
 	F32 *pSelCorners,
-	const I8 *pSelFaces
+	const I8 *pSelFaces,
+	F32 *pfSelEdges,
+	const I8 *piSelEdges
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, pMesh && pSelCorners && pSelFaces, "");
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		pMesh && pSelCorners && pSelFaces && pfSelEdges && piSelEdges,
+		""
+	);
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
 		I32 faceStart = pMesh->pFaces[i];
 		PIX_ERR_ASSERT("", faceStart >= 0);
@@ -888,6 +896,9 @@ PixErr stucBlenderSelCornersFromFaces(
 		for (I32 j = 0; j < faceSize; ++j) {
 			pSelCorners[faceStart + j] = (F32)pSelFaces[i];
 		}
+	}
+	for (I32 i = 0; i < pMesh->edgeCount; ++i) {
+		pfSelEdges[i] = (F32)piSelEdges[i];
 	}
 	return err;
 }

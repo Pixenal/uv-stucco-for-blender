@@ -173,9 +173,9 @@ def getAttribCounts(
 def allocAttribs(mesh: stuc.StucMesh, attribCounts: dict[str, int]) -> None:
 	FaceAttribsArray = stuc.StucAttrib * (attribCounts["face"] + 1)
 	mesh.faceAttribs.pArr = FaceAttribsArray()
-	CornerAttribsArray = stuc.StucAttrib * (attribCounts["corner"] + 3)# +4 for normals, tangents, tsign, & select
+	CornerAttribsArray = stuc.StucAttrib * (attribCounts["corner"] + 4)# +4 for normals, tangents, tsign, & select
 	mesh.cornerAttribs.pArr = CornerAttribsArray()
-	EdgeAttribsArray = stuc.StucAttrib * attribCounts["edge"]# +2 for edge corners/verts and select
+	EdgeAttribsArray = stuc.StucAttrib * (attribCounts["edge"] + 2)# +2 for edge corners/verts and select
 	mesh.edgeAttribs.pArr = EdgeAttribsArray()
 	VertAttribsArray = stuc.StucAttrib * (attribCounts["vert"] + 1) # +1 for vert normals
 	mesh.vertAttribs.pArr = VertAttribsArray()
@@ -410,6 +410,10 @@ def updateCommonAttribs(
 	for mat in targetMats:
 		if not len(mat.map):
 			continue
+		mapHandle = ctypes.c_void_p()
+		mapHandle = stucLib.stucBlenderMapHandleGet(mat.map.encode('utf-8'))
+		if not mapHandle:
+			continue
 		idx = utils.findMatInCol(mat.mat, table)
 		if idx != None:
 			entry = table[idx] #type:ignore
@@ -418,12 +422,13 @@ def updateCommonAttribs(
 			entry.mat = mat.mat
 			entry.map = mat.map
 
-		mapUtf8 = mat.map.encode('utf-8')
-		stucLib.stucBlenderQueryCommonAttribs(
-			meshTuple.mesh,
-			mapUtf8,
+		err = stucLib.stucBlenderQueryCommonAttribs(
+			ctypes.pointer(meshTuple.mesh),
+			mapHandle,
 			ctypes.pointer(commonAttribList[i])
 		)
+		if err != 1:
+			raise Exception("map loaded on py side, but not in c lib")
 
 		if (entry.map != mat.map):
 			#map has changed. clear common attrib configs
@@ -453,7 +458,7 @@ def updateCommonAttribs(
 			meshTuple.mesh.vertAttribs
 		)
 		i += 1
-	return commonAttribList
+	return commonAttribList if i == targetMatCount else None
 
 def attribNameToStr(attrib: stuc.StucAttrib)-> str:
 	return ctypes.cast(attrib.core.name, ctypes.c_char_p).value.decode('utf-8') #type:ignore

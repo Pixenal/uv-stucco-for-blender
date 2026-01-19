@@ -559,17 +559,12 @@ PixErr stucBlenderMapMeshRenderUpdate(const char *pMap) {
 
 PixErr stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
-	const char *pMap,
+	StucMap pMap,
 	StucBlendOptArr *pBlendOptArr
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	MapEntry *pEntry = NULL;
-	err = mapEntryGet(pMap, &pEntry, NULL);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	if (!pEntry) {
-		return err;
-	}
-	err = stucQueryCommonAttribs(pStucCtx, pEntry->pMap, pMesh, pBlendOptArr);
+	PIX_ERR_RETURN_IFNOT_COND(err, pMesh && pMap && pBlendOptArr, "");
+	err = stucQueryCommonAttribs(pStucCtx, pMap, pMesh, pBlendOptArr);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }

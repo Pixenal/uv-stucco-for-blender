@@ -121,7 +121,7 @@ PixErr stucBlenderMapToMesh(
 STUC_BLENDER_EXPORT
 PixErr stucBlenderQueryCommonAttribs(
 	StucMesh *pMesh,
-	const char *pMapName,
+	StucMap pMap,
 	StucBlendOptArr *pBlendOptArr
 );
 STUC_BLENDER_EXPORT

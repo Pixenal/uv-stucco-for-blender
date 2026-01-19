@@ -371,8 +371,8 @@ def cacheTarget(
 		
 	err = stucLib.stucBlenderTargetCacheAdd(
 		target.id,
-		meshRender,
-		idxAttribs,
+		ctypes.pointer(meshRender),
+		ctypes.pointer(idxAttribs) if idxAttribs else None,
 		cacheType.value
 	)
 	if err != 1:

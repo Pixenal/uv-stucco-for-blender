@@ -120,50 +120,6 @@ def loadFluidTextures() -> list[gpu.types.GPUTexture] | None:
 	else:
 		raise Exception("failed to find textures for stuc mesh shader")
 
-vertOut = gpu.types.GPUStageInterfaceInfo("comp_interface") #type:ignore
-vertOut.smooth('VEC3', "v_pos")
-vertOut.smooth('VEC3', "v_normal")
-vertOut.flat('FLOAT', "i_select")
-vertOut.flat('FLOAT', "f_time")
-vertOut.flat('VEC2', "v_viewRes")
-info = gpu.types.GPUShaderCreateInfo()
-info.vertex_in(0, 'VEC3', "position")
-info.vertex_in(1, 'VEC3', "normal")
-info.vertex_in(2, 'FLOAT', "select")
-info.push_constant('MAT4', "viewProjectionMatrix")
-info.push_constant('MAT4', "modelMatrix")
-info.push_constant('VEC3', "viewPos")
-info.push_constant('FLOAT', "time")
-info.push_constant('VEC2', "viewRes")
-info.sampler(0, 'FLOAT_2D', "flowTex")
-info.sampler(1, 'FLOAT_2D', "macroNoiseTex")
-info.sampler(2, 'FLOAT_2D', "microNoiseTex")
-info.sampler(3, 'FLOAT_2D', "sparkleTex")
-info.vertex_out(vertOut)
-info.fragment_out(0, 'VEC4', "FragColor")
-info.vertex_source("\
-	void main() {\
-		v_pos = (modelMatrix * vec4(position, 1.0f)).xyz;\
-		mat3 normalMatrix = transpose(inverse(mat3(modelMatrix)));\
-		v_normal = normalMatrix * normal;\
-		\
-		i_select = select;\
-		f_time = time;\
-		v_viewRes = viewRes;\
-		\
-		vec3 v = normalize(viewPos - v_pos);\
-		v_pos -= v * .001f;\
-		\
-		gl_Position = viewProjectionMatrix * vec4(v_pos, 1.0f);\
-	}\
-")
-fragSrc = open(f"{parentDir}/shaders/stuc_edit_frag.glsl")
-info.fragment_source(insertIncludes(fragSrc.read()))
-fragSrc.close()
-compShader = gpu.shader.create_from_info(info)
-del vertOut
-del info
-
 vertOut = gpu.types.GPUStageInterfaceInfo("noCache_interface") #type:ignore
 vertOut.smooth('VEC3', "v_pos")
 info = gpu.types.GPUShaderCreateInfo()
@@ -240,7 +196,6 @@ info.sampler(2, 'FLOAT_2D', "normalTex")
 info.sampler(3, 'FLOAT_2D', "metalTex")
 info.sampler(4, 'FLOAT_2D', "roughTex")
 info.sampler(5, 'FLOAT_2D', "errTex")
-#info.sampler(6, 'FLOAT_3D', "tmLut")
 info.sampler(6, 'FLOAT_2D', "flowTex")
 info.sampler(7, 'FLOAT_2D', "macroNoiseTex")
 info.sampler(8, 'FLOAT_2D', "microNoiseTex")
@@ -268,57 +223,6 @@ del info
 def initShaders() -> None:
 	global fluidTextures
 	fluidTextures = loadFluidTextures()
-
-def readCubeLutFile(file: io.TextIOWrapper) -> numpy.ndarray | None:
-	while True:
-		line = file.readline()
-		if "LUT_3D_SIZE" in line:
-			break
-	sizeStr = re.findall("(?<= )[0-9]*$", line)#find digits after a space
-	if not len(sizeStr):
-		return None
-	size = int(sizeStr[0])
-	if size < 2 or size > 256:
-		return None
-	sizeLin = size * size * size
-	data = numpy.empty(shape = (sizeLin, 4), dtype = numpy.float32)
-	i = 0
-	while i < sizeLin:
-		line = file.readline()
-		if not len(line):
-			break
-		colStr = re.findall("[0-9,.]+", line)
-		if len(colStr) != 3:
-			return None
-		col = [float(i) for i in colStr]
-		data[i][0] = col[0]
-		data[i][1] = col[1]
-		data[i][2] = col[2]
-		data[i][3] = 1.0
-		i += 1
-	if i == sizeLin:
-		return data
-	else:
-		return None
-
-def loadCubeLut(filepath: str) -> numpy.ndarray | None:
-	file = open(filepath, encoding = 'utf-8')
-	data = readCubeLutFile(file)
-	file.close()
-	return data
-
-tmLutData = loadCubeLut(
-	"E:/blender/4.3.2/4.3/datafiles/colormanagement/luts/AgX_Base_sRGB.cube"
-)
-if tmLutData is None:
-	raise Exception()
-tmLutBuf = gpu.types.Buffer('FLOAT', tmLutData.size, tmLutData) #type:ignore
-tmLut = gpu.types.GPUTexture(
-	size = (57, 57, 57), #type:ignore
-	format = 'RGBA32F',	#type:ignore
-	data = tmLutBuf	#type:ignore
-)
-
 
 def getNode(
 	nodeTree: bpy.types.NodeTree,
@@ -667,7 +571,6 @@ def drawMeshInit(
 
 	meshShader.uniform_sampler("envTex", envTex)
 	meshShader.uniform_int("matParam", matParam) #type:ignore
-	#meshShader.uniform_sampler("tmLut", tmLut)
 
 	depthTestMode = gpu.state.depth_test_get()
 	gpu.state.depth_test_set('LESS_EQUAL')
@@ -761,19 +664,7 @@ def drawStucMesh(
 	tSign = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TSIGN, 1)
 	faceSel = None
 	if editMode:
-		selAttrib = ctypes.POINTER(stuc.StucAttrib)()
-		err = stucLib.stucBlenderAttribGet(
-			ctypes.pointer(mesh),
-			b"select",
-			ctypes.pointer(selAttrib),
-			None, None
-		)
-		if err != 1:
-			raise Exception("error while getting sel attrib")
-		faceSel = numpy.ctypeslib.as_array(
-			ctypes.cast(selAttrib.contents.core.pData, ctypes.POINTER(ctypes.c_float)),
-			shape = (mesh.vertCount, 1)
-		)
+		faceSel = numpyFromStucAttrib(mesh, stuc.StucAttribUse.MISC, 1)
 
 	if not mats:
 		if not idxAttribs:
@@ -842,13 +733,13 @@ def drawEditOverlay(
 		stuc.StucDomain.EDGE,
 		ctypes.c_int32
 	)
-	if not pos or not edgeSel or not edges:
+	if type(pos) == None or type(edgeSel) == None or type(edges) == None:
 		raise Exception("unable to get mesh attribs")
 
 	color = (ctypes.c_float * 4 * mesh.vertCount)()
 	err = stucLib.stucBlenderEditOverlayCol(
 		mesh.edgeCount,
-		edges,
+		numpy.ctypeslib.as_ctypes(edges),
 		numpy.ctypeslib.as_ctypes(edgeSel),
 		mesh.vertCount,
 		color

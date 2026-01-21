@@ -1,3 +1,8 @@
+/*
+SPDX-FileCopyrightText: 2025 Caleb Dawson
+SPDX-License-Identifier: GPL-3.0-only
+*/
+
 #define PI 3.14159265359
 
 float addSub(float a, float b, float alpha) {
@@ -59,6 +64,7 @@ vec3 flowEquirect(
 	);
 }
 
+//https://advances.realtimerendering.com/s2010/index.html
 vec3 flow(
 	vec2 flowMap,
 	vec2 uv,
@@ -117,5 +123,71 @@ float fluidDither(vec2 flowUv, vec2 uv, vec3 n, float time) {
 	return fluid;
 
 	bool test = valToDither(fluid, 6.0f);
-	//return !test;
+}
+
+//https://jcgt.org/published/0009/03/02/paper.pdf
+//'pseudo' - pcg based, but we're not strictly adhereing to the spec
+uvec3 pcg3dPseudo(uvec3 value) {
+	value = value * 1664525u + 1013904223u;
+	value += uvec3(value.y * value.z, value.z * value.x, value.x * value.y);
+	value ^= value >> 16u;
+	value += uvec3(value.y * value.z, value.z * value.x, value.x * value.y);
+	return value;
+}
+
+vec3 randFromVec(vec3 vec) {
+	const uint iSize= 1048583u;
+	const float fSize = float(iSize);
+	return vec3(pcg3dPseudo(uvec3(vec * fSize)) % iSize) / fSize;
+}
+
+mat3 matrixForN(vec3 t, vec3 b, vec3 n) {
+	vec3 left = cross(t == n ? b : t, n);
+	vec3 right = cross(left, n);
+	return mat3(right, left, n);
+}
+
+vec3 v3SwizzleChannel(vec4 vec, int channel) {
+	if (channel == -1) {
+		return vec.xyz;
+	}
+	if (channel >= 0 && channel <= 3) {
+		return vec3(vec[channel]);
+	}
+	return vec3(1.0f, .0f, 1.0f);
+}
+
+float fSwizzleChannel(vec4 vec, int channel) {
+	if (channel == -1) {
+		return vec.x;
+	}
+	if (channel >= 0 && channel <= 3) {
+		return vec[channel];
+	}
+	return 1.0f;
+}
+
+vec3 normalizeToRange(vec3 col, float min, float max) {
+	return (col - min) / (max - min);
+}
+
+float invMul(float a, float b) {
+	return 1.0f - (1.0f - a) * b;
+}
+
+#define K_R .299f
+#define K_G .587f
+#define K_B .114f
+#define F_OF_K(K1, K2) (-.5f * (K1 / (1.0f - K2)))
+
+const mat3 rgbToYpbpr = mat3(
+    K_R, F_OF_K(K_R, K_B), .5f,
+    K_G, F_OF_K(K_G, K_B), F_OF_K(K_G, K_R),
+    K_B, .5f, F_OF_K(K_B, K_R)
+);
+const mat3 ypbprToRgb = inverse(rgbToYpbpr);
+
+//"Photographics Tone Reproduction for Digital Images" Reinhard et al 2002
+vec3 tnReinhard(vec3 col) {
+	return col / (col + vec3(1.0f));
 }

@@ -211,13 +211,13 @@ class STUC_OT_StucMapRemove(bpy.types.Operator):
 			raise e
 		return {'FINISHED'}
 	
-class STUC_OT_StucReloadShaders(bpy.types.Operator):
-	bl_idname = "stuc.stuc_reload_shaders"
-	bl_label = "Reload Shaders"
+class STUC_OT_StucReloadTextures(bpy.types.Operator):
+	bl_idname = "stuc.stuc_reload_textures"
+	bl_label = "Stuc Reload Textures"
 	bl_options = {'REGISTER'}
 
 	def execute(self, context) -> set[str]:
-		draw.initShaders()
+		draw.reloadCoreTextures()
 		return {'FINISHED'}
 
 classes = [
@@ -229,7 +229,7 @@ classes = [
 	STUC_OT_StucMatAssign,
 	STUC_OT_StucMatRemove,
 	STUC_OT_StucMapRemove,
-	STUC_OT_StucReloadShaders
+	STUC_OT_StucReloadTextures
 ]
 
 def register() -> None:

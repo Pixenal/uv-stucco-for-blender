@@ -410,7 +410,7 @@ def updateCommonAttribs(
 	for mat in targetMats:
 		if not len(mat.map):
 			continue
-		mapHandle = ctypes.c_void_p()
+		stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
 		mapHandle = stucLib.stucBlenderMapHandleGet(mat.map.encode('utf-8'))
 		if not mapHandle:
 			continue
@@ -422,6 +422,11 @@ def updateCommonAttribs(
 			entry.mat = mat.mat
 			entry.map = mat.map
 
+		stucLib.stucBlenderQueryCommonAttribs.argtypes = (
+			ctypes.c_void_p,
+			ctypes.c_void_p,
+			ctypes.c_void_p
+		)
 		err = stucLib.stucBlenderQueryCommonAttribs(
 			ctypes.pointer(meshTuple.mesh),
 			mapHandle,

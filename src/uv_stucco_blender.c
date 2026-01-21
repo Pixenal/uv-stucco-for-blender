@@ -215,8 +215,10 @@ PixErr targetEntryDestroy(I32 id) {
 	return err;
 }
 
-void stucBlenderInit() {
-	stucContextInit(&pStucCtx, NULL, NULL, NULL, NULL, NULL);
+PixErr stucBlenderInit() {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = stucContextInit(&pStucCtx, NULL, NULL, NULL, NULL, NULL);
+	PIX_ERR_RETURN_IFNOT(err, "");
 	pixuctHTableInit(
 		&allocPtrs,
 		&mapTable,
@@ -231,6 +233,7 @@ void stucBlenderInit() {
 		(PixtyI32Arr){.pArr = (I32[]){sizeof(TargetEntry)}, .count = 1},
 		&tableErr
 	);
+	return err;
 }
 
 StucErr stucBlenderMapExportInit(
@@ -558,8 +561,8 @@ PixErr stucBlenderMapMeshRenderUpdate(const char *pMap) {
 }
 
 PixErr stucBlenderQueryCommonAttribs(
-	StucMesh *pMesh,
-	StucMap pMap,
+	const StucMesh *pMesh,
+	const StucMap pMap,
 	StucBlendOptArr *pBlendOptArr
 ) {
 	PixErr err = PIX_ERR_SUCCESS;

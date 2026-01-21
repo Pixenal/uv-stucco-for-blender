@@ -5,20 +5,14 @@ SPDX-License-Identifier: GPL-3.0-only
 
 from typing import Any, cast
 import ctypes
-import numpy
 import pdb
-import cProfile
 
 import bpy
 from bpy.app.handlers import persistent
-import bmesh
-import mathutils
 
 from . import c_lib
 stucLib = c_lib.stucLib
 from . import utils
-from . import mesh_utils as meshUtils
-from . import attrib_utils as attribUtils
 from . import mapping
 from . import draw
 from . import stuc
@@ -26,18 +20,23 @@ from . import props
 
 @persistent
 def stucLoadPostHandler(dummy) -> None:
-	draw.initShaders()
-	stucLib.stucBlenderInit()
-	bpy.context.scene.stucAgeNext = 0 #type:ignore
-	for map in bpy.context.scene.stucMaps: #type:ignore
-		map.timestamp = ".0"
-		map.age = 0
-		map.status = '0'
-	bpy.context.scene.stucTargetIdNext = 0 #type:ignore
-	for target in bpy.context.scene.stucTargets: #type:ignore
-		target.id = bpy.context.scene.stucTargetIdNext #type:ignore
-		bpy.context.scene.stucTargetIdNext += 1 #type:ignore
-		target.lastObj = target.obj
+	try:
+		err = stucLib.stucBlenderInit()
+		if err != 1:
+			raise Exception("failed to init stuc for blender")
+		bpy.context.scene.stucAgeNext = 0 #type:ignore
+		for map in bpy.context.scene.stucMaps: #type:ignore
+			map.timestamp = ".0"
+			map.age = 0
+			map.status = '0'
+		bpy.context.scene.stucTargetIdNext = 0 #type:ignore
+		for target in bpy.context.scene.stucTargets: #type:ignore
+			target.id = bpy.context.scene.stucTargetIdNext #type:ignore
+			bpy.context.scene.stucTargetIdNext += 1 #type:ignore
+			target.lastObj = target.obj
+		draw.reloadCoreTextures()
+	except Exception as e:
+		raise e
 
 @persistent
 def stucLoadPreHandler(dummy) -> None:
@@ -96,15 +95,14 @@ def drawTarget(target: props.StucTarget) -> None:
 	idxAttribs = cache[1] if cache[2] == stuc.MeshCacheType.MESH_CACHE_OUT else None
 	if idxAttribs and type(idxAttribs) != stuc.StucAttribIndexedArr:
 		raise Exception()
-	edit = cache[2] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT'
 	draw.drawStucMeshInViewport(
 		cache[0],
 		target.obj.matrix_world,
-		editMode = edit,
+		cache[2],
 		idxAttribs = idxAttribs,
 		mats = None if idxAttribs else [mat for mat in target.obj.data.materials]
 	)
-	if edit:
+	if cache[2] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT':
 		draw.drawEditOverlay(cache[0], target.obj)
 
 @persistent
@@ -114,17 +112,6 @@ def stucDrawHandler() -> None:
 		for target in bpy.context.scene.stucTargets: #type:ignore
 			#cProfile.runctx('drawTarget(target)', globals(), locals())
 			drawTarget(target)
-			
-		'''
-		for obj in bpy.context.objects_in_mode:
-			if type(obj.data) != bpy.types.Mesh:
-				continue
-			bm = bmesh.from_edit_mesh(obj.data)
-			mesh = bpy.data.meshes.new("STUC_DRAW_TEMP_MESH")
-			bm.to_mesh(mesh)
-			draw.drawEditOverlay(mesh)
-			bpy.data.meshes.remove(mesh)
-		'''
 	except Exception as e:
 		raise e
 

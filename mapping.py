@@ -274,14 +274,15 @@ def waitForAndCopyOutMeshes(
 				continue
 			#print(f"Stuc python, map to mesh returned success on obj {item.info.objEval.name}")
 
+			#TODO if add stuc to scene enabld:
+				#create a new blend file containing mapped out meshes, and link to scene
+				#addOrUpdateBlendMesh(context, item) <-- modify this func to do ^^
+			#else
 			cacheTarget(
 				item.info.target,
 				stucMesh = item.outMesh,
 				idxAttribs = item.outIndexedAttribs
 			)
-			#addOrUpdateBlendMesh(context, item)
-				
-			#print("FinishedUpdating")
 
 def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 	selFaces = (ctypes.c_float * mesh.cornerCount)()
@@ -344,16 +345,14 @@ def cacheTarget(
 		if err != 1:
 			raise Exception()
 		return
-	if bool(stucMesh) != bool(idxAttribs):
+	if not edit and bool(stucMesh) != bool(idxAttribs):
 		raise Exception()
 	cacheType =\
-		stuc.MeshCacheType.MESH_CACHE_OUT if stucMesh\
-		else stuc.MeshCacheType.MESH_CACHE_IN_EDIT if edit\
+		stuc.MeshCacheType.MESH_CACHE_IN_EDIT if edit\
+		else stuc.MeshCacheType.MESH_CACHE_OUT if stucMesh\
 		else stuc.MeshCacheType.MESH_CACHE_IN
 	meshRender = None
-	if stucMesh:
-		meshRender = meshUtils.prepStucMeshForRender(stucMesh, False, False) #type:ignore
-	else:
+	if not stucMesh:
 		stucObj = meshUtils.formatAsStucObj(
 			obj,
 			True,
@@ -365,9 +364,10 @@ def cacheTarget(
 			getVertNormals = False
 		)
 		stucMesh = stucObj.meshData.mesh
-		if edit:
-			appendSelAttrib(obj, stucMesh) #type:ignore
-		meshRender = meshUtils.prepStucMeshForRender(stucMesh, True, True) #type:ignore
+	if edit:
+		appendSelAttrib(obj, stucMesh) #type:ignore
+	cpyAndTris = cacheType != stuc.MeshCacheType.MESH_CACHE_OUT
+	meshRender = meshUtils.prepStucMeshForRender(stucMesh, cpyAndTris, cpyAndTris)
 		
 	err = stucLib.stucBlenderTargetCacheAdd(
 		target.id,
@@ -401,7 +401,7 @@ def mapToTarget(
 				requireSelInEdit = False
 			)
 			if info[0]:
-				cacheTarget(target, stucMesh = info[0].stucObj.meshData.mesh) #type:ignore
+				cacheTarget(target, stucMesh = info[0].stucObj.meshData.mesh, edit = True)
 			elif info[2]:
 				cacheTarget(target, objOverride = info[2], edit = True)
 			else:
@@ -420,7 +420,6 @@ def mapToSelTargets(context: bpy.types.Context) -> None:
 			mapToTarget(context, depsgraph, target, jobs)
 		if not len(jobs):
 			return
-		#print("waiting for finished jobs")
 		waitForAndCopyOutMeshes(context, jobs)
 	except Exception as e:
 		raise e

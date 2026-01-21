@@ -47,7 +47,7 @@ def matSetInvisible(context: bpy.types.Context, mat: bpy.types.Material, value: 
 			emisNode.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0) #type:ignore
 			links = mat.node_tree.links
 			links.new(emisNode.outputs[0], nodeOut.inputs[0])
-	mat.diffuse_color[3] = .0 if value else 1.0
+	#mat.diffuse_color[3] = .0 if value else 1.0
 	mat.blend_method = 'HASHED' if value else 'OPAQUE'
 	mat.shadow_method = 'NONE' if value else 'OPAQUE' #type:ignore
 	if value:

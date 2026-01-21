@@ -35,7 +35,7 @@ typedef struct StrWithLen {
 } StrWithLen;
 
 STUC_BLENDER_EXPORT
-void stucBlenderInit();
+PixErr stucBlenderInit();
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportInit(
 	void **ppHandle,
@@ -120,8 +120,8 @@ PixErr stucBlenderMapToMesh(
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderQueryCommonAttribs(
-	StucMesh *pMesh,
-	StucMap pMap,
+	const StucMesh *pMesh,
+	const StucMap pMap,
 	StucBlendOptArr *pBlendOptArr
 );
 STUC_BLENDER_EXPORT

@@ -1,6 +1,16 @@
+/*
+SPDX-FileCopyrightText: 2025 Caleb Dawson
+SPDX-License-Identifier: GPL-3.0-only
+*/
+
 void main() {
 	v_pos = vec3(modelMatrix * vec4(position, 1.0f));
-	mat3 normalMatrix = transpose(inverse(mat3(modelMatrix)));
+	mat3 normalMatrix = mat3(
+		normalize(modelMatrix[0].xyz),
+		normalize(modelMatrix[1].xyz),
+		normalize(modelMatrix[2].xyz)
+	);
+	normalMatrix = transpose(inverse(normalMatrix));
 	m_tbn = mat3(
 		normalize(tangent),
 		vec3(.0f),

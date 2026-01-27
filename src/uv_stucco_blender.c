@@ -698,9 +698,16 @@ PixErr stucBlenderWaitForJobs(
 }
 
 void stucBlenderDestroy() {
-	pixuctHTableDestroy(&mapTable);
-	pixuctHTableDestroy(&targetCache);
-	stucContextDestroy(pStucCtx);
+	if (mapTable.pTable) {
+		pixuctHTableDestroy(&mapTable);
+	}
+	if (targetCache.pTable) {
+		pixuctHTableDestroy(&targetCache);
+	}
+	if (pStucCtx) {
+		stucContextDestroy(pStucCtx);
+		pStucCtx = NULL;
+	}
 	return;
 }
 
@@ -914,4 +921,266 @@ void stucBlenderArrayCast(
 			sizeDest
 		);
 	}
+}
+
+I32 stucBlenderShmNameMaxLen() {
+	return PIXIO_SHM_NAME_MAX_LEN;
+}
+
+PixErr stucBlenderSceneExportInit(PixioShmCtx *pShmCtx, char *pName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmOpenServer(pShmCtx, "STUC", pName);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneImportInit(PixioShmCtx *pShmCtx, char *pName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmOpenClient(pShmCtx, pName);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneExportStr(PixioShmCtx *pShmCtx, ShmDesc desc, const char *pName) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmSend(pShmCtx, strnlen(pName, pixioPathMaxGet()), desc, pName);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneExportMesh(PixioShmCtx *pShmCtx, const StucMesh *pMesh) {
+	PixErr err = PIX_ERR_SUCCESS;
+	StucMesh buf = *pMesh;
+	buf.pFaces = NULL;
+	buf.pCorners = NULL;
+	buf.pEdges = NULL;
+	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+		StucAttribArray *pArr = NULL;
+		err = stucAttribArrGet(pStucCtx, &buf, domain, &pArr);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		pArr->pArr = NULL;
+	}
+	I32 size = sizeof(StucMesh);
+	err = pixioShmSend(pShmCtx, size, STUCB_SHM_MESH, &buf);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	size = sizeof(I32) * (pMesh->faceCount + 1);
+	err = pixioShmSend(pShmCtx, size, STUCB_SHM_FACES, pMesh->pFaces);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	size = sizeof(I32) * pMesh->cornerCount;
+	err = pixioShmSend(pShmCtx, size, STUCB_SHM_CORNERS, pMesh->pCorners);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	size = sizeof(I32) * pMesh->cornerCount;
+	err = pixioShmSend(pShmCtx, size, STUCB_SHM_EDGES, pMesh->pEdges);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+		const StucAttribArray *pArr = NULL;
+		err = stucAttribArrGetConst(pStucCtx, pMesh, domain, &pArr);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		for (I32 i = 0; i < pArr->count; ++i) {
+			size = sizeof(StucAttrib);
+			{
+				StucAttrib cpy = pArr->pArr[i];
+				cpy.core.pData = NULL;
+				err = pixioShmSend(pShmCtx, size, STUCB_SHM_ATTRIB, &cpy);
+				PIX_ERR_RETURN_IFNOT(err, "");
+			}
+			I32 typeSize = 0;
+			I32 domainCount = 0;
+			err = stucGetAttribSize(&pArr->pArr[i].core, &typeSize);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			err = stucDomainCountGet(pStucCtx, pMesh, domain, &domainCount);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			size = typeSize * domainCount;
+			err = pixioShmSend(
+				pShmCtx,
+				size,
+				STUCB_SHM_ATTRIB_DATA,
+				pArr->pArr[i].core.pData
+			);
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
+	}
+	return err;
+}
+
+PixErr stucBlenderSceneExportObj(
+	PixioShmCtx *pShmCtx,
+	const char *pName,
+	const StucObject *pObj
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pObj->pData->type == STUC_OBJECT_DATA_MESH, "");
+	//max len of blend obj name is 64 as of writing (afaik
+	I32 nameLen = strnlen(pName, 64);
+	err = pixioShmSend(pShmCtx, nameLen, STUCB_SHM_OBJ, pName);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = pixioShmSend(pShmCtx, sizeof(PixtyM4x4), STUCB_SHM_XFORM, pObj->transform.d);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = stucBlenderSceneExportMesh(pShmCtx, (StucMesh *)pObj->pData);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneExportIdxAttribs(
+	PixioShmCtx *pShmCtx,
+	const StucAttribIndexedArr *pArr
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	I32 size = sizeof(StucAttribIndexedArr);
+	err = pixioShmSend(pShmCtx, size, STUCB_SHM_IDX_ATTRIB_ARR, pArr);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	for (I32 i = 0; i < pArr->count; ++i) {
+		{
+			StucAttribIndexed cpy = pArr->pArr[i];
+			cpy.core.pData = NULL;
+			size = sizeof(cpy);
+			err = pixioShmSend(pShmCtx, size, STUCB_SHM_IDX_ATTRIB, &cpy);
+			PIX_ERR_RETURN_IFNOT(err, "");
+		}
+		err = stucGetAttribSize(&pArr->pArr[i].core, &size);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		size *= pArr->pArr[i].count;
+		err = pixioShmSend(
+			pShmCtx,
+			size,
+			STUCB_SHM_IDX_ATTRIB_DATA,
+			pArr->pArr[i].core.pData
+		);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
+	return err;
+}
+
+PixErr stucBlenderSceneImportStr(PixioShmCtx *pShmCtx, char *pStr) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmReceive(pShmCtx, pStr);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+static
+PixErr sceneImport4ByteList(
+	PixioShmCtx *pShmCtx,
+	ShmDesc expectDesc,
+	I32 count,
+	void **ppDest
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	I32 size = 0;
+	ShmDesc desc = STUCB_SHM_NONE;
+	err = pixioShmReceiveInit(pShmCtx, &size, (I32 *)&desc, NULL);
+	PIX_ERR_RETURN_IFNOT_COND(err, desc == expectDesc && size == 4 * count, "");
+	*ppDest = malloc(size);
+	err = pixioShmReceive(pShmCtx, *ppDest);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneImportMesh(PixioShmCtx *pShmCtx, StucMesh *pMesh) {
+	PixErr err = PIX_ERR_SUCCESS;
+	I32 size = 0;
+	ShmDesc desc = STUCB_SHM_NONE;
+	err = pixioShmReceiveInit(pShmCtx, &size, (I32 *)&desc, NULL);
+	PIX_ERR_RETURN_IFNOT_COND(err, desc == STUCB_SHM_MESH && size == sizeof(StucMesh), "");
+	err = pixioShmReceive(pShmCtx, pMesh);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err =
+		sceneImport4ByteList(pShmCtx, STUCB_SHM_FACES, pMesh->faceCount + 1, &pMesh->pFaces);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err =
+		sceneImport4ByteList(pShmCtx, STUCB_SHM_CORNERS, pMesh->cornerCount, &pMesh->pCorners);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	err =
+		sceneImport4ByteList(pShmCtx, STUCB_SHM_EDGES, pMesh->cornerCount, &pMesh->pEdges);
+	PIX_ERR_THROW_IFNOT(err, "", 0);
+	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+		StucAttribArray *pArr = NULL;
+		err = stucAttribArrGet(pStucCtx, pMesh, domain, &pArr);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+		pArr->size = pArr->count;
+		if (pArr->size) {
+			pArr->pArr = malloc(sizeof(StucAttrib) * pArr->size);
+		}
+		for (I32 i = 0; i < pArr->count; ++i) {
+			err = pixioShmReceiveInit(pShmCtx, &size, (I32 *)&desc, NULL);
+			PIX_ERR_THROW_IFNOT_COND(err, desc == STUCB_SHM_ATTRIB && size == sizeof(StucAttrib), "", 0);
+			err = pixioShmReceive(pShmCtx, pArr->pArr + i);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			err = pixioShmReceiveInit(pShmCtx, &size, (I32 *)&desc, NULL);
+			PIX_ERR_THROW_IFNOT_COND(err, desc == STUCB_SHM_ATTRIB_DATA && size > 0, "", 0);
+			pArr->pArr[i].core.pData = malloc(size);
+			err = pixioShmReceive(pShmCtx, pArr->pArr[i].core.pData);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+		}
+	}
+	PIX_ERR_CATCH(0, err,
+		stucMeshDestroy(pStucCtx, pMesh);
+	);
+	return err;
+}
+
+PixErr stucBlenderSceneImportObj(PixioShmCtx *pShmCtx, StucObject *pObj) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmReceive(pShmCtx, pObj->transform.d);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = stucBlenderSceneImportMesh(pShmCtx, (StucMesh *)pObj->pData);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneImportIdxAttribs(PixioShmCtx *pShmCtx, StucAttribIndexedArr *pArr) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmReceive(pShmCtx, pArr);
+	pArr->size = pArr->count;
+	if (!pArr->size) {
+		return err;
+	}
+	pArr->pArr = malloc(sizeof(StucAttribIndexed) * pArr->size);
+	for (I32 i = 0; i < pArr->count; ++i) {
+		I32 size = 0;
+		ShmDesc desc = STUCB_SHM_NONE;
+		err = pixioShmReceiveInit(pShmCtx, &size, (I32 *)&desc, NULL);
+		PIX_ERR_RETURN_IFNOT_COND(err,
+			desc == STUCB_SHM_IDX_ATTRIB && size == sizeof(StucAttribIndexed),
+			""
+		);
+		err = pixioShmReceive(pShmCtx, pArr->pArr + i);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+		err = pixioShmReceiveInit(pShmCtx, &size, (I32 *)&desc, NULL);
+		PIX_ERR_RETURN_IFNOT_COND(err,
+			desc == STUCB_SHM_IDX_ATTRIB_DATA && size > 0,
+			""
+		);
+		pArr->pArr[i].core.pData = malloc(size);
+		err = pixioShmReceive(pShmCtx, pArr->pArr[i].core.pData);
+		PIX_ERR_THROW_IFNOT(err, "", 0);
+	}
+	PIX_ERR_CATCH(0, err,
+		stucAttribIndexedArrDestroy(pStucCtx, pArr);
+	);
+	return err;
+}
+
+
+PixErr stucBlenderSceneImportQuery(
+	PixioShmCtx *pShmCtx,
+	I32 *pSize,
+	ShmDesc *pDesc,
+	bool *pClose
+) {
+	return pixioShmReceiveInit(pShmCtx, pSize, (I32 *)pDesc, pClose);
+}
+
+PixErr stucBlenderSceneExportDestroy(PixioShmCtx *pShmCtx) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmCloseServer(pShmCtx);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneImportDestroy(PixioShmCtx *pShmCtx) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmCloseClient(pShmCtx);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }

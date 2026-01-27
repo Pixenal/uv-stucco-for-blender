@@ -14,7 +14,8 @@ from . import c_lib
 stucLib = c_lib.stucLib
 from . import utils
 from . import mesh_utils as meshUtils
-from . import draw
+if not bpy.app.background:
+	from . import draw
 
 #TODO calc_normals_split has been removed in 4.1, so you'll need to handle that
 #TODO It seems that normals can be accessed as contiguous arrays now,
@@ -217,7 +218,8 @@ class STUC_OT_StucReloadTextures(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	def execute(self, context) -> set[str]:
-		draw.reloadCoreTextures()
+		if not bpy.app.background:
+			draw.reloadCoreTextures()
 		return {'FINISHED'}
 
 classes = [

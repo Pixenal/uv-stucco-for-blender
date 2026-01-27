@@ -266,15 +266,38 @@ class StucBlenderMatTableArr(ctypes.Structure):
 	]
 
 class PixtyStrArr(ctypes.Structure):
-	_fields_= [
+	_fields_ = [
 		("pArr", ctypes.POINTER(ctypes.c_char_p)),
 		("size", ctypes.c_int32),
 		("count", ctypes.c_int32)
 	]
 
 class PixtyI32Arr(ctypes.Structure):
-	_fields_= [
+	_fields_ = [
 		("pArr", ctypes.POINTER(ctypes.c_int32)),
 		("size", ctypes.c_int32),
 		("count", ctypes.c_int32)
 	]
+
+class PixioShmCtx(ctypes.Structure):
+	_fields_ = [
+		("pFile", ctypes.c_void_p),
+		("pBuf", ctypes.c_void_p),
+		("blockSize", ctypes.c_int32)
+	]
+
+class ShmDesc(Enum):
+	STUCB_SHM_NONE = 0
+	STUCB_SHM_DIR = 1
+	STUCB_SHM_NAME = 2
+	STUCB_SHM_OBJ = 3
+	STUCB_SHM_XFORM = 4
+	STUCB_SHM_MESH = 5
+	STUCB_SHM_FACES = 6
+	STUCB_SHM_CORNERS = 7
+	STUCB_SHM_EDGES = 8
+	STUCB_SHM_ATTRIB = 9
+	STUCB_SHM_ATTRIB_DATA = 10
+	STUCB_SHM_IDX_ATTRIB_ARR = 11
+	STUCB_SHM_IDX_ATTRIB = 12
+	STUCB_SHM_IDX_ATTRIB_DATA = 13

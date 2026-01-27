@@ -20,7 +20,6 @@ from . import attrib_utils as attribUtils
 from . import mesh_utils as meshUtils
 from . import props
 from . import stuc
-from . import draw
 
 class MappingInfo:
 	def __init__(
@@ -112,8 +111,7 @@ def prepTargetForMapping(
 	requireSelInEdit: bool = True
 ) -> tuple[MappingInfo, int, None] | tuple[None, int, None] | tuple[None, int, bpy.types.Object]:
 	#return tuple/ lists like this should probably be dicts
-	if target.obj not in context.selected_objects or\
-		type(target.obj.data) != bpy.types.Mesh:
+	if type(target.obj.data) != bpy.types.Mesh:
 		return (None, 0, None)
 	if target.obj.mode == 'OBJECT':
 		obj = target.obj
@@ -178,7 +176,8 @@ def pushMappingJobToQueue(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget,
-	targetCache: list[TargetJob]
+	targetCache: list[TargetJob],
+	triangulate: bool
 ) -> int:
 	infoTuple = prepTargetForMapping(context, depsgraph, target)
 	if not infoTuple[0]:
@@ -198,7 +197,7 @@ def pushMappingJobToQueue(
 		ctypes.c_float(info.wScale),
 		ctypes.c_float(info.receiveLen),
 		ctypes.pointer(pushedJobs),
-		ctypes.c_bool(True)
+		ctypes.c_bool(triangulate)
 	)
 	if not pushedJobs:
 		return 1
@@ -212,40 +211,55 @@ def pushMappingJobToQueue(
 	))
 	return 0
 
-def addOrUpdateBlendMesh(context: bpy.types.Context, item: TargetJob) -> None:
-	nameStuc = item.info.target.obj.name + ".Stuc"
-	objStuc = bpy.data.objects.get(nameStuc, None)
-	if not(objStuc):
-		meshStuc = bpy.data.meshes.new(nameStuc)
-		objStuc = bpy.data.objects.new(nameStuc, meshStuc)
-		context.scene.collection.objects.link(objStuc)
-	else:
-		meshStucOld = objStuc.data
-		if not meshStucOld or type(meshStucOld) != bpy.types.Mesh:
-			raise Exception("old mesh is None or not a mesh")
-		meshStucOld.name += ".Old"
-		meshStuc = bpy.data.meshes.new(nameStuc)
-		objStuc.data = meshStuc
-		bpy.data.meshes.remove(meshStucOld)
-	objStuc.matrix_world = item.info.objEval.matrix_world
+def getStucCol(context: bpy.types.Context) -> bpy.types.Collection:
+	stucCol = bpy.data.collections.get("_STUC_OUT", None)
+	if not stucCol:
+		stucCol = bpy.data.collections.new(name = "_STUC_OUT")
+	if not stucCol.name in context.scene.collection.children:
+		context.scene.collection.children.link(stucCol)
+	return stucCol
 
+def addOrUpdateBlendMesh(
+	context: bpy.types.Context,
+	stucObj: stuc.StucObject,
+	idxAttribs: stuc.StucAttribIndexedArr,
+	name: str
+) -> None:
+	objName = name + ".Stuc"
+	obj = bpy.data.objects.get(objName, None)
+	stucCol = getStucCol(context)
+	if not(obj):
+		mesh = bpy.data.meshes.new(objName)
+		obj = bpy.data.objects.new(objName, mesh)
+		stucCol.objects.link(obj)
+	else:
+		meshOld = obj.data
+		if not meshOld or type(meshOld) != bpy.types.Mesh:
+			raise Exception("old mesh is None or not a mesh")
+		meshOld.name += ".Old"
+		mesh = bpy.data.meshes.new(objName)
+		obj.data = mesh
+		bpy.data.meshes.remove(meshOld)
+	utils.setBlenderMatrix(obj.matrix_world, stucObj.transform)
+	stucMeshPtr = ctypes.cast(stucObj.pData, ctypes.POINTER(stuc.StucMesh))
 	meshUtils.copyStucMeshToBlenderMesh(
 		stucLib,
-		meshStuc,
-		item.outMesh,
-		item.outIndexedAttribs
+		mesh,
+		stucMeshPtr.contents,
+		idxAttribs
 	)
-	stucLib.stucBlenderMeshDestroy(ctypes.pointer(item.outMesh))
-	normalBlendAttrib = meshStuc.attributes.get("normal", None)
+	stucLib.stucBlenderMeshDestroy(stucMeshPtr)
+	normalBlendAttrib = mesh.attributes.get("normal", None)
 	if (normalBlendAttrib):
-		meshStuc.attributes.remove(normalBlendAttrib)
-	matBlendAttrib = meshStuc.attributes.get("materials", None)
+		mesh.attributes.remove(normalBlendAttrib)
+	matBlendAttrib = mesh.attributes.get("materials", None)
 	if (matBlendAttrib):
-		meshStuc.attributes.remove(matBlendAttrib)
+		mesh.attributes.remove(matBlendAttrib)
 
 def waitForAndCopyOutMeshes(
 	context: bpy.types.Context,
-	jobs: list[TargetJob]
+	jobs: list[TargetJob],
+	exportCtx: ctypes.c_void_p | None = None
 ) -> None:
 	doneCount = 0
 	jobCount = len(jobs)
@@ -273,16 +287,33 @@ def waitForAndCopyOutMeshes(
 				print(f"Stuc python, map to mesh failed on obj {item.info.objEval.name}, skipping")
 				continue
 			#print(f"Stuc python, map to mesh returned success on obj {item.info.objEval.name}")
-
-			#TODO if add stuc to scene enabld:
-				#create a new blend file containing mapped out meshes, and link to scene
-				#addOrUpdateBlendMesh(context, item) <-- modify this func to do ^^
-			#else
-			cacheTarget(
-				item.info.target,
-				stucMesh = item.outMesh,
-				idxAttribs = item.outIndexedAttribs
-			)
+			#addOrUpdateBlendMesh(context, item)
+			if exportCtx:
+				stucObj = stuc.StucObject()
+				utils.setStucMatrix(stucObj.transform, item.info.objEval.matrix_world)
+				stucObj.pData = ctypes.cast(
+					ctypes.cast(ctypes.pointer(item.outMesh), ctypes.c_void_p),
+					ctypes.POINTER(stuc.StucObjectData)
+				)
+				err = stucLib.stucBlenderSceneExportObj(
+					exportCtx,
+					item.info.objEval.name.encode('utf-8'),
+					ctypes.pointer(stucObj)
+				)
+				if err != 1:
+					raise Exception()
+				err = stucLib.stucBlenderSceneExportIdxAttribs(
+					exportCtx,
+					ctypes.pointer(item.outIndexedAttribs)
+				)
+				if err != 1:
+					raise Exception()
+			else:
+				cacheTarget(
+					item.info.target,
+					stucMesh = item.outMesh,
+					idxAttribs = item.outIndexedAttribs
+				)
 
 def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 	selFaces = (ctypes.c_float * mesh.cornerCount)()
@@ -382,16 +413,19 @@ def mapToTarget(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget,
-	jobs: list[TargetJob]
+	jobs: list[TargetJob],
+	cache: bool
 ) -> None:
 	if type(target.obj.data) != bpy.types.Mesh:
 		return
 	match target.obj.mode:
 		case 'OBJECT':
-			result = pushMappingJobToQueue(context, depsgraph, target, jobs)
-			if result:
+			result = pushMappingJobToQueue(context, depsgraph, target, jobs, cache)
+			if result and cache:
 				cacheTarget(target)
 		case 'EDIT':
+			if not cache:
+				return
 			#TODO add a ui option to enable mapping in edit mode
 			#it's just laggy
 			info = prepTargetForMapping(
@@ -409,17 +443,24 @@ def mapToTarget(
 				if err != 1:
 					raise Exception()
 		case _:
-			cacheTarget(target)
+			if cache:
+				cacheTarget(target)
 
-def mapToSelTargets(context: bpy.types.Context) -> None:
+def mapToTargetsInScene(
+	context: bpy.types.Context,
+	selOnly: bool = True,
+	exportCtx: ctypes.c_void_p | None = None
+) -> None:
 	try:
 		depsgraph = context.evaluated_depsgraph_get()
 		jobs = []
 		for target in context.scene.stucTargets: #type:ignore
+			if selOnly and target.obj not in context.selected_objects:
+				continue
 			print("mapping target")
-			mapToTarget(context, depsgraph, target, jobs)
+			mapToTarget(context, depsgraph, target, jobs, not exportCtx)
 		if not len(jobs):
 			return
-		waitForAndCopyOutMeshes(context, jobs)
+		waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx)
 	except Exception as e:
 		raise e

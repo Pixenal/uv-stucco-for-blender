@@ -90,6 +90,8 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 
 	def draw(self, context: bpy.types.Context) -> None:
 		col0 = self.layout.column()
+		col0.operator("stuc.scene_export", text = "Export Scene")
+		col0.label(text = "")
 		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
 		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
 

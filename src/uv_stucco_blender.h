@@ -201,3 +201,62 @@ void stucBlenderArrayCast(
 	void *pSrc, int32_t sizeSrc,
 	int32_t len
 );
+
+typedef enum ShmDesc {
+	STUCB_SHM_NONE,
+	STUCB_SHM_DIR,
+	STUCB_SHM_NAME,
+	STUCB_SHM_OBJ,
+	STUCB_SHM_XFORM,
+	STUCB_SHM_MESH,
+	STUCB_SHM_FACES,
+	STUCB_SHM_CORNERS,
+	STUCB_SHM_EDGES,
+	STUCB_SHM_ATTRIB,
+	STUCB_SHM_ATTRIB_DATA,
+	STUCB_SHM_IDX_ATTRIB_ARR,
+	STUCB_SHM_IDX_ATTRIB,
+	STUCB_SHM_IDX_ATTRIB_DATA 
+} ShmDesc;
+
+STUC_BLENDER_EXPORT
+I32 stucBlenderShmNameMaxLen();
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneExportInit(PixioShmCtx *pShmCtx, char *pName);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportInit(PixioShmCtx *pShmCtx, char *pName);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneExportStr(PixioShmCtx *pShmCtx, ShmDesc desc, const char *pName);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneExportMesh(PixioShmCtx *pShmCtx, const StucMesh *pMesh);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneExportObj(
+	PixioShmCtx *pShmCtx,
+	const char *pName,
+	const StucObject *pObj
+);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneExportIdxAttribs(
+	PixioShmCtx *pShmCtx,
+	const StucAttribIndexedArr *pArr
+);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportStr(PixioShmCtx *pShmCtx, char *pStr);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportMesh(PixioShmCtx *pShmCtx, StucMesh *pMesh);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportObj(PixioShmCtx *pShmCtx, StucObject *pObj);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportIdxAttribs(PixioShmCtx *pShmCtx, StucAttribIndexedArr *pArr);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportQuery(
+	PixioShmCtx *pShmCtx,
+	int32_t *pSize,
+	ShmDesc *pDesc,
+	bool *pClose
+);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneExportDestroy(PixioShmCtx *pShmCtx);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportDestroy(PixioShmCtx *pShmCtx);
+

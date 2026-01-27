@@ -6,6 +6,10 @@ SPDX-License-Identifier: GPL-3.0-only
 from typing import Any, cast
 import ctypes
 import pdb
+import sys
+import re
+from enum import Enum
+import os
 
 import bpy
 from bpy.app.handlers import persistent
@@ -14,12 +18,17 @@ from . import c_lib
 stucLib = c_lib.stucLib
 from . import utils
 from . import mapping
-from . import draw
 from . import stuc
 from . import props
+from . import scene_cache as sceneCache
+from . import client
+if not bpy.app.background:
+	from . import draw
+
 
 @persistent
 def stucLoadPostHandler(dummy) -> None:
+	print("hello")
 	try:
 		err = stucLib.stucBlenderInit()
 		if err != 1:
@@ -34,7 +43,12 @@ def stucLoadPostHandler(dummy) -> None:
 			target.id = bpy.context.scene.stucTargetIdNext #type:ignore
 			bpy.context.scene.stucTargetIdNext += 1 #type:ignore
 			target.lastObj = target.obj
-		draw.reloadCoreTextures()
+		if not bpy.app.background:
+			draw.reloadCoreTextures()
+			
+		args = client.checkForShmArg()
+		if args:
+			sceneCache.sceneImportToFile(args[0], args[1])
 	except Exception as e:
 		raise e
 
@@ -46,7 +60,7 @@ def stucLoadPreHandler(dummy) -> None:
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:
 	utils.updateUiTargetIdx(bpy.context)
-	mapping.mapToSelTargets(bpy.context)
+	mapping.mapToTargetsInScene(bpy.context)
 
 @persistent
 def stucSavePreHandler(dummy) -> None:
@@ -121,7 +135,8 @@ def register() -> None:
 	bpy.app.handlers.load_pre.append(stucLoadPreHandler)
 	bpy.app.handlers.save_post.append(stucSavePostHandler)
 	bpy.app.handlers.save_pre.append(stucSavePreHandler)
-	bpy.types.SpaceView3D.draw_handler_add(stucDrawHandler, (), 'WINDOW', 'POST_VIEW')
+	if not bpy.app.background:
+		bpy.types.SpaceView3D.draw_handler_add(stucDrawHandler, (), 'WINDOW', 'POST_VIEW')
 
 def unregister() -> None:
 	bpy.app.handlers.depsgraph_update_post.remove(stucDepsgraphUpdatePostHandler)
@@ -129,4 +144,5 @@ def unregister() -> None:
 	bpy.app.handlers.load_pre.remove(stucLoadPreHandler)
 	bpy.app.handlers.save_post.remove(stucSavePostHandler)
 	bpy.app.handlers.save_pre.remove(stucSavePreHandler)
-	bpy.types.SpaceView3D.draw_handler_remove(stucDrawHandler, 'WINDOW')
+	if not bpy.app.background:
+		bpy.types.SpaceView3D.draw_handler_remove(stucDrawHandler, 'WINDOW')

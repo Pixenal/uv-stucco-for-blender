@@ -5,7 +5,7 @@ SPDX-License-Identifier: GPL-3.0-only
 
 import ctypes
 import os
-import math
+import subprocess
 from typing import Any, cast
 import pdb
 
@@ -20,7 +20,8 @@ from . import stuc
 from . import mapping
 from . import props
 from . import attrib_utils as attribUtils
-from . import draw
+from . import scene_cache as sceneCache
+from . import client
 
 class CutoffTable():
 	def __init__(self):
@@ -489,6 +490,93 @@ class STUC_OT_StucExtraDepDirRemove(bpy.types.Operator):
 			self.report({'ERROR'}, "Failed to add dependency dir")
 			raise e
 		return {'FINISHED'}
+	
+class STUC_OT_StucSceneExport(bpy.types.Operator):
+	bl_idname = "stuc.scene_export"
+	bl_label = "Scene Export"
+	bl_options = {'REGISTER'}
+
+	@classmethod
+	def poll(cls, context: bpy.types.Context) -> bool:
+		return bpy.data.is_saved
+
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		try:
+			shmCtx = stuc.PixioShmCtx()
+			shmCtxPtr = ctypes.cast(ctypes.pointer(shmCtx), ctypes.c_void_p)
+			bShmName = (ctypes.c_byte * stucLib.stucBlenderShmNameMaxLen())()
+			err = stucLib.stucBlenderSceneExportInit(shmCtxPtr, bShmName)
+			if err != 1:
+				raise Exception()
+			shmName = ctypes.cast(bShmName, ctypes.c_char_p).value.decode('utf-8') #type:ignore
+			binPath = bpy.app.binary_path.replace('\\', '/')
+			stucAddonPath = os.path.dirname(__file__).replace('\\', '/')
+			filepath = bpy.data.filepath.replace('\\', '/')
+			args = [
+				binPath,
+				"--background",
+				"--factory-startup",
+				"--addons",
+				"uv-stucco-blender",
+				"--python",
+				stucAddonPath + "/client.py",
+				"--",
+				"--stuc-scene-cache",
+				shmName,
+				"--stuc-scene-cache-server",
+				filepath
+			]
+			
+			shmClient = subprocess.Popen(args,
+				#stdout = subprocess.DEVNULL,
+				#stderr = subprocess.DEVNULL
+			)
+			
+			'''
+			blendPath = bpy.path.abspath(bpy.context.blend_data.filepath)
+			blendDir = os.path.dirname(blendPath)
+			err = stucLib.stucBlenderSceneExportStr(shmCtxPtr, blendDir.encode('utf-8'))
+			if err != 1:
+				raise Exception()
+			blendName = bpy.path.basename(blendPath)
+			err = stucLib.stucBlenderSceneExportStr(shmCtxPtr, blendName.encode('utf-8'))
+			if err != 1:
+				raise Exception()
+			'''
+			mapping.mapToTargetsInScene(context, selOnly = False, exportCtx = shmCtxPtr)
+			err = stucLib.stucBlenderSceneExportDestroy(shmCtxPtr)
+			shmClient.wait(8)
+			if err != 1:
+				raise Exception()
+			
+			cachePath = client.createCachePath(filepath)
+			with bpy.data.libraries.load(
+				cachePath, link = True,
+				create_liboverrides = True,
+				create_liboverrides_runtime = True
+			) as (dataSrc, dataDest):
+					dataDest.objects = [name for name in dataSrc.objects if ".Stuc" in name]
+			stucCol = bpy.data.collections.get("_STUC_OUT", None)
+			if not stucCol:
+				stucCol = bpy.data.collections.new(name = "_STUC_OUT")
+				context.scene.collection.children.link(stucCol)
+			for obj in dataDest.objects:
+				stucCol.objects.link(obj)
+		except Exception as e:
+			self.report({'ERROR'}, "scene export failed")
+			raise e
+		return {'FINISHED'}
+	
+class STUC_OT_StucSceneImport(bpy.types.Operator):
+	bl_idname = "stuc.scene_import"
+	bl_label = "Scene Import"
+	bl_options = {'REGISTER'}
+
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		shmName = "PIXIO_STUC_"
+		shmFile = bpy.data.filepath
+		sceneCache.sceneImportToFile(shmName, shmFile)
+		return {'FINISHED'}
 
 classes = [
 	STUC_OT_StucExportStucFile,
@@ -496,7 +584,9 @@ classes = [
 	STUC_OT_StucLoadStucFile,
 	STUC_OT_StucReloadStucFile,
 	STUC_OT_StucExtraDepDirAdd,
-	STUC_OT_StucExtraDepDirRemove
+	STUC_OT_StucExtraDepDirRemove,
+	STUC_OT_StucSceneExport,
+	STUC_OT_StucSceneImport
 ]
 
 def register() -> None:

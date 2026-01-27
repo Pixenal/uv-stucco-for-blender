@@ -40,7 +40,7 @@ def unregister() -> None:
 	print("Unregistering UvStuccoB")
 	props.unregister()
 	ops.unregister()
-	io_ops.register()
-	handlers.register()
+	io_ops.unregister()
+	handlers.unregister()
 	ui.unregister()
 

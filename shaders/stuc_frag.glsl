@@ -25,19 +25,23 @@ void main() {
 	vec3 viewUvw = vec3(gl_FragCoord.xy / v_viewRes, 1.0f);
 	float aspect = v_viewRes.x / v_viewRes.y;
 	
-	vec4 v4Albedo = texture(albedoTex, v_uv);
+	vec2 uvWrap = mod(v_uv, vec2(1.0f));
+	uvWrap.x = uvWrap.x < .0f ? 1.0f - uvWrap.x * -1.0f : uvWrap.x;
+	uvWrap.y = uvWrap.y < .0f ? 1.0f - uvWrap.y * -1.0f : uvWrap.y;
+
+	vec4 v4Albedo = texture(albedoTex, uvWrap);
 	vec3 albedo = v3SwizzleChannel(v4Albedo, int(matInfo.albedoChannel));
 	albedo = mix(matInfo.albedoUniform, albedo, matInfo.albedoUseTex);
-	vec3 normal = texture(normalTex, v_uv).xyz;
+	vec3 normal = texture(normalTex, uvWrap).xyz;
 	if (matInfo.flipY == 1.0f) {
 		normal.y = 1.0f - normal.y;
 	}
 	normal = mix(vec3(.5f, .5f, 1.0f), normal, matInfo.normalUseTex);
 	normal = m_tbn * (normal * 2.0f - 1.0f);
 	normal *= float(gl_FrontFacing) * 2.0f - 1.0f;
-	float metal = fSwizzleChannel(texture(metalTex, v_uv), int(matInfo.metalChannel));
+	float metal = fSwizzleChannel(texture(metalTex, uvWrap), int(matInfo.metalChannel));
 	metal = mix(matInfo.metalUniform, metal, matInfo.metalUseTex);
-	float rough = fSwizzleChannel(texture(roughTex, v_uv), int(matInfo.roughChannel));
+	float rough = fSwizzleChannel(texture(roughTex, uvWrap), int(matInfo.roughChannel));
 	rough = mix(matInfo.roughUniform, rough, matInfo.roughUseTex);
 
 	vec3 col = .000000001f * (albedo + normal + vec3(metal, rough, .0f) + v);

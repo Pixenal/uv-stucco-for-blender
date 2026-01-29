@@ -1,9 +1,11 @@
+from hmac import new
 import sys
 import ctypes
 import re
 from enum import Enum
 import os
 import pdb
+import shutil
 
 import bpy
 
@@ -12,6 +14,7 @@ stucLib = c_lib.stucLib
 from . import stuc
 from . import mapping
 from . import client
+from . import props
 
 def sceneImportInit(shmName: str) -> stuc.PixioShmCtx:
 	shmCtx = stuc.PixioShmCtx()
@@ -132,3 +135,50 @@ def sceneImportToFile(shmName: str, shmServer: str) -> None:
 	except Exception:
 		pass
 	bpy.ops.wm.quit_blender()
+
+def linkCache(context: bpy.types.Context, filepath: str) -> None:
+	cachePath = client.createCachePath(filepath)
+	stucCol = bpy.data.collections.get("_STUC_CACHE", None)
+	#reload existing linked objects if present
+	cacheLib = bpy.data.libraries.get(bpy.path.basename(cachePath), None)
+	if cacheLib:
+		cacheLib.reload()
+	#now link in any new objects from cache
+	cacheLib = bpy.data.libraries.load(
+		cachePath, link = True,
+		create_liboverrides = True,
+		create_liboverrides_runtime = True
+	)
+	with cacheLib as (dataSrc, dataDest):
+		dataDest.objects = [
+			name for name in dataSrc.objects if
+			".Stuc" in name and (not stucCol or not name in stucCol.objects)
+		]
+	if not stucCol:
+		stucCol = bpy.data.collections.new(name = "_STUC_CACHE")
+		context.scene.collection.children.link(stucCol)
+	for obj in dataDest.objects:
+		stucCol.objects.link(obj)
+
+def isTargetInCache(context: bpy.types.Context, target: props.StucTarget) -> bool:
+	stucLayCol = context.view_layer.layer_collection.children.get("_STUC_CACHE", None)
+	if not stucLayCol or not stucLayCol.is_visible:
+		return False
+	stucCol = bpy.data.collections.get("_STUC_CACHE", None)
+	if not stucCol or stucCol.hide_viewport or not context.scene.user_of_id(stucCol): #type:ignore
+		return False
+	obj = stucCol.objects.get(target.obj.name + ".Stuc", None)
+	return obj != None and not obj.hide_viewport and not obj.hide_get()
+
+def correctCacheLib() -> None:
+	for lib in bpy.data.libraries:
+		if "_STUC_CACHE" in lib.name:
+			newPath = os.path.abspath(client.createCachePath(bpy.data.filepath))
+			oldPath = os.path.abspath(lib.filepath)
+			if newPath == oldPath:
+				return
+			if not os.path.exists(newPath) and os.path.exists(oldPath):
+				shutil.copyfile(oldPath, newPath)
+			lib.name = bpy.path.basename(newPath)
+			lib.filepath = newPath
+		

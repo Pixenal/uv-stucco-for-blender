@@ -10,6 +10,7 @@ import sys
 import re
 from enum import Enum
 import os
+import cProfile
 
 import bpy
 from bpy.app.handlers import persistent
@@ -25,11 +26,10 @@ from . import client
 if not bpy.app.background:
 	from . import draw
 
-
 @persistent
 def stucLoadPostHandler(dummy) -> None:
-	print("hello")
 	try:
+		sceneCache.correctCacheLib()
 		err = stucLib.stucBlenderInit()
 		if err != 1:
 			raise Exception("failed to init stuc for blender")
@@ -66,27 +66,29 @@ def stucDepsgraphUpdatePostHandler(dummy) -> None:
 def stucSavePreHandler(dummy) -> None:
 	for target in bpy.context.scene.stucTargets: #type:ignore
 		target.lastObj = None
-		if len(target.displayType):
-			if target.obj:
-				target.obj.display_type = target.displayType
-			target.displayType = ""
 	
 @persistent
 def stucSavePostHandler(dummy) -> None:
-	if not len(bpy.data.filepath) or not bpy.context.scene.stuc.relPaths: #type:ignore
-		#this shouldn't be possible right?
-		return
-	for map in bpy.context.scene.stucMaps: #type:ignore
-		map.dir = bpy.path.relpath(map.dir)
+	try:
+		sceneCache.correctCacheLib()
+		if not len(bpy.data.filepath) or not bpy.context.scene.stuc.relPaths: #type:ignore
+			#this shouldn't be possible right?
+			return
+		for map in bpy.context.scene.stucMaps: #type:ignore
+			map.dir = bpy.path.relpath(map.dir)
+	except Exception as e:
+		raise e
 
 def getTargetMesh(
 	target: props.StucTarget
-) -> list[stuc.StucMesh | stuc.StucAttribIndexedArr | stuc.MeshCacheType] | None:
+) -> list[float | stuc.StucMesh | stuc.StucAttribIndexedArr | stuc.MeshCacheType] | None:
+	timestamp = ctypes.c_double()
 	mesh = ctypes.POINTER(stuc.StucMesh)()
 	idxAttribs = ctypes.POINTER(stuc.StucAttribIndexedArr)()
 	cacheType = ctypes.c_int32()
 	err = stucLib.stucBlenderTargetCacheGet(
 		target.id,
+		ctypes.pointer(timestamp),
 		ctypes.pointer(mesh),
 		ctypes.pointer(idxAttribs),
 		ctypes.pointer(cacheType)
@@ -94,7 +96,12 @@ def getTargetMesh(
 	if err != 1:
 		raise Exception("error getting target mesh")
 	if mesh:
-		return [mesh.contents, idxAttribs.contents, stuc.MeshCacheType(cacheType.value)]
+		return [
+			timestamp.value,
+			mesh.contents,
+			idxAttribs.contents,
+			stuc.MeshCacheType(cacheType.value)
+		]
 	else:
 		return None
 
@@ -104,26 +111,32 @@ def drawTarget(target: props.StucTarget) -> None:
 	cache = getTargetMesh(target)
 	if not cache:
 		return
-	if type(cache[0]) != stuc.StucMesh or type(cache[2]) != stuc.MeshCacheType:
+	if type(cache[0]) != float or\
+	   type(cache[1]) != stuc.StucMesh or\
+	   type(cache[3]) != stuc.MeshCacheType:
 		raise Exception()
-	idxAttribs = cache[1] if cache[2] == stuc.MeshCacheType.MESH_CACHE_OUT else None
-	if idxAttribs and type(idxAttribs) != stuc.StucAttribIndexedArr:
+	idxAttribs = cache[2] if cache[3] == stuc.MeshCacheType.MESH_CACHE_OUT else None
+	if idxAttribs != None and type(idxAttribs) != stuc.StucAttribIndexedArr:
 		raise Exception()
 	draw.drawStucMeshInViewport(
+		f"{target.id}_{target.obj.name}",
 		cache[0],
+		cache[1],
 		target.obj.matrix_world,
-		cache[2],
+		cache[3],
 		idxAttribs = idxAttribs,
 		mats = None if idxAttribs else [mat for mat in target.obj.data.materials]
 	)
-	if cache[2] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT':
-		draw.drawEditOverlay(cache[0], target.obj)
+	if cache[3] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT':
+		draw.drawEditOverlay(cache[1], target.obj)
 
 @persistent
 def stucDrawHandler() -> None:
 	print("drawing targets")
 	try :
 		for target in bpy.context.scene.stucTargets: #type:ignore
+			if not target.obj or sceneCache.isTargetInCache(bpy.context, target):
+				continue
 			#cProfile.runctx('drawTarget(target)', globals(), locals())
 			drawTarget(target)
 	except Exception as e:

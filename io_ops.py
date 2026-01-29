@@ -548,20 +548,7 @@ class STUC_OT_StucSceneExport(bpy.types.Operator):
 			shmClient.wait(8)
 			if err != 1:
 				raise Exception()
-			
-			cachePath = client.createCachePath(filepath)
-			with bpy.data.libraries.load(
-				cachePath, link = True,
-				create_liboverrides = True,
-				create_liboverrides_runtime = True
-			) as (dataSrc, dataDest):
-					dataDest.objects = [name for name in dataSrc.objects if ".Stuc" in name]
-			stucCol = bpy.data.collections.get("_STUC_OUT", None)
-			if not stucCol:
-				stucCol = bpy.data.collections.new(name = "_STUC_OUT")
-				context.scene.collection.children.link(stucCol)
-			for obj in dataDest.objects:
-				stucCol.objects.link(obj)
+			sceneCache.linkCache(context, filepath)
 		except Exception as e:
 			self.report({'ERROR'}, "scene export failed")
 			raise e

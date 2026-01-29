@@ -9,6 +9,7 @@ import numpy
 from numpy._typing import NDArray
 from typing import Any, cast
 import pdb
+import time
 
 import bpy
 import bmesh
@@ -402,6 +403,7 @@ def cacheTarget(
 		
 	err = stucLib.stucBlenderTargetCacheAdd(
 		target.id,
+		ctypes.c_double(time.time()),
 		ctypes.pointer(meshRender),
 		ctypes.pointer(idxAttribs) if idxAttribs else None,
 		cacheType.value

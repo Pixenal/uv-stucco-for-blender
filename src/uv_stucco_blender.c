@@ -35,6 +35,7 @@ typedef struct MapEntry {
 
 typedef struct TargetEntry {
 	PixuctHTableEntryCore core;
+	F64 timestamp;
 	StucMesh mesh;
 	StucAttribIndexedArr idxAttribs;
 	I32 id;
@@ -126,11 +127,12 @@ void initTargetEntry(
 	void **ppInitArr = pInitInfo;
 	TargetEntry *pEntry = (TargetEntry *)pCore;
 	pEntry->id = *(I32 *)pKeyData;
-	pEntry->mesh = *(StucMesh *)ppInitArr[0];
-	pEntry->type = *(TargetCacheType *)ppInitArr[2];
+	pEntry->timestamp = *(double *)ppInitArr[0];
+	pEntry->mesh = *(StucMesh *)ppInitArr[1];
+	pEntry->type = *(TargetCacheType *)ppInitArr[3];
 	if (pEntry->type == MESH_CACHE_OUT) {
 		PIX_ERR_ASSERT("", ppInitArr[1]);
-		pEntry->idxAttribs = *(StucAttribIndexedArr *)ppInitArr[1];
+		pEntry->idxAttribs = *(StucAttribIndexedArr *)ppInitArr[2];
 	}
 }
 
@@ -156,6 +158,7 @@ PixErr mapEntryGet(const char *pName, MapEntry **ppEntry, StucMap pMap) {
 static
 PixErr targetEntryGet(
 	I32 id,
+	F64 *pTimestamp,
 	TargetEntry **ppEntry,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pIdxAttribs,
@@ -163,7 +166,7 @@ PixErr targetEntryGet(
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, !(!pMesh ^ !pIdxAttribs) || type != MESH_CACHE_OUT, "");
-	void *init[] = {pMesh, pIdxAttribs, &type};
+	void *init[] = {pTimestamp, pMesh, pIdxAttribs, &type};
 	SearchResult result = pixuctHTableGet(
 		&targetCache,
 		0,
@@ -178,6 +181,7 @@ PixErr targetEntryGet(
 	);
 	PIX_ERR_RETURN_IFNOT_COND(err, tableErr == PIX_ERR_SUCCESS, "");
 	if (result == PIX_SEARCH_FOUND) {
+		//update entry
 		PIX_ERR_ASSERT("", *ppEntry);
 		if (pMesh) {
 			if ((*ppEntry)->mesh.faceCount) {
@@ -194,6 +198,9 @@ PixErr targetEntryGet(
 				PIX_ERR_RETURN_IFNOT(err, "");
 			}
 			(*ppEntry)->idxAttribs = *pIdxAttribs;
+		}
+		if (pTimestamp) {
+			(*ppEntry)->timestamp = *pTimestamp;
 		}
 	}	
 	return err;
@@ -224,14 +231,18 @@ PixErr stucBlenderInit() {
 		&mapTable,
 		HANDLE_TABLE_SIZE,
 		(PixtyI32Arr){.pArr = (I32[]){sizeof(MapEntry)}, .count = 1},
-		&tableErr
+		NULL,
+		&tableErr,
+		true
 	);
 	pixuctHTableInit(
 		&allocPtrs,
 		&targetCache,
 		HANDLE_TABLE_SIZE,
 		(PixtyI32Arr){.pArr = (I32[]){sizeof(TargetEntry)}, .count = 1},
-		&tableErr
+		NULL,
+		&tableErr,
+		true
 	);
 	return err;
 }
@@ -738,7 +749,7 @@ PixErr stucBlenderTargetCacheRemove(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
 
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, NULL, NULL, MESH_CACHE_NONE);
+	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (!pEntry) {
 		return err;
@@ -751,13 +762,14 @@ PixErr stucBlenderTargetCacheRemove(I32 id) {
 
 PixErr stucBlenderTargetCacheAdd(
 	I32 id,
+	F64 timestamp,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pIdxAttribs,
 	TargetCacheType type
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, pMesh, pIdxAttribs, type);
+	err = targetEntryGet(id, &timestamp, &pEntry, pMesh, pIdxAttribs, type);
 	PIX_ERR_RETURN_IFNOT(err, "");
 
 	*pMesh = (StucMesh){0};
@@ -769,6 +781,7 @@ PixErr stucBlenderTargetCacheAdd(
 
 PixErr stucBlenderTargetCacheGet(
 	I32 id,
+	F64 *pTimestamp,
 	StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs,
 	TargetCacheType *pType
@@ -776,7 +789,7 @@ PixErr stucBlenderTargetCacheGet(
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, ppMesh || ppIdxAttribs, "");
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, NULL, NULL, MESH_CACHE_NONE);
+	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->type != MESH_CACHE_NONE) {
 		PIX_ERR_ASSERT("", pEntry->mesh.faceCount);
@@ -786,6 +799,9 @@ PixErr stucBlenderTargetCacheGet(
 		if (ppIdxAttribs) {
 			*ppIdxAttribs = &pEntry->idxAttribs;
 		}
+		if (pTimestamp) {
+			*pTimestamp = pEntry->timestamp;
+		}
 		*pType = pEntry->type;
 	}
 	return err;
@@ -794,7 +810,7 @@ PixErr stucBlenderTargetCacheGet(
 PixErr stucBlenderTargetCacheClear(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &pEntry, NULL, NULL, MESH_CACHE_NONE);
+	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->mesh.faceCount) {
 		err = stucMeshDestroy(pStucCtx, &pEntry->mesh);

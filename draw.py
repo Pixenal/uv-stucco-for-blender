@@ -10,6 +10,7 @@ import re
 from enum import Enum
 from datetime import datetime
 import pdb
+from typing import Any
 
 import bpy
 import gpu
@@ -386,9 +387,55 @@ def getErrTex(error: ShaderErr) -> gpu.types.GPUTexture | None:
 		case _:
 			return None
 
+class BatchCache():
+	class Entry():
+		def __init__(self, key: str, timestamp: float, vertCount: int) -> None:
+			self.key = key
+			self.timestamp = timestamp
+			self.data: gpu.types.GPUBatch | None = None
+			self.vertCount = vertCount
+
+	def __init__(self, size: int) -> None:
+		if size <= 0:
+			raise Exception("cache size must be > 0")
+		self.size = size
+		self.table: dict[str, BatchCache.Entry] = {}
+		self.arr: list[BatchCache.Entry] = []
+
+	def get(self, key: str, timestamp: float, vertCount: int) -> Entry:
+		entry = self.table.get(key, None)
+		if entry:
+			if timestamp != entry.timestamp:
+				entry.data = None
+				entry.timestamp = timestamp
+				entry.vertCount = vertCount
+			return entry
+		arrSize = len(self.arr)
+		if arrSize > self.size:
+			raise Exception("invalid state")
+		if arrSize == self.size:
+			def sortKey(entry: BatchCache.Entry) -> int:
+				return entry.vertCount
+			self.arr.sort(key = sortKey)
+			if vertCount <= self.arr[0].vertCount:
+				#rejected from cache, returning dummy
+				return self.Entry(key, timestamp, vertCount)
+			self.table.pop(self.arr[0].key)
+			self.arr.pop(0)
+		self.arr.append(self.Entry(key, timestamp, vertCount))
+		entry = self.arr[-1]
+		if not entry:
+			raise Exception()
+		self.table[key] = entry
+		return entry
+	
+batchCache = BatchCache(32)
+
+#TODO move timestamp into a class with key
 def drawMeshForMat(
+	cacheEntry: BatchCache.Entry | None,
 	pos, uv, normal, tangent, tSign, faceSel,
-	corners: numpy.ndarray,
+	corners: numpy.ndarray | None,
 	mat: bpy.types.Material | None,
 	cacheType: stuc.MeshCacheType,
 	texOverride: list[gpu.types.GPUTexture] | None = None,
@@ -456,19 +503,27 @@ def drawMeshForMat(
 	meshShader.uniform_sampler("microNoiseTex", coreTextures[2])
 	meshShader.uniform_sampler("sparkleTex", coreTextures[3])
 
-	batch = gpu_extras.batch.batch_for_shader(
-		meshShader,
-		'TRIS',
-		{
-			"position" : pos, #type:ignore
-			"uv" : uv,
-			"normal" : normal,
-			"tangent" : tangent,
-			"tSign" : tSign,
-			"select" : faceSel if matInfo.isEditMode else tSign
-		},
-		indices = corners
-	)
+	if cacheEntry and cacheEntry.data:
+		batch = cacheEntry.data
+	else:
+		if type(corners) == None:
+			raise Exception("corners must be passed if batch cache is empty")
+		batch = gpu_extras.batch.batch_for_shader(
+			meshShader,
+			'TRIS',
+			{
+				"position" : pos, #type:ignore
+				"uv" : uv,
+				"normal" : normal,
+				"tangent" : tangent,
+				"tSign" : tSign,
+				"select" : faceSel if matInfo.isEditMode else tSign
+			},
+			indices = corners
+		)
+		if cacheEntry:
+			cacheEntry.data = batch
+
 	batch.draw(meshShader)
 
 def getEnvTex(area: bpy.types.Area, name: str) -> gpu.types.GPUTexture | None:
@@ -580,6 +635,8 @@ def prevSinglePass(
 		perpMatrix = scaleMatrix @ posMatrix
 		viewPos = mathutils.Vector((.0, .0, .5))
 		drawStucMesh(
+			None,
+			None,
 			mesh,
 			True,
 			perpMatrix,
@@ -622,6 +679,8 @@ def getMatForPrev(
 	]
 
 def drawStucMesh(
+	key: str | None,
+	timestamp: float | None,
 	mesh: stuc.StucMesh,
 	backfaceCull: bool,
 	perpMatrix: mathutils.Matrix,
@@ -672,7 +731,6 @@ def drawStucMesh(
 
 	corners = stuc.PixtyI32Arr()
 	for i, mat in enumerate(mats):
-		cornerNumpy = getStucCorners(mesh, i, corners)
 		texOverride = None
 		error = ShaderErr.NONE
 		if cacheType != stuc.MeshCacheType.MESH_CACHE_OUT:
@@ -706,9 +764,19 @@ def drawStucMesh(
 		)
 		if not drawState:
 			continue
+		cacheEntry = None
+		if key:
+			if not timestamp:
+				raise Exception("timestamp is required if key is passed")
+			cacheEntry = batchCache.get(
+				f"{key}_{mat.name if mat else 'None'}",
+				timestamp,
+				mesh.vertCount
+			)
 		drawMeshForMat(
+			cacheEntry,
 			pos, uv, normal, tangent, tSign, faceSel,
-			cornerNumpy,
+			getStucCorners(mesh, i, corners) if not cacheEntry or not cacheEntry.data else None,
 			mat,
 			cacheType,
 			texOverride = texOverride,
@@ -718,6 +786,8 @@ def drawStucMesh(
 	stucLib.stucBlenderCallFree(corners.pArr)
 
 def drawStucMeshInViewport(
+	key: str,
+	timestamp: float,
 	mesh: stuc.StucMesh,
 	modelMatrix: mathutils.Matrix,
 	cacheType: stuc.MeshCacheType,
@@ -727,6 +797,8 @@ def drawStucMeshInViewport(
 ) -> None:
 	perpMatrix = bpy.context.region_data.perspective_matrix
 	drawStucMesh(
+		key,
+		timestamp,
 		mesh,
 		mapArr == None,
 		perpMatrix,

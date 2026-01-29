@@ -162,6 +162,7 @@ PixErr stucBlenderTargetCacheRemove(int32_t id);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheAdd(
 	int32_t id,
+	double timestamp,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pIdxAttribs,
 	TargetCacheType type
@@ -169,6 +170,7 @@ PixErr stucBlenderTargetCacheAdd(
 STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheGet(
 	int32_t id,
+	double *pTimestamp,
 	StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs,
 	TargetCacheType *pType

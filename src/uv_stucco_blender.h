@@ -185,7 +185,7 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderEditOverlayCol(
 	I32 edgeCount,
 	const PixtyV2_I32 *pEdges,
-	const bool *pSelect,
+	const float *pSelect,
 	I32 vertCount,
 	PixtyV4_F32 *pCol
 );

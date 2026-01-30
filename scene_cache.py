@@ -145,9 +145,9 @@ def linkCache(context: bpy.types.Context, filepath: str) -> None:
 		cacheLib.reload()
 	#now link in any new objects from cache
 	cacheLib = bpy.data.libraries.load(
-		cachePath, link = True,
-		create_liboverrides = True,
-		create_liboverrides_runtime = True
+		cachePath,
+		link = True,
+		create_liboverrides = True
 	)
 	with cacheLib as (dataSrc, dataDest):
 		dataDest.objects = [

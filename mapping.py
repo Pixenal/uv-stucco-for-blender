@@ -10,6 +10,7 @@ from numpy._typing import NDArray
 from typing import Any, cast
 import pdb
 import time
+import cProfile
 
 import bpy
 import bmesh

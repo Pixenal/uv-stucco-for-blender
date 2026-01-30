@@ -27,7 +27,9 @@ def checkForShmArg() -> list[str] | None:
 	return None
 
 def createCachePath(shmServer: str)-> str:
-	return f"{os.path.dirname(shmServer)}/_STUC_CACHE_{bpy.path.basename(shmServer)}"
+	cacheDir = f"{os.path.dirname(shmServer)}/_STUC_CACHE"
+	os.makedirs(cacheDir, exist_ok = True)
+	return f"{cacheDir}/_STUC_CACHE_{bpy.path.basename(shmServer)}"
 
 if __name__ == "__main__":
 	try:

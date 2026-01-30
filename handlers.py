@@ -49,6 +49,8 @@ def stucLoadPostHandler(dummy) -> None:
 		args = client.checkForShmArg()
 		if args:
 			sceneCache.sceneImportToFile(args[0], args[1])
+		#maps arn't loaded yet, so this is to cache targets for error mat draw
+		mapping.mapToTargetsInScene(bpy.context, selOnly = False)
 	except Exception as e:
 		raise e
 

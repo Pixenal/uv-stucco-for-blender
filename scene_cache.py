@@ -29,38 +29,6 @@ def sceneImportInit(shmName: str) -> stuc.PixioShmCtx:
 	)
 	if err != 1:
 		raise Exception()
-	
-	'''
-	size = ctypes.c_int32()
-	desc = ctypes.c_int32()
-	err = stucLib.stucBlenderSceneImportQuery(
-		shmCtx,
-		ctypes.pointer(size),
-		ctypes.pointer(desc),
-		None
-	)
-	if err != 1 or desc != stuc.ShmDesc.STUCB_SHM_NAME.value:
-		raise Exception()
-	bSceneDir = (ctypes.c_byte * size.value)()
-	err = stucLib.stucBlenderSceneImportStr(shmCtx, bSceneDir)
-	if err != 1 or size.value < 1:
-		raise Exception()
-	
-	err = stucLib.stucBlenderSceneImportQuery(
-		shmCtx,
-		ctypes.pointer(size),
-		ctypes.pointer(desc),
-		None
-	)
-	if err != 1 or desc != stuc.ShmDesc.STUCB_SHM_DIR.value:
-		raise Exception()
-	bSceneName = (ctypes.c_byte * size.value)()
-	err = stucLib.stucBlenderSceneImportStr(shmCtx, bSceneName)
-	if err != 1 or size.value < 1:
-		raise Exception()
-	sceneDir = ctypes.cast(bSceneDir, ctypes.c_char_p).value.decode('utf-8') #type:ignore
-	sceneName = ctypes.cast(bSceneName, ctypes.c_char_p).value.decode('utf-8') #type:ignore
-	'''
 	return shmCtx
 
 def sceneImportDestroy(shmCtx: ctypes.c_void_p) -> None:
@@ -128,7 +96,7 @@ def sceneImport(shmCtx: ctypes.c_void_p) -> None:
 				ctypes.cast(name, ctypes.c_char_p).value.decode('utf-8') #type:ignore
 			)
 		else: 
-			raise Exception() #remaining items in ShmDesc are currently handled in above 2 cases
+			raise Exception()
 
 def sceneImportToFile(shmName: str, shmServer: str) -> None:
 	try:

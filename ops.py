@@ -17,14 +17,6 @@ from . import mesh_utils as meshUtils
 if not bpy.app.background:
 	from . import draw
 
-#TODO calc_normals_split has been removed in 4.1, so you'll need to handle that
-#TODO It seems that normals can be accessed as contiguous arrays now,
-#using the polygon_normals, or vertex_normals, properties, in a mesh.
-#see if you can use this.
-#TODO You'll need to separetly handle seams and creases and such as well,
-#these seem to have been converted to attributes in 4.0 versions.
-#So probably only need to do it for pre 4.0 versions.
-
 class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 	bl_idname = "stuc.set_as_usg"
 	bl_label = "Set As USG"

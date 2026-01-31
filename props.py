@@ -23,13 +23,6 @@ def isMatReleventToStuc(context: bpy.types.Context, mat: bpy.types.Material) -> 
 	matMap = context.scene.stucMats.get(mat.name, None) #type:ignore
 	if matMap and matMap.map:
 		return True
-		'''
-		for target in context.scene.stucTargets: #type:ignore
-			if type(target.obj.data) != bpy.types.Mesh:
-				continue
-			if target.obj.data.materials.get(mat.name, None):
-				return True
-		'''
 	return False
 
 def matSetInvisible(context: bpy.types.Context, mat: bpy.types.Material, value: bool) -> None:
@@ -47,7 +40,6 @@ def matSetInvisible(context: bpy.types.Context, mat: bpy.types.Material, value: 
 			emisNode.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0) #type:ignore
 			links = mat.node_tree.links
 			links.new(emisNode.outputs[0], nodeOut.inputs[0])
-	#mat.diffuse_color[3] = .0 if value else 1.0
 	mat.blend_method = 'HASHED' if value else 'OPAQUE'
 	mat.shadow_method = 'NONE' if value else 'OPAQUE' #type:ignore
 	if value:

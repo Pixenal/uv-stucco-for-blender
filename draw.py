@@ -431,7 +431,6 @@ class BatchCache():
 	
 batchCache = BatchCache(32)
 
-#TODO move timestamp into a class with key
 def drawMeshForMat(
 	cacheEntry: BatchCache.Entry | None,
 	pos, uv, normal, tangent, tSign, faceSel,

@@ -307,7 +307,6 @@ def addOrUpdateMap(
 	if type(mapInfo[0]) != stuc.StucMesh or type(mapInfo[1]) != stuc.StucAttribIndexedArr:
 		raise Exception()
 	mesh = mapInfo[0]
-	idxAttribs = mapInfo[1]
 
 	attrib = attribUtils.getActiveAttrib(mesh, stuc.StucAttribUse.POS)
 	if not attrib:
@@ -531,18 +530,6 @@ class STUC_OT_StucSceneExport(bpy.types.Operator):
 				#stdout = subprocess.DEVNULL,
 				#stderr = subprocess.DEVNULL
 			)
-			
-			'''
-			blendPath = bpy.path.abspath(bpy.context.blend_data.filepath)
-			blendDir = os.path.dirname(blendPath)
-			err = stucLib.stucBlenderSceneExportStr(shmCtxPtr, blendDir.encode('utf-8'))
-			if err != 1:
-				raise Exception()
-			blendName = bpy.path.basename(blendPath)
-			err = stucLib.stucBlenderSceneExportStr(shmCtxPtr, blendName.encode('utf-8'))
-			if err != 1:
-				raise Exception()
-			'''
 			mapping.mapToTargetsInScene(context, selOnly = False, exportCtx = shmCtxPtr)
 			err = stucLib.stucBlenderSceneExportDestroy(shmCtxPtr)
 			shmClient.wait(8)

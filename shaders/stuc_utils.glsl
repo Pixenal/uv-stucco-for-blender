@@ -105,7 +105,6 @@ bool valToDither(float value, float mul) {
 
 float fluidDither(vec2 flowUv, vec2 uv, vec3 n, float time) {
 	float planeSign = .0f;
-	//vec2 uv = triPlanarUv(pos * 2.0f, n, planeSign);
 	uv += vec2(.0625f) * time * .5f;
 	vec3 flowMap = texture(flowTex, flowUv).xyz;
 	float macroNoise = texture(macroNoiseTex, uv * .25f).x;

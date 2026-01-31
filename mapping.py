@@ -94,7 +94,6 @@ def createMapArr(
 	mapArr.count = targetMatCount
 	i = 0
 	for mat in targetMats:
-		#print(f"name is {mat.map}")
 		stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
 		pMap = stucLib.stucBlenderMapHandleGet(mat.map.encode('utf-8'))
 		if not pMap:
@@ -112,7 +111,7 @@ def prepTargetForMapping(
 	target: props.StucTarget,
 	requireSelInEdit: bool = True
 ) -> tuple[MappingInfo, int, None] | tuple[None, int, None] | tuple[None, int, bpy.types.Object]:
-	#return tuple/ lists like this should probably be dicts
+	#TODO return tuple/ lists like this should probably be dicts
 	if type(target.obj.data) != bpy.types.Mesh:
 		return (None, 0, None)
 	if target.obj.mode == 'OBJECT':
@@ -288,8 +287,6 @@ def waitForAndCopyOutMeshes(
 					raise Exception("error clearing target mesh cache")
 				print(f"Stuc python, map to mesh failed on obj {item.info.objEval.name}, skipping")
 				continue
-			#print(f"Stuc python, map to mesh returned success on obj {item.info.objEval.name}")
-			#addOrUpdateBlendMesh(context, item)
 			if exportCtx:
 				stucObj = stuc.StucObject()
 				utils.setStucMatrix(stucObj.transform, item.info.objEval.matrix_world)

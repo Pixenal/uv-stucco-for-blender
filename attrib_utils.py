@@ -84,7 +84,7 @@ def getAttribUse(
 
 def getAttribBlenderType(attrib: stuc.StucAttrib) -> str:
 	match attrib.core.type:
-		#TODO add bool type to UVS lib, as semantics are lost here
+		#TODO add bool type to lib, as semantics are lost here
 		#TODO in general, try include all types, including semantic
 		#types, in Blender, Houdini, and USD. This includes unsigned
 		#ints, quaternions, etc. If someone puts an attribute in, they need to get the
@@ -135,6 +135,7 @@ def createAttribs(mesh: bpy.types.Mesh, attribs: stuc.StucAttrib, domain: str) -
 def createAllAttribs(mesh: bpy.types.Mesh, stucMesh: stuc.StucMesh) -> None:
 	createAttribs(mesh, stucMesh.faceAttribs, "FACE")
 	createAttribs(mesh, stucMesh.cornerAttribs, "CORNER")
+	#TODO reimplement this
 	#createAttribs(mesh, stuc.StucMesh.pEdgeAttribs, stuc.StucMesh.edgeAttribCount, "EDGE")
 	#createAttribs(mesh, stuc.StucMesh.pVertAttribs, stuc.StucMesh.vertAttribCount, "POINT")
 

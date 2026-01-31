@@ -42,9 +42,6 @@ class StucObjData:
 		self.obj = obj
 		self.meshData = meshData
 
-#returns a tuple containing the mesh, and the edges numpy array.
-#in order to prevent the reference tot he edge array from becoming invalid
-#after the function returns
 def formatAsStucMesh(
 	target: bpy.types.Mesh,
 	metaOnly: bool,
@@ -186,12 +183,6 @@ def copyStucMeshToBlenderMesh(
 		outIndexedAttribs: stuc.StucAttribIndexedArr | None = None
 ) -> None:
 	if (outIndexedAttribs):
-		#TODO this should be done on the c side, in uv-stucco, not uv-stucco-blender.
-		#this will make it easier to merge duplicate materials.
-		#pass inMesh materials to stucMapToMesh, and it will pass back
-		#an outMesh mat arr (in a separate out param), which contains
-		#the final material slots, and their mat names.
-		#TODO ^^ this is old, still doing this? ^^
 		outMats = attribUtils.getIdxAttrib(outIndexedAttribs, b"materials")
 		StucString = ctypes.c_byte * stuc.STUC_ATTRIB_STRING_MAX_LEN
 		outMatsCast = ctypes.cast(outMats.core.pData, ctypes.POINTER(StucString))
@@ -236,9 +227,6 @@ def copyStucMeshToBlenderMesh(
 		)
 		mesh.polygons.foreach_set("material_index", cast(Any, matIndicesNumpy))
 
-	#meshStuc.uv_layers.new(name="uvmap")
-	#uvPtr = meshStuc.uv_layers[0].data[0].as_pointer()
-	#stucMesh.pUvs = ctypes.cast(uvPtr, ctypes.POINTER(StucVec2))
 	mesh.update()
 	meshStucFormat = formatAsStucMesh(mesh, False, False)
 	stucLib.stucBlenderCopyMeshAttribs(

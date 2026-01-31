@@ -6,4 +6,10 @@
 </div>
 
 ## A Blender addon for mapping geometry to meshes
-Using [uv-stucco](../../../uv-stucco)
+Uses [uv-stucco](../../../uv-stucco)
+
+---
+
+## Note:
+Still a work in progress, currently no docs or precompiled binaries
+<sub><sup>(though hopefully not too far off)</sup></sub>

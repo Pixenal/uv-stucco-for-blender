@@ -22,6 +22,7 @@ from . import attrib_utils as attribUtils
 from . import mesh_utils as meshUtils
 from . import c_lib
 stucLib = c_lib.stucLib
+from . import props
 
 class ShaderErr(Enum):
 	NONE = 0
@@ -611,6 +612,8 @@ def getStucCorners(
 	)
 
 def prevSinglePass(
+	key: str,
+	timestamp: float,
 	mesh: stuc.StucMesh,
 	idxAttribs: stuc.StucAttribIndexedArr,
 	matParam: int,
@@ -634,8 +637,8 @@ def prevSinglePass(
 		perpMatrix = scaleMatrix @ posMatrix
 		viewPos = mathutils.Vector((.0, .0, .5))
 		drawStucMesh(
-			None,
-			None,
+			key,
+			timestamp,
 			mesh,
 			True,
 			perpMatrix,
@@ -648,20 +651,22 @@ def prevSinglePass(
 		)
 
 def drawStucPreview(
-	#name: str,
+	name: str,
+	timestamp: float,
 	mesh: stuc.StucMesh,
 	idxAttribs: stuc.StucAttribIndexedArr
 ) -> None:
-	prevSinglePass(mesh, idxAttribs, 0, offscreenAlbedo)
-	prevSinglePass(mesh, idxAttribs, 1, offscreenNormal)
-	prevSinglePass(mesh, idxAttribs, 2, offscreenHrm)
+	prevSinglePass(name, timestamp, mesh, idxAttribs, 0, offscreenAlbedo)
+	prevSinglePass(name, timestamp, mesh, idxAttribs, 1, offscreenNormal)
+	prevSinglePass(name, timestamp, mesh, idxAttribs, 2, offscreenHrm)
 
 def getMatForPrev(
-	map: ctypes.c_void_p
+	map: props.StucMap,
+	mapHandle: ctypes.c_void_p
 ) -> list[gpu.types.GPUTexture] | None:
 	mapName = ctypes.c_char_p()
 	err = stucLib.stucBlenderMapNameGet(
-		map,
+		mapHandle,
 		ctypes.pointer(mapName)
 	)
 	if err != 1 or not mapName.value:
@@ -669,7 +674,7 @@ def getMatForPrev(
 	result = meshUtils.getMapMesh(mapName.value.decode('utf-8'), True)
 	if type(result[0]) != stuc.StucMesh or type(result[1]) != stuc.StucAttribIndexedArr:
 		raise Exception()
-	drawStucPreview(result[0], result[1])
+	drawStucPreview(map.name, float(map.timestamp), result[0], result[1])
 	return [
 		offscreenAlbedo.texture_color,
 		offscreenNormal.texture_color,
@@ -751,7 +756,7 @@ def drawStucMesh(
 			elif not map or not mapHandle:
 				error = ShaderErr.MAP_NOT_LOADED
 			else:
-				texOverride = getMatForPrev(ctypes.cast(mapHandle, ctypes.c_void_p))
+				texOverride = getMatForPrev(map, ctypes.cast(mapHandle, ctypes.c_void_p))
 
 		drawState = drawMeshInit(
 			backfaceCull,

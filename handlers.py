@@ -134,7 +134,6 @@ def drawTarget(target: props.StucTarget) -> None:
 
 @persistent
 def stucDrawHandler() -> None:
-	print("drawing targets")
 	try :
 		for target in bpy.context.scene.stucTargets: #type:ignore
 			if not target.obj or sceneCache.isTargetInCache(bpy.context, target):

@@ -457,7 +457,6 @@ def mapToTargetsInScene(
 		for target in context.scene.stucTargets: #type:ignore
 			if selOnly and target.obj not in context.selected_objects:
 				continue
-			print("mapping target")
 			mapToTarget(context, depsgraph, target, jobs, not exportCtx)
 		if not len(jobs):
 			return

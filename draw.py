@@ -430,7 +430,7 @@ class BatchCache():
 		self.table[key] = entry
 		return entry
 	
-batchCache = BatchCache(32)
+batchCache = BatchCache(128)
 
 def drawMeshForMat(
 	cacheEntry: BatchCache.Entry | None,

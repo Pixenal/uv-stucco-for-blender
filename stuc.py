@@ -301,3 +301,12 @@ class ShmDesc(Enum):
 	STUCB_SHM_IDX_ATTRIB_ARR = 11
 	STUCB_SHM_IDX_ATTRIB = 12
 	STUCB_SHM_IDX_ATTRIB_DATA = 13
+
+class PixthJob(ctypes.Structure):
+	_fields_ = [
+		("pJob", ctypes.c_void_p),
+		("pArgs", ctypes.c_void_p),
+		("hash", ctypes.c_uint64),
+		("padding", ctypes.c_char * 36),
+		("err", ctypes.c_int32)
+	]

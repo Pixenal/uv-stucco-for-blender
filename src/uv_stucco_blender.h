@@ -4,6 +4,9 @@ SPDX-License-Identifier: GPL-3.0-only
 */
 
 #pragma once
+
+
+//#define STUC_DEBUG_UTILS
 #include <uv_stucco.h>
 
 #ifdef WIN32 
@@ -107,7 +110,7 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderMapFileUnload(const char *pName);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapToMesh(
-	void **ppJobHandle,
+	PixthJob *pJobHandle,
 	StucMapArr *pMapArr,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pInIndexedAttribs,
@@ -139,7 +142,7 @@ PixErr stucBlenderMeshDestroy(StucMesh *pMesh);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderWaitForJobs(
 	int32_t count,
-	void **ppJobHandles,
+	PixthJob *pJobsHandles,
 	bool wait,
 	bool *pDone
 );
@@ -261,4 +264,6 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneExportDestroy(PixioShmCtx *pShmCtx);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneImportDestroy(PixioShmCtx *pShmCtx);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderThreadPoolLogDump(const char *pPath);
 

@@ -51,7 +51,7 @@ class TargetJob:
 	def __init__(
 		self,
 		info : MappingInfo,
-		jobHandle : ctypes.c_void_p,
+		jobHandle : stuc.PixthJob,
 		outMesh : stuc.StucMesh,
 		outIndexedAttribs : stuc.StucAttribIndexedArr
 	) -> None:
@@ -186,7 +186,7 @@ def pushMappingJobToQueue(
 	info = infoTuple[0]
 	workMesh = stuc.StucMesh()
 	outIndexedAttribs = stuc.StucAttribIndexedArr()
-	jobHandle = ctypes.c_void_p()
+	jobHandle = stuc.PixthJob()
 	pushedJobs = ctypes.c_bool()
 	result = stucLib.stucBlenderMapToMesh(
 		ctypes.pointer(jobHandle),
@@ -260,34 +260,30 @@ def addOrUpdateBlendMesh(
 def waitForAndCopyOutMeshes(
 	context: bpy.types.Context,
 	jobs: list[TargetJob],
-	exportCtx: ctypes.c_void_p | None = None
+	exportCtx: ctypes.c_void_p | None = None,
+	tillRemain: int = 0
 ) -> None:
 	doneCount = 0
 	jobCount = len(jobs)
-	while doneCount < jobCount:
+	while doneCount < jobCount - tillRemain:
 		for item in jobs:
 			if item.done:
 				continue
-			jobHandlePtr = ctypes.POINTER(ctypes.c_void_p)()
-			jobHandlePtr = ctypes.pointer(item.jobHandle)
 			done = ctypes.c_bool()
 			result = stucLib.stucBlenderWaitForJobs(
 				1,
-				jobHandlePtr,
+				ctypes.pointer(item.jobHandle),
 				False,
 				ctypes.pointer(done)
 			)
 			if not done.value:
 				continue
-			item.done = True
-			doneCount += 1
 			if result != 1:
 				err = stucLib.stucBlenderTargetCacheClear(item.info.target.id)
 				if err != 1:
 					raise Exception("error clearing target mesh cache")
 				print(f"Stuc python, map to mesh failed on obj {item.info.objEval.name}, skipping")
-				continue
-			if exportCtx:
+			elif exportCtx:
 				stucObj = stuc.StucObject()
 				utils.setStucMatrix(stucObj.transform, item.info.objEval.matrix_world)
 				stucObj.pData = ctypes.cast(
@@ -313,6 +309,9 @@ def waitForAndCopyOutMeshes(
 					stucMesh = item.outMesh,
 					idxAttribs = item.outIndexedAttribs
 				)
+			item.done = True
+			doneCount += 1
+			jobs.remove(item)
 
 def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 	selFaces = (ctypes.c_float * mesh.cornerCount)()
@@ -398,7 +397,7 @@ def cacheTarget(
 		appendSelAttrib(obj, stucMesh) #type:ignore
 	cpyAndTris = cacheType != stuc.MeshCacheType.MESH_CACHE_OUT
 	meshRender = meshUtils.prepStucMeshForRender(stucMesh, cpyAndTris, cpyAndTris)
-		
+
 	err = stucLib.stucBlenderTargetCacheAdd(
 		target.id,
 		ctypes.c_double(time.time()),
@@ -457,9 +456,9 @@ def mapToTargetsInScene(
 		for target in context.scene.stucTargets: #type:ignore
 			if selOnly and target.obj not in context.selected_objects:
 				continue
+			if len(jobs) >= 32:
+				waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx, tillRemain = 16)
 			mapToTarget(context, depsgraph, target, jobs, not exportCtx)
-		if not len(jobs):
-			return
 		waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx)
 	except Exception as e:
 		raise e

@@ -301,6 +301,16 @@ class STUC_PT_StucOpts(StucParentPanel, bpy.types.Panel):
 		col0.prop(cast(Any, context.scene).stuc, "wScale", text = "Default W Scale")
 		col0.prop(context.scene.stuc, "relPaths", text = "Relative paths") #type:ignore
 
+class STUC_PT_StucDebug(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucDebug"
+	bl_label = "Debug"
+	bl_parent_id = "STUC_PT_Stuc"
+	bl_options = {'DEFAULT_CLOSED'}
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
+		col0.operator("stuc.thread_pool_log_dump", icon = "FILE_BLANK")
+
 classes = [
 	STUC_PT_Stuc,
 	STUC_PT_StucDepDirs,
@@ -312,6 +322,7 @@ classes = [
 	STUC_PT_StucCommonAttribs,
 	STUC_PT_StucUsg,
 	STUC_PT_StucOpts,
+	STUC_PT_StucDebug,
 	STUC_UL_StucTargets,
 	STUC_UL_StucMaps,
 	STUC_UL_StucActiveAttribs,

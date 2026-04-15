@@ -283,6 +283,10 @@ def waitForAndCopyOutMeshes(
 				if err != 1:
 					raise Exception("error clearing target mesh cache")
 				print(f"Stuc python, map to mesh failed on obj {item.info.objEval.name}, skipping")
+			elif not item.outMesh.faceCount:
+				#outmesh is empty
+				if (item.outMesh.cornerCount or item.outMesh.vertCount):
+					raise Exception("out-mesh is invalid")
 			elif exportCtx:
 				stucObj = stuc.StucObject()
 				utils.setStucMatrix(stucObj.transform, item.info.objEval.matrix_world)

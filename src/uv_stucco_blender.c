@@ -180,7 +180,7 @@ PixErr targetEntryGet(
 		ppEntry,
 		!!pMesh,
 		init,
-		stucKeyFromI32,
+		pixuctKeyFromI32,
 		NULL,
 		pMesh ? initTargetEntry : NULL,
 		cmpTarget
@@ -223,7 +223,7 @@ PixErr mapEntryDestroy(const char *pName) {
 static
 PixErr targetEntryDestroy(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
-	pixuctHTableRemove(&targetCache, 0, &id, stucKeyFromI32, cmpTarget, clearTargetEntry);
+	pixuctHTableRemove(&targetCache, 0, &id, pixuctKeyFromI32, cmpTarget, clearTargetEntry);
 	PIX_ERR_RETURN_IFNOT_COND(err, tableErr == PIX_ERR_SUCCESS, "");
 	return err;
 }

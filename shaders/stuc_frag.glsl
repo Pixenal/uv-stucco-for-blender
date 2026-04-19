@@ -89,6 +89,7 @@ void main() {
 	if (matInfo.error != 0.0f) {
 		col += sparkles;
 	}
+	col *= f_gradient; //no effect unless rendering to preview textures
 	float luminance = .2126f * sparkles.x + .7152 * sparkles.y + .0722 * sparkles.z;
 	col = mix(mix(selCol * .5f, selCol, pow(luminance, .25f)), col, selFace ? .5f : 1.0f);
 	FragColor = vec4(col, 1.0f);

@@ -1361,3 +1361,10 @@ PixErr stucBlenderThreadPoolLogDump(const char *pPath) {
 #endif
 	return err;
 }
+
+PixErr stucBlenderMapZBoundsGet(const StucMap pMap, PixtyV2_F32 *pZBounds) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = stucMapZBoundsGet(&stucCtx, pMap, pZBounds);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}

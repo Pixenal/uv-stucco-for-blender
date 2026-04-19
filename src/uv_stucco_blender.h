@@ -276,4 +276,5 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneImportDestroy(PixioShmCtx *pShmCtx);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderThreadPoolLogDump(const char *pPath);
-
+STUC_BLENDER_EXPORT
+PixErr stucBlenderMapZBoundsGet(const StucMap pMap, PixtyV2_F32 *pZBounds);

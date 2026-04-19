@@ -140,6 +140,7 @@ vertOut.flat('VEC3', "v_viewPos")
 vertOut.flat('INT', "i_matParam")
 vertOut.flat('VEC2', "v_viewRes")
 vertOut.flat('MAT3', "m_viewMat")
+vertOut.smooth('FLOAT', "f_gradient")
 info = gpu.types.GPUShaderCreateInfo()
 info.push_constant('MAT4', "viewProjectionMatrix")
 info.push_constant('MAT4', "modelMatrix")
@@ -163,6 +164,8 @@ info.typedef_source("\
 		float error;\
 		float time;\
 		float flipY;\
+		vec2 mapZBounds;\
+		vec2 padding;\
 	};\
 ")
 info.uniform_buf(0, "MatInfo", "matInfo")
@@ -311,7 +314,9 @@ class MatInfo(ctypes.Structure):
 		("isEditMode", ctypes.c_float),
 		("error", ctypes.c_float),
 		("time", ctypes.c_float),
-		("flipY", ctypes.c_float)
+		("flipY", ctypes.c_float),
+		("mapZBounds", ctypes.c_float * 2),
+		("padding", ctypes.c_float * 2)
 	]
 
 def getMissingTex() -> gpu.types.GPUTexture:
@@ -439,13 +444,20 @@ def drawMeshForMat(
 	mat: bpy.types.Material | None,
 	cacheType: stuc.MeshCacheType,
 	texOverride: list[gpu.types.GPUTexture] | None = None,
-	error: ShaderErr = ShaderErr.NONE
+	error: ShaderErr = ShaderErr.NONE,
+	zBounds: stuc.StucVec2 | None = None
 ) -> None:
 	area = getArea()
 	if not area:
 		return None
 	matInfo = MatInfo()
 	matInfo.isEditMode = float(cacheType == stuc.MeshCacheType.MESH_CACHE_IN_EDIT)
+	if zBounds:
+		matInfo.mapZBounds[0] = zBounds.x
+		matInfo.mapZBounds[1] = zBounds.y
+	else:
+		matInfo.mapZBounds[0] = .0
+		matInfo.mapZBounds[1] = .0
 	texArr = None
 	if cacheType == stuc.MeshCacheType.MESH_CACHE_OUT:
 		if not mat:
@@ -617,7 +629,8 @@ def prevSinglePass(
 	mesh: stuc.StucMesh,
 	idxAttribs: stuc.StucAttribIndexedArr,
 	matParam: int,
-	offscreen: gpu.types.GPUOffScreen
+	offscreen: gpu.types.GPUOffScreen,
+	zBounds: stuc.StucVec2 | None
 ) -> None:
 	with offscreen.bind():
 		framebuf = gpu.state.active_framebuffer_get() #type:ignore
@@ -625,7 +638,7 @@ def prevSinglePass(
 		scaleMatrix = mathutils.Matrix((
 			(2.0, .0, .0, .0),
 			(.0, 2.0, .0, .0),
-			(.0, .0, 2.0, .0028),
+			(.0, .0, -2.0, .0028),
 			(.0, .0, .0, 1.0)
 		))
 		posMatrix = mathutils.Matrix((
@@ -648,17 +661,19 @@ def prevSinglePass(
 			envFileName = "forest.exr",
 			viewPos = viewPos,
 			idxAttribs = idxAttribs,
+			zBounds = zBounds
 		)
 
 def drawStucPreview(
 	name: str,
 	timestamp: float,
 	mesh: stuc.StucMesh,
-	idxAttribs: stuc.StucAttribIndexedArr
+	idxAttribs: stuc.StucAttribIndexedArr,
+	zBounds: stuc.StucVec2
 ) -> None:
-	prevSinglePass(name, timestamp, mesh, idxAttribs, 0, offscreenAlbedo)
-	prevSinglePass(name, timestamp, mesh, idxAttribs, 1, offscreenNormal)
-	prevSinglePass(name, timestamp, mesh, idxAttribs, 2, offscreenHrm)
+	prevSinglePass(name, timestamp, mesh, idxAttribs, 0, offscreenAlbedo, zBounds)
+	prevSinglePass(name, timestamp, mesh, idxAttribs, 1, offscreenNormal, None)
+	prevSinglePass(name, timestamp, mesh, idxAttribs, 2, offscreenHrm, None)
 
 def getMatForPrev(
 	map: props.StucMap,
@@ -674,7 +689,11 @@ def getMatForPrev(
 	result = meshUtils.getMapMesh(mapName.value.decode('utf-8'), True)
 	if type(result[0]) != stuc.StucMesh or type(result[1]) != stuc.StucAttribIndexedArr:
 		raise Exception()
-	drawStucPreview(map.name, float(map.timestamp), result[0], result[1])
+	zBounds = stuc.StucVec2()
+	err = stucLib.stucBlenderMapZBoundsGet(mapHandle, ctypes.pointer(zBounds))
+	if err != 1:
+		raise Exception("failed to get map z-bounds")
+	drawStucPreview(map.name, float(map.timestamp), result[0], result[1], zBounds)
 	return [
 		offscreenAlbedo.texture_color,
 		offscreenNormal.texture_color,
@@ -696,6 +715,7 @@ def drawStucMesh(
 	viewPos: mathutils.Vector = mathutils.Vector((.0, .0, .0)),
 	mats: list[bpy.types.Material | None] | None = None,
 	idxAttribs: stuc.StucAttribIndexedArr | None = None,
+	zBounds: stuc.StucVec2 | None = None
 ) -> None:
 	area = getArea()
 	if not area:
@@ -784,7 +804,8 @@ def drawStucMesh(
 			mat,
 			cacheType,
 			texOverride = texOverride,
-			error = error
+			error = error,
+			zBounds = zBounds
 		)
 		drawMeshEnd(drawState)
 	stucLib.stucBlenderCallFree(corners.pArr)

@@ -4,6 +4,14 @@ SPDX-License-Identifier: GPL-3.0-only
 */
 
 void main() {
+	if (matInfo.mapZBounds.x == matInfo.mapZBounds.y) {
+		f_gradient = 1.0;
+	}
+	else {
+		float boundsSize = matInfo.mapZBounds.y - matInfo.mapZBounds.x;
+		f_gradient = (position.z - matInfo.mapZBounds.x) / boundsSize;
+		f_gradient = 1.0 - (1.0 - clamp(f_gradient, .0, 1.0)) * .5;
+	}
 	v_pos = vec3(modelMatrix * vec4(position, 1.0f));
 	mat3 normalMatrix = mat3(
 		normalize(modelMatrix[0].xyz),

@@ -53,12 +53,14 @@ class TargetJob:
 		info : MappingInfo,
 		jobHandle : stuc.PixthJob,
 		outMesh : stuc.StucMesh,
-		outIndexedAttribs : stuc.StucAttribIndexedArr
+		outIndexedAttribs : stuc.StucAttribIndexedArr,
+		crc : ctypes.c_uint64
 	) -> None:
 		self.info = info
 		self.jobHandle = jobHandle
 		self.outMesh = outMesh
 		self.outIndexedAttribs = outIndexedAttribs
+		self.crc = crc
 
 def createMatIdxAttrib(
 	mesh : bpy.types.Mesh
@@ -173,22 +175,56 @@ def prepTargetForMapping(
 	)
 	return (info, 0, None)
 
+def isTargetCrcEqual(
+	target: props.StucTarget,
+	info: MappingInfo,
+	crcOut: ctypes.c_uint64
+) -> bool:
+	crc = ctypes.c_uint64(0)
+	err = stucLib.stucBlenderTargetCrc(target.id, ctypes.pointer(crc))
+	if err != 3:#doesn't equal PIX_ERR_QUIET (QUIET is returned if target isn't in cache)
+		if err != 1:
+			raise Exception("error getting cached target crc")
+		newCrc = ctypes.c_uint64(0)
+		err = stucLib.stucBlenderCrcFromTarget(
+			ctypes.cast(info.stucObj.obj.pData, ctypes.c_void_p),
+			ctypes.pointer(info.inIndexedArr),
+			ctypes.pointer(info.mapArr),
+			ctypes.pointer(newCrc)
+		)
+		if err != 1:
+			raise Exception("error generating target crc")
+		if target.dirty:
+			target.dirty = False
+		elif newCrc.value == crc.value:
+			print(f"skipping target {target.obj.name}")
+			return True #assume mesh is unchanged, cancel mapping this target
+		crc = newCrc
+	crcOut.value = crc.value
+	return False
+
 def pushMappingJobToQueue(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget,
 	targetCache: list[TargetJob],
-	triangulate: bool
+	triangulate: bool,
+	checkCrc: bool,
+	force: bool = False
 ) -> int:
 	infoTuple = prepTargetForMapping(context, depsgraph, target)
-	if not infoTuple[0]:
+	crc = ctypes.c_uint64(0)
+	if not infoTuple[0] or\
+	   checkCrc and isTargetCrcEqual(target, infoTuple[0], crc) and not force:
 		return infoTuple[1]
+	
+	print(f"mapping target {target.obj.name}")
 	info = infoTuple[0]
 	workMesh = stuc.StucMesh()
 	outIndexedAttribs = stuc.StucAttribIndexedArr()
 	jobHandle = stuc.PixthJob()
 	pushedJobs = ctypes.c_bool()
-	result = stucLib.stucBlenderMapToMesh(
+	err = stucLib.stucBlenderMapToMesh(
 		ctypes.pointer(jobHandle),
 		ctypes.pointer(info.mapArr),
 		ctypes.pointer(info.stucObj.meshData.mesh),
@@ -202,13 +238,14 @@ def pushMappingJobToQueue(
 	)
 	if not pushedJobs:
 		return 1
-	if result != 1:
+	if err != 1:
 		raise Exception("error pushing job to queue")
 	targetCache.append(TargetJob(
 		info,
 		jobHandle,
 		workMesh,
-		outIndexedAttribs
+		outIndexedAttribs,
+		crc = crc
 	))
 	return 0
 
@@ -270,7 +307,7 @@ def waitForAndCopyOutMeshes(
 			if item.done:
 				continue
 			done = ctypes.c_bool()
-			result = stucLib.stucBlenderWaitForJobs(
+			err = stucLib.stucBlenderWaitForJobs(
 				1,
 				ctypes.pointer(item.jobHandle),
 				False,
@@ -278,7 +315,7 @@ def waitForAndCopyOutMeshes(
 			)
 			if not done.value:
 				continue
-			if result != 1:
+			if err != 1:
 				err = stucLib.stucBlenderTargetCacheClear(item.info.target.id)
 				if err != 1:
 					raise Exception("error clearing target mesh cache")
@@ -310,6 +347,7 @@ def waitForAndCopyOutMeshes(
 			else:
 				cacheTarget(
 					item.info.target,
+					item.crc,
 					stucMesh = item.outMesh,
 					idxAttribs = item.outIndexedAttribs
 				)
@@ -366,6 +404,7 @@ def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 
 def cacheTarget(
 	target: props.StucTarget,
+	crc: ctypes.c_uint64,
 	edit: bool = False,
 	objOverride: bpy.types.Object | None = None,
 	stucMesh: stuc.StucMesh | None = None,
@@ -407,7 +446,8 @@ def cacheTarget(
 		ctypes.c_double(time.time()),
 		ctypes.pointer(meshRender),
 		ctypes.pointer(idxAttribs) if idxAttribs else None,
-		cacheType.value
+		cacheType.value,
+		crc
 	)
 	if err != 1:
 		raise Exception()
@@ -417,15 +457,25 @@ def mapToTarget(
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget,
 	jobs: list[TargetJob],
-	cache: bool
+	cache: bool,
+	force: bool = False
 ) -> None:
 	if type(target.obj.data) != bpy.types.Mesh:
 		return
+	crc = ctypes.c_uint64(0) #dummy
 	match target.obj.mode:
 		case 'OBJECT':
-			result = pushMappingJobToQueue(context, depsgraph, target, jobs, cache)
+			result = pushMappingJobToQueue(
+				context,
+				depsgraph,
+				target,
+				jobs,
+				cache,
+				cache,
+				force = force
+			)
 			if result and cache:
-				cacheTarget(target)
+				cacheTarget(target, crc)
 		case 'EDIT':
 			if not cache:
 				return
@@ -438,21 +488,22 @@ def mapToTarget(
 				requireSelInEdit = False
 			)
 			if info[0]:
-				cacheTarget(target, stucMesh = info[0].stucObj.meshData.mesh, edit = True)
+				cacheTarget(target, crc, stucMesh = info[0].stucObj.meshData.mesh, edit = True)
 			elif info[2]:
-				cacheTarget(target, objOverride = info[2], edit = True)
+				cacheTarget(target, crc, objOverride = info[2], edit = True)
 			else:
 				err = stucLib.stucBlenderTargetCacheClear(target.id)
 				if err != 1:
 					raise Exception()
 		case _:
 			if cache:
-				cacheTarget(target)
+				cacheTarget(target, crc)
 
 def mapToTargetsInScene(
 	context: bpy.types.Context,
 	selOnly: bool = True,
-	exportCtx: ctypes.c_void_p | None = None
+	exportCtx: ctypes.c_void_p | None = None,
+	force: bool = False
 ) -> None:
 	try:
 		depsgraph = context.evaluated_depsgraph_get()
@@ -462,7 +513,7 @@ def mapToTargetsInScene(
 				continue
 			if len(jobs) >= 32:
 				waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx, tillRemain = 16)
-			mapToTarget(context, depsgraph, target, jobs, not exportCtx)
+			mapToTarget(context, depsgraph, target, jobs, not exportCtx, force = force)
 		waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx)
 	except Exception as e:
 		raise e

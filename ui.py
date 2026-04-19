@@ -25,7 +25,7 @@ class STUC_UL_StucTargets(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
-			row0.prop(item, "obj", text = "", emboss = False, icon = 'MESH_CUBE')
+			row0.prop(item, "obj", text = "", emboss = False, icon = 'CUBE')
 
 class STUC_UL_StucMaps(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index) -> None:
@@ -63,7 +63,7 @@ class STUC_UL_StucCommonAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
-			row0.prop(item, "name", text = "", emboss = False, icon = 'MESH_CUBE')
+			row0.prop(item, "name", text = "", emboss = False, icon = 'CUBE')
 			
 class STUC_UL_StucMats(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index) -> None:
@@ -90,7 +90,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 
 	def draw(self, context: bpy.types.Context) -> None:
 		col0 = self.layout.column()
-		col0.operator("stuc.scene_export", text = "Export Scene")
+		col0.operator("stuc.scene_export", text = "Export Scene", icon = 'EXPORT')
 		col0.label(text = "")
 		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
 		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
@@ -301,14 +301,15 @@ class STUC_PT_StucOpts(StucParentPanel, bpy.types.Panel):
 		col0.prop(cast(Any, context.scene).stuc, "wScale", text = "Default W Scale")
 		col0.prop(context.scene.stuc, "relPaths", text = "Relative paths") #type:ignore
 
-class STUC_PT_StucDebug(StucParentPanel, bpy.types.Panel):
-	bl_idname = "STUC_PT_StucDebug"
-	bl_label = "Debug"
+class STUC_PT_StucDev(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucDev"
+	bl_label = "Dev"
 	bl_parent_id = "STUC_PT_Stuc"
 	bl_options = {'DEFAULT_CLOSED'}
 
 	def draw(self, context: bpy.types.Context) -> None:
 		col0 = self.layout.column()
+		col0.operator("stuc.stuc_force_update_targets", icon = 'CUBE')
 		col0.operator("stuc.thread_pool_log_dump", icon = "FILE_BLANK")
 
 classes = [
@@ -322,7 +323,7 @@ classes = [
 	STUC_PT_StucCommonAttribs,
 	STUC_PT_StucUsg,
 	STUC_PT_StucOpts,
-	STUC_PT_StucDebug,
+	STUC_PT_StucDev,
 	STUC_UL_StucTargets,
 	STUC_UL_StucMaps,
 	STUC_UL_StucActiveAttribs,

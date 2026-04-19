@@ -143,6 +143,7 @@ class StucTarget(bpy.types.PropertyGroup):
 	lastObj : bpy.props.PointerProperty( type = bpy.types.Object)
 	activeAttribIdx : bpy.props.IntProperty()
 	id : bpy.props.IntProperty()
+	dirty : bpy.props.BoolProperty()
 
 class StucMapActiveAttrib(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty(update = mapActiveAttribUpdate)

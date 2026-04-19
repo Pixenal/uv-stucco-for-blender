@@ -168,8 +168,18 @@ PixErr stucBlenderTargetCacheAdd(
 	double timestamp,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pIdxAttribs,
-	TargetCacheType type
+	TargetCacheType type,
+	uint64_t crc
 );
+STUC_BLENDER_EXPORT
+PixErr stucBlenderCrcFromTarget(
+	const StucMesh *pMesh,
+	const StucAttribIndexedArr *pIdxAttribArr,
+	const StucMapArr *pMapArr,
+	uint64_t *pCrc
+);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderTargetCrc(int32_t id, uint64_t *pCrc);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheGet(
 	int32_t id,

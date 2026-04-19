@@ -40,6 +40,7 @@ typedef struct TargetEntry {
 	StucAttribIndexedArr idxAttribs;
 	I32 id;
 	TargetCacheType type;
+	U64 crc;
 } TargetEntry;
 
 static PixalcFPtrs allocPtrs = {
@@ -52,6 +53,31 @@ static StucContextInternal stucCtx = {0};
 static PixErr tableErr = PIX_ERR_SUCCESS;
 static PixuctHTable mapTable = {0};
 static PixuctHTable targetCache = {0};
+
+static
+U64 crc64Init() {
+	printf("\n");
+	return 0xFFFFFFFFFFFFFFFF;
+}
+
+static
+void crc64Contrib(U64 *pCrc, I64 messageSize, const void *pMessage) {
+	U64 crc = *pCrc;
+	for (I64 i = 0; i < messageSize; ++i) {
+		crc ^= ((const U8 *)pMessage)[i];
+		for (I32 j = 0; j < 8; ++j) {
+			crc = crc & 0x1 ? crc >> 1 ^ 0x42F0E1EBA9EA3693 : crc >> 1;
+		}
+	}
+	//printf("crc is %p\n", (void *)crc);
+	*pCrc = crc;
+}
+
+static
+U64 crc64End(U64 crc) {
+	printf("\n");
+	return crc ^ 0xFFFFFFFFFFFFFFFF;
+}
 
 static
 void clearMapEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pKeyData) {
@@ -130,6 +156,7 @@ void initTargetEntry(
 	pEntry->timestamp = *(double *)ppInitArr[0];
 	pEntry->mesh = *(StucMesh *)ppInitArr[1];
 	pEntry->type = *(TargetCacheType *)ppInitArr[3];
+	pEntry->crc = *(U64 *)ppInitArr[4];//TODO replace these with an init struct
 	if (pEntry->type == MESH_CACHE_OUT) {
 		PIX_ERR_ASSERT("", ppInitArr[1]);
 		pEntry->idxAttribs = *(StucAttribIndexedArr *)ppInitArr[2];
@@ -168,11 +195,13 @@ PixErr targetEntryGet(
 	TargetEntry **ppEntry,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pIdxAttribs,
-	TargetCacheType type
+	TargetCacheType type,
+	U64 crc
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, !(!pMesh ^ !pIdxAttribs) || type != MESH_CACHE_OUT, "");
-	void *init[] = {pTimestamp, pMesh, pIdxAttribs, &type};
+	//TODO maybe don't do this? make an init struct
+	void *init[] = {pTimestamp, pMesh, pIdxAttribs, &type, &crc};
 	SearchResult result = pixuctHTableGet(
 		&targetCache,
 		0,
@@ -197,6 +226,7 @@ PixErr targetEntryGet(
 			PIX_ERR_ASSERT("", type != MESH_CACHE_NONE);
 			(*ppEntry)->type = type;
 			(*ppEntry)->mesh = *pMesh;
+			(*ppEntry)->crc = crc;
 		}
 		if (pIdxAttribs) {
 			if ((*ppEntry)->idxAttribs.count) {
@@ -209,6 +239,118 @@ PixErr targetEntryGet(
 			(*ppEntry)->timestamp = *pTimestamp;
 		}
 	}	
+	return err;
+}
+
+PixErr stucBlenderCrcFromTarget(
+	const StucMesh *pMesh,
+	const StucAttribIndexedArr *pIdxAttribArr,
+	const StucMapArr *pMapArr,
+	U64 *pCrc
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		pCrc && pMesh && pIdxAttribArr && pMapArr && pMesh->pFaces && pMesh->pCorners,
+		""
+	);
+	*pCrc = crc64Init();
+
+	crc64Contrib(pCrc, sizeof(pIdxAttribArr->count), &pIdxAttribArr->count);
+	for (I32 i = 0; i < pIdxAttribArr->count; ++i) {
+		const StucAttribIndexed *pAttrib = pIdxAttribArr->pArr + i;
+		crc64Contrib(pCrc, sizeof(pAttrib->count), &pAttrib->count);
+		crc64Contrib(pCrc, sizeof(pAttrib->core.name), &pAttrib->core.name);
+		crc64Contrib(pCrc, sizeof(pAttrib->core.type), &pAttrib->core.type);
+		crc64Contrib(pCrc, sizeof(pAttrib->core.use), &pAttrib->core.use);
+		I32 attribSize = 0;
+		err = stucGetAttribSize(&pAttrib->core, &attribSize);
+		crc64Contrib(pCrc, attribSize * pAttrib->count, pAttrib->core.pData);
+	}
+
+	crc64Contrib(pCrc, sizeof(pMapArr->count), &pMapArr->count);
+	for (I32 i = 0; i < pMapArr->count; ++i) {
+		const StucMapArrEntry *pEntry = pMapArr->pArr + i;
+		crc64Contrib(pCrc, sizeof(pEntry->map), &pEntry->map);
+		crc64Contrib(pCrc, sizeof(pEntry->matIdx), &pEntry->matIdx);
+		crc64Contrib(pCrc, sizeof(pEntry->receiveLen), &pEntry->receiveLen);
+		crc64Contrib(pCrc, sizeof(pEntry->wScale), &pEntry->wScale);
+		for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+			const StucBlendOptArr *pOptArr = pEntry->blendOptArr + domain;
+			crc64Contrib(pCrc, sizeof(pOptArr->count), &pOptArr->count);
+			if (pOptArr->count) {
+				PIX_ERR_ASSERT("count != 0 but pArr is NULL", pOptArr->pArr);
+				for (I32 j = 0; j < pOptArr->count; ++j) {
+					const StucBlendOpt *pOpt = pOptArr->pArr + j;
+					crc64Contrib(pCrc, sizeof(pOpt->attrib), &pOpt->attrib);
+					const StucBlendConfig *pConfig = &pOpt->blendConfig;
+					crc64Contrib(pCrc, sizeof(pConfig->fMin), &pConfig->fMin);
+					crc64Contrib(pCrc, sizeof(pConfig->fMax), &pConfig->fMax);
+					crc64Contrib(pCrc, sizeof(pConfig->iMin), &pConfig->iMin);
+					crc64Contrib(pCrc, sizeof(pConfig->iMax), &pConfig->iMax);
+					crc64Contrib(pCrc, sizeof(pConfig->blend), &pConfig->blend);
+					crc64Contrib(pCrc, sizeof(pConfig->opacity), &pConfig->opacity);
+					crc64Contrib(pCrc, sizeof(pConfig->clamp), &pConfig->clamp);
+					crc64Contrib(pCrc, sizeof(pConfig->order), &pConfig->order);
+				}
+			}
+		}
+	}
+
+	crc64Contrib(pCrc, sizeof(pMesh->faceCount), &pMesh->faceCount);
+	crc64Contrib(pCrc, sizeof(pMesh->cornerCount), &pMesh->cornerCount);
+	crc64Contrib(pCrc, sizeof(pMesh->vertCount), &pMesh->vertCount);
+	crc64Contrib(pCrc, sizeof(pMesh->activeAttribs), pMesh->activeAttribs);
+	crc64Contrib(pCrc, sizeof(I32) * pMesh->faceCount, pMesh->pFaces);
+	crc64Contrib(pCrc, sizeof(I32) * pMesh->cornerCount, pMesh->pCorners);
+	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
+		const StucAttribArray *pAttribArr = NULL;
+		err = stucAttribArrGetConst(&stucCtx, pMesh, domain, &pAttribArr);
+		PIX_ERR_RETURN_IFNOT_COND(err, pAttribArr, "");
+		crc64Contrib(pCrc, sizeof(pAttribArr->count), &pAttribArr->count);
+		I32 domainCount = 0;
+		err = stucDomainCountGet(&stucCtx, pMesh, domain, &domainCount);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		for (I32 i = 0; i < pAttribArr->count; ++i) {
+			const StucAttrib *pAttrib = pAttribArr->pArr + i;
+			{
+				crc64Contrib(pCrc, sizeof(pAttrib->interpolate), &pAttrib->interpolate);
+				crc64Contrib(pCrc, sizeof(pAttrib->origin), &pAttrib->origin);
+				crc64Contrib(pCrc, sizeof(pAttrib->copyOpt), &pAttrib->copyOpt);
+				crc64Contrib(pCrc, sizeof(pAttrib->core.name), &pAttrib->core.name);
+				crc64Contrib(pCrc, sizeof(pAttrib->core.type), &pAttrib->core.type);
+				crc64Contrib(pCrc, sizeof(pAttrib->core.use), &pAttrib->core.use);
+			}
+			I32 attribSize = 0;
+			err = stucGetAttribSize(&pAttrib->core, &attribSize);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			crc64Contrib(pCrc, attribSize * domainCount, pAttrib->core.pData);
+		}
+	}
+	*pCrc = crc64End(*pCrc);
+	return err;
+}
+
+PixErr stucBlenderTargetCrc(I32 id, U64 *pCrc) {
+	PixErr err = PIX_ERR_SUCCESS;
+	TargetEntry *pEntry = NULL;
+	SearchResult result = pixuctHTableGet(
+		&targetCache,
+		0,
+		&id,
+		(void **)&pEntry,
+		false,
+		NULL,
+		pixuctKeyFromI32,
+		NULL,
+		NULL,
+		cmpTarget
+	);
+	if (result == PIX_SEARCH_NOT_FOUND) {
+		return PIX_ERR_QUIET;
+	}
+	PIX_ERR_ASSERT("", pEntry);
+	*pCrc = pEntry->crc;
 	return err;
 }
 
@@ -756,7 +898,7 @@ PixErr stucBlenderTargetCacheRemove(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
 
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE);
+	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE, 0u);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (!pEntry) {
 		return err;
@@ -772,11 +914,12 @@ PixErr stucBlenderTargetCacheAdd(
 	F64 timestamp,
 	StucMesh *pMesh,
 	StucAttribIndexedArr *pIdxAttribs,
-	TargetCacheType type
+	TargetCacheType type,
+	U64 crc
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, &timestamp, &pEntry, pMesh, pIdxAttribs, type);
+	err = targetEntryGet(id, &timestamp, &pEntry, pMesh, pIdxAttribs, type, crc);
 	PIX_ERR_RETURN_IFNOT(err, "");
 
 	*pMesh = (StucMesh){0};
@@ -796,7 +939,7 @@ PixErr stucBlenderTargetCacheGet(
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, ppMesh || ppIdxAttribs, "");
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE);
+	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE, 0u);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->type != MESH_CACHE_NONE) {
 		PIX_ERR_ASSERT("", pEntry->mesh.faceCount);
@@ -817,7 +960,7 @@ PixErr stucBlenderTargetCacheGet(
 PixErr stucBlenderTargetCacheClear(I32 id) {
 	PixErr err = PIX_ERR_SUCCESS;
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE);
+	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE, 0u);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->mesh.faceCount) {
 		err = stucMeshDestroy(&stucCtx, &pEntry->mesh);

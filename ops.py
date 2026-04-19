@@ -16,6 +16,7 @@ from . import utils
 from . import mesh_utils as meshUtils
 if not bpy.app.background:
 	from . import draw
+from . import mapping
 
 class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 	bl_idname = "stuc.set_as_usg"
@@ -213,6 +214,15 @@ class STUC_OT_StucReloadTextures(bpy.types.Operator):
 		if not bpy.app.background:
 			draw.reloadCoreTextures()
 		return {'FINISHED'}
+	
+class STUC_OT_StucForceUpdateTargets(bpy.types.Operator):
+	bl_idname = "stuc.stuc_force_update_targets"
+	bl_label = "Force Update Targets"
+	bl_options = {'REGISTER'}
+
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		mapping.mapToTargetsInScene(context, selOnly = True, force = True)
+		return {'FINISHED'}
 
 classes = [
 	STUC_OT_StucSetAsUsg,
@@ -223,7 +233,8 @@ classes = [
 	STUC_OT_StucMatAssign,
 	STUC_OT_StucMatRemove,
 	STUC_OT_StucMapRemove,
-	STUC_OT_StucReloadTextures
+	STUC_OT_StucReloadTextures,
+	STUC_OT_StucForceUpdateTargets
 ]
 
 def register() -> None:

@@ -273,6 +273,17 @@ def getMapInDirs(mapNameUtf8: ctypes.c_char_p, dirArrPtr, path, timestamp) -> in
 		i += 1
 	return 1
 
+def markMapUsersDirty(context: bpy.types.Context, map: props.StucMap) -> None:
+	for target in context.scene.stucTargets:#type:ignore
+		obj: bpy.types.Object = target.obj
+		if type(obj.data) != bpy.types.Mesh:
+			raise Exception("target object is wrong type")
+		for mat in obj.data.materials:
+			stucMat = context.scene.stucMats.get(mat.name, None)#type:ignore
+			if stucMat and map.name == stucMat.map:
+				target.dirty = True
+				break
+
 def addOrUpdateMap(
 	context: bpy.types.Context,
 	name: str,
@@ -285,6 +296,7 @@ def addOrUpdateMap(
 	if map:
 		map.deps.clear()
 		map.depsIdx = 0
+		markMapUsersDirty(context, map)
 	else:
 		map = context.scene.stucMaps.add() #type:ignore
 		map.name = name

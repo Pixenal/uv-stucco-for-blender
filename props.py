@@ -120,64 +120,64 @@ def relPathsUpdate(self, context: bpy.types.Context) -> None:
 			
 
 class StucAttribMirror(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty()
-	use : bpy.props.IntProperty()
+	name : bpy.props.StringProperty()#type:ignore
+	use : bpy.props.IntProperty()#type:ignore
 
 class StucMap(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty()
-	dir : bpy.props.StringProperty(subtype = 'DIR_PATH', update = stucMapDirUpdate)
+	name : bpy.props.StringProperty()#type:ignore
+	dir : bpy.props.StringProperty(subtype = 'DIR_PATH', update = stucMapDirUpdate)#type:ignore
 	#storing as a string, value too large for Int or Float prop
-	timestamp : bpy.props.StringProperty()
-	activeAttribIdx : bpy.props.IntProperty()
-	depsIdx : bpy.props.IntProperty()
-	status : bpy.props.EnumProperty(default = '0', items = [
+	timestamp : bpy.props.StringProperty()#type:ignore
+	activeAttribIdx : bpy.props.IntProperty()#type:ignore
+	depsIdx : bpy.props.IntProperty()#type:ignore
+	status : bpy.props.EnumProperty(default = '0', items = [#type:ignore
 		('0', 'Pending Load', ""),
 		('1', 'Loaded', ""),
 		('2', "Error", ""),
 		('3', "Missing Dep", "")
 	])
-	age : bpy.props.IntProperty()
+	age : bpy.props.IntProperty()#type:ignore
 
 class StucDep(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty()
+	name : bpy.props.StringProperty()#type:ignore
 
 class StucTarget(bpy.types.PropertyGroup):
-	obj : bpy.props.PointerProperty(
-		type = bpy.types.Object,
+	obj : bpy.props.PointerProperty(#type:ignore
+		type = bpy.types.Object,#type:ignore
 		update = targetObjUpdate
 	)
-	lastObj : bpy.props.PointerProperty( type = bpy.types.Object)
-	activeAttribIdx : bpy.props.IntProperty()
-	id : bpy.props.IntProperty()
-	dirty : bpy.props.BoolProperty()
+	lastObj : bpy.props.PointerProperty( type = bpy.types.Object)#type:ignore
+	activeAttribIdx : bpy.props.IntProperty()#type:ignore
+	id : bpy.props.IntProperty()#type:ignore
+	dirty : bpy.props.BoolProperty()#type:ignore
 
 class StucMapActiveAttrib(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty(update = mapActiveAttribUpdate)
-	use : bpy.props.StringProperty()
+	name : bpy.props.StringProperty(update = mapActiveAttribUpdate)#type:ignore
+	use : bpy.props.StringProperty()#type:ignore
 
 class StucActiveAttrib(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty()
-	use : bpy.props.StringProperty()
+	name : bpy.props.StringProperty()#type:ignore
+	use : bpy.props.StringProperty()#type:ignore
 	
 class StucMat(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty()
-	mat : bpy.props.PointerProperty(type = bpy.types.Material, update = stucMatUpdate)
+	name : bpy.props.StringProperty()#type:ignore
+	mat : bpy.props.PointerProperty(type = bpy.types.Material, update = stucMatUpdate)#type:ignore
 	#matCpy exists to allow stucMatUpdate to see the mat a material pointed to before
 	#it was changed (there doesn't seem to be a pre-update callback).
 	#(Map property needs to be a string it seems for the prop_search
 	#  to work on custom collections?)
-	matCpy : bpy.props.PointerProperty(type = bpy.types.Material)
-	map : bpy.props.StringProperty()
+	matCpy : bpy.props.PointerProperty(type = bpy.types.Material)#type:ignore
+	map : bpy.props.StringProperty()#type:ignore
 
 class StucCommonAttrib(bpy.types.PropertyGroup):
-	domain : bpy.props.EnumProperty(items = [
+	domain : bpy.props.EnumProperty(items = [#type:ignore
 		('NONE', "None", ""),
 		('FACE', "Face", ""),
 		('CORNER', "Face Corner", ""),
 		('EDGE', "Edge", ""),
 		('POINT', "Vertex", "")
 	])
-	blend : bpy.props.EnumProperty(default = '0', items = [
+	blend : bpy.props.EnumProperty(default = '0', items = [#type:ignore
 		('0', "Replace", ""),
 		('1', "Multiply", ""),
 		('2', "Divide", ""),
@@ -190,35 +190,35 @@ class StucCommonAttrib(bpy.types.PropertyGroup):
 		('9', "Soft Light", ""),
 		('10', "Color Dodge", "")
 	])
-	opacity : bpy.props.FloatProperty(default = 1.0)
-	order : bpy.props.EnumProperty(default = '0', items = [
+	opacity : bpy.props.FloatProperty(default = 1.0)#type:ignore
+	order : bpy.props.EnumProperty(default = '0', items = [#type:ignore
 		('0', "Map Over Mesh", ""),
 		('1', "Mesh Over Map", "")
 	])
 
 class StucProperties(bpy.types.PropertyGroup):
-	nextTargetId : bpy.props.IntProperty(default = 0)
-	commonAttribDomain : bpy.props.EnumProperty(items = [
+	nextTargetId : bpy.props.IntProperty(default = 0)#type:ignore
+	commonAttribDomain : bpy.props.EnumProperty(items = [#type:ignore
 		('FACE', "Face", ""),
 		('CORNER', "Face Corner", ""),
 		('EDGE', "Edge", ""),
 		('POINT', "Vertex", "")
 	])
-	commonAttribIdx : bpy.props.IntProperty(default = 0)
-	wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)
-	relPaths : bpy.props.BoolProperty(default = True, update = relPathsUpdate)
-	drawCacheMaxVerts : bpy.props.IntProperty(
+	commonAttribIdx : bpy.props.IntProperty(default = 0)#type:ignore
+	wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)#type:ignore
+	relPaths : bpy.props.BoolProperty(default = True, update = relPathsUpdate)#type:ignore
+	drawCacheMaxVerts : bpy.props.IntProperty(#type:ignore
 		default = drawCacheMaxVerts,
 		update = drawCacheSizeUpdate
 	)
 	#breakPoint : bpy.props.BoolProperty(default = False)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
-	mat : bpy.props.PointerProperty(type = bpy.types.Material)
-	map : bpy.props.StringProperty()
+	mat : bpy.props.PointerProperty(type = bpy.types.Material)#type:ignore
+	map : bpy.props.StringProperty()#type:ignore
 
 class StucPath(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty(subtype = 'DIR_PATH')
+	name : bpy.props.StringProperty(subtype = 'DIR_PATH')#type:ignore
 
 classes = [
 	StucProperties,
@@ -238,33 +238,33 @@ def register() -> None:
 	for cls in classes:
 		bpy.utils.register_class(cls)
 	#TODO add these as needed, rather than adding it to every object like this
-	bpy.types.Object.stucUsgFlatCutoff = bpy.props.PointerProperty(
-		type = bpy.types.Object,
+	bpy.types.Object.stucUsgFlatCutoff = bpy.props.PointerProperty(#type:ignore
+		type = bpy.types.Object,#type:ignore
 		name = "Stuc USG Flatten Cut-Off",
-		poll = usgFlatCutoffPoll
+		poll = usgFlatCutoffPoll#type:ignore
 	)
-	bpy.types.Scene.stuc = bpy.props.PointerProperty(type = StucProperties)
-	bpy.types.Scene.stucTargets = bpy.props.CollectionProperty(name = "Targets", type = StucTarget)
-	bpy.types.Scene.stucTargetsIdx = bpy.props.IntProperty(name = "Targets Index")
-	bpy.types.Scene.stucTargetIdNext = bpy.props.IntProperty()
-	bpy.types.Scene.stucMaps = bpy.props.CollectionProperty(name = "Maps", type = StucMap)
-	bpy.types.Scene.stucMapsIdx = bpy.props.IntProperty(name = "Maps Index")
-	bpy.types.Scene.stucMats = bpy.props.CollectionProperty(name = "Mats", type = StucMat)
-	bpy.types.Scene.stucMatsIdx = bpy.props.IntProperty(name = "Mats Index")
-	bpy.types.Scene.stucMatToRm = bpy.props.PointerProperty(type = StucMat)
-	bpy.types.Scene.stucDepDirs = bpy.props.CollectionProperty(name = "Dep Dirs", type = StucPath)
-	bpy.types.Scene.stucDepDirsIdx = bpy.props.IntProperty(name = "Dep Dirs Index")
-	bpy.types.Scene.stucAgeNext = bpy.props.IntProperty()
-	StucCommonAttribTableEntry.mesh = bpy.props.CollectionProperty(type = StucCommonAttrib)
-	StucCommonAttribTableEntry.faces = bpy.props.CollectionProperty(type = StucCommonAttrib)
-	StucCommonAttribTableEntry.corners = bpy.props.CollectionProperty(type = StucCommonAttrib)
-	StucCommonAttribTableEntry.edges = bpy.props.CollectionProperty(type = StucCommonAttrib)
-	StucCommonAttribTableEntry.verts = bpy.props.CollectionProperty(type = StucCommonAttrib)
-	StucTarget.commonAttribTable = bpy.props.CollectionProperty(type = StucCommonAttribTableEntry)
-	StucTarget.activeAttribs = bpy.props.CollectionProperty(type = StucActiveAttrib)
-	StucMap.activeAttribs = bpy.props.CollectionProperty(type = StucMapActiveAttrib)
-	StucMap.attribs = bpy.props.CollectionProperty(type = StucAttribMirror)
-	StucMap.deps = bpy.props.CollectionProperty(type = StucDep)
+	bpy.types.Scene.stuc = bpy.props.PointerProperty(type = StucProperties)#type:ignore
+	bpy.types.Scene.stucTargets = bpy.props.CollectionProperty(name = "Targets", type = StucTarget)#type:ignore
+	bpy.types.Scene.stucTargetsIdx = bpy.props.IntProperty(name = "Targets Index")#type:ignore
+	bpy.types.Scene.stucTargetIdNext = bpy.props.IntProperty()#type:ignore
+	bpy.types.Scene.stucMaps = bpy.props.CollectionProperty(name = "Maps", type = StucMap)#type:ignore
+	bpy.types.Scene.stucMapsIdx = bpy.props.IntProperty(name = "Maps Index")#type:ignore
+	bpy.types.Scene.stucMats = bpy.props.CollectionProperty(name = "Mats", type = StucMat)#type:ignore
+	bpy.types.Scene.stucMatsIdx = bpy.props.IntProperty(name = "Mats Index")#type:ignore
+	bpy.types.Scene.stucMatToRm = bpy.props.PointerProperty(type = StucMat)#type:ignore
+	bpy.types.Scene.stucDepDirs = bpy.props.CollectionProperty(name = "Dep Dirs", type = StucPath)#type:ignore
+	bpy.types.Scene.stucDepDirsIdx = bpy.props.IntProperty(name = "Dep Dirs Index")#type:ignore
+	bpy.types.Scene.stucAgeNext = bpy.props.IntProperty()#type:ignore
+	StucCommonAttribTableEntry.mesh = bpy.props.CollectionProperty(type = StucCommonAttrib)#type:ignore
+	StucCommonAttribTableEntry.faces = bpy.props.CollectionProperty(type = StucCommonAttrib)#type:ignore
+	StucCommonAttribTableEntry.corners = bpy.props.CollectionProperty(type = StucCommonAttrib)#type:ignore
+	StucCommonAttribTableEntry.edges = bpy.props.CollectionProperty(type = StucCommonAttrib)#type:ignore
+	StucCommonAttribTableEntry.verts = bpy.props.CollectionProperty(type = StucCommonAttrib)#type:ignore
+	StucTarget.commonAttribTable = bpy.props.CollectionProperty(type = StucCommonAttribTableEntry)#type:ignore
+	StucTarget.activeAttribs = bpy.props.CollectionProperty(type = StucActiveAttrib)#type:ignore
+	StucMap.activeAttribs = bpy.props.CollectionProperty(type = StucMapActiveAttrib)#type:ignore
+	StucMap.attribs = bpy.props.CollectionProperty(type = StucAttribMirror)#type:ignore
+	StucMap.deps = bpy.props.CollectionProperty(type = StucDep)#type:ignore
 
 #TODO don't you need to delete the other props as well?
 def unregister() -> None:

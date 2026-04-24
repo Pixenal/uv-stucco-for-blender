@@ -133,15 +133,23 @@ def linkCache(context: bpy.types.Context, filepath: str) -> None:
 	for obj in dataDest.objects:
 		stucCol.objects.link(obj)
 
-def isTargetInCache(context: bpy.types.Context, target: props.StucTarget) -> bool:
+def getCacheIfVisible(context: bpy.types.Context) -> bpy.types.Collection | None:
 	stucLayCol = context.view_layer.layer_collection.children.get("_STUC_CACHE", None)
 	if not stucLayCol or not stucLayCol.is_visible:
-		return False
+		return None
 	stucCol = bpy.data.collections.get("_STUC_CACHE", None)
 	if not stucCol or stucCol.hide_viewport or not context.scene.user_of_id(stucCol): #type:ignore
-		return False
-	obj = stucCol.objects.get(target.obj.name + ".Stuc", None)
-	return obj != None and not obj.hide_viewport and not obj.hide_get()
+		return None
+	return stucCol
+
+def getTargetInCacheIfVisible(
+	col: bpy.types.Collection,
+	target: props.StucTarget
+) -> bpy.types.Object | None:
+	obj = col.objects.get(target.obj.name + ".Stuc", None)
+	if obj and not obj.hide_viewport and not obj.hide_get():
+		return obj
+	return None
 
 def correctCacheLib() -> None:
 	for lib in bpy.data.libraries:

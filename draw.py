@@ -11,6 +11,7 @@ from enum import Enum
 from datetime import datetime
 import pdb
 from typing import Any
+import sys
 
 import bpy
 import gpu
@@ -401,14 +402,11 @@ class BatchCache():
 			self.data: gpu.types.GPUBatch | None = None
 			self.vertCount = vertCount
 
-	def __init__(self, size: int) -> None:
-		if size <= 0:
-			raise Exception("cache size must be > 0")
-		self.size = size
+	def __init__(self) -> None:
 		self.table: dict[str, BatchCache.Entry] = {}
-		self.arr: list[BatchCache.Entry] = []
+		self.vertCount: int = 0
 
-	def get(self, key: str, timestamp: float, vertCount: int) -> Entry:
+	def get(self, key: str, timestamp: float, vertCount: int) -> Entry | None:
 		entry = self.table.get(key, None)
 		if entry:
 			if timestamp != entry.timestamp:
@@ -416,26 +414,24 @@ class BatchCache():
 				entry.timestamp = timestamp
 				entry.vertCount = vertCount
 			return entry
-		arrSize = len(self.arr)
-		if arrSize > self.size:
-			raise Exception("invalid state")
-		if arrSize == self.size:
-			def sortKey(entry: BatchCache.Entry) -> int:
-				return entry.vertCount
-			self.arr.sort(key = sortKey)
-			if vertCount <= self.arr[0].vertCount:
-				#rejected from cache, returning dummy
-				return self.Entry(key, timestamp, vertCount)
-			self.table.pop(self.arr[0].key)
-			self.arr.pop(0)
-		self.arr.append(self.Entry(key, timestamp, vertCount))
-		entry = self.arr[-1]
-		if not entry:
-			raise Exception()
+		else:
+			if self.vertCount < 0:
+				raise Exception("draw cache state is invalid")
+			if self.vertCount > props.drawCacheMaxVerts:
+				return None #rejected from cache
+			entry = self.Entry(key, timestamp, vertCount)
 		self.table[key] = entry
+		self.vertCount += vertCount
 		return entry
 	
-batchCache = BatchCache(128)
+	def pop(self, key: str) -> None:
+		arr: list[BatchCache.Entry] = [self.table[i] for i in self.table.keys()]
+		for item in arr:
+			if item.key.startswith(key):
+				self.vertCount -= item.vertCount
+				self.table.pop(item.key)
+
+batchCache = BatchCache()
 
 def drawMeshForMat(
 	cacheEntry: BatchCache.Entry | None,
@@ -792,11 +788,10 @@ def drawStucMesh(
 		if key:
 			if not timestamp:
 				raise Exception("timestamp is required if key is passed")
-			cacheEntry = batchCache.get(
-				f"{key}_{mat.name if mat else 'None'}",
-				timestamp,
-				mesh.vertCount
-			)
+			keyWithMat = f"{key}_{mat.name if mat else 'None'}"
+			cacheEntry = batchCache.get(keyWithMat, timestamp, mesh.vertCount)
+			if not cacheEntry:
+				continue
 		drawMeshForMat(
 			cacheEntry,
 			pos, uv, normal, tangent, tSign, faceSel,

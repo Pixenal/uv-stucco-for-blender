@@ -3,6 +3,8 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: GPL-3.0-only
 '''
 
+drawCacheMaxVerts: int = 25000000
+
 import pdb
 import ctypes
 
@@ -14,7 +16,11 @@ from . import stuc
 from . import mesh_utils as meshUtils
 from . import utils
 
-def stucMapDirUpdate(self, context) -> None:
+def drawCacheSizeUpdate(self, context: bpy.types.Context) -> None:
+	global drawCacheMaxVerts
+	drawCacheMaxVerts = self.drawCacheMaxVerts
+
+def stucMapDirUpdate(self, context: bpy.types.Context) -> None:
 	dir = utils.makeRel(context, self.dir)
 	if dir:
 		self.dir = dir
@@ -47,7 +53,7 @@ def matSetInvisible(context: bpy.types.Context, mat: bpy.types.Material, value: 
 	else:
 		del mat["StucMat"]
 
-def targetObjUpdate(self, context) -> None:
+def targetObjUpdate(self, context: bpy.types.Context) -> None:
 	try:
 		if self.obj != self.lastObj:
 			if self.obj:
@@ -62,10 +68,10 @@ def targetObjUpdate(self, context) -> None:
 	except Exception as e:
 		raise e
 
-def mapActiveAttribUpdate(self, context) -> None:
-	if not len(self.name) or not len(context.scene.stucMaps):
+def mapActiveAttribUpdate(self, context: bpy.types.Context) -> None:
+	if not len(self.name) or not len(context.scene.stucMaps):#type:ignore
 		return
-	map = context.scene.stucMaps[context.scene.stucMapsIdx]
+	map = context.scene.stucMaps[context.scene.stucMapsIdx]#type:ignore
 	mapInfo = meshUtils.getMapMesh(map.name)
 	if type(mapInfo[0]) != stuc.StucMesh:
 		raise Exception()
@@ -88,7 +94,7 @@ def mapActiveAttribUpdate(self, context) -> None:
 def usgFlatCutoffPoll(self, obj: bpy.types.Object) -> bool | None:
 	return self != obj and not obj.get("StucUsg", None)
 
-def stucMatUpdate(self, context) -> None:
+def stucMatUpdate(self, context: bpy.types.Context) -> None:
 	if self.matCpy and self.mat != self.matCpy:
 		matSetInvisible(context, self.matCpy, False)
 	self.matCpy = self.mat
@@ -98,15 +104,15 @@ def stucMatUpdate(self, context) -> None:
 	else:
 		self.name = ""
 
-def relPathsUpdate(self, context) -> None:
+def relPathsUpdate(self, context: bpy.types.Context) -> None:
 	if not bpy.data.filepath:
 		return
-	for map in context.scene.stucMaps:
+	for map in context.scene.stucMaps:#type:ignore
 		if self.relPaths:
 			map.dir = map.dir #update func will make relative
 		else:
 			map.dir = bpy.path.abspath(map.dir)
-	for dir in context.scene.stucDepDirs:
+	for dir in context.scene.stucDepDirs:#type:ignore
 		if self.relPaths:
 			dir.name = bpy.path.relpath(dir.name)
 		else:
@@ -201,6 +207,11 @@ class StucProperties(bpy.types.PropertyGroup):
 	commonAttribIdx : bpy.props.IntProperty(default = 0)
 	wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)
 	relPaths : bpy.props.BoolProperty(default = True, update = relPathsUpdate)
+	drawCacheMaxVerts : bpy.props.IntProperty(
+		default = drawCacheMaxVerts,
+		update = drawCacheSizeUpdate
+	)
+	#breakPoint : bpy.props.BoolProperty(default = False)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
 	mat : bpy.props.PointerProperty(type = bpy.types.Material)

@@ -135,8 +135,12 @@ def drawTarget(target: props.StucTarget) -> None:
 @persistent
 def stucDrawHandler() -> None:
 	try :
+		col = sceneCache.getCacheIfVisible(bpy.context)
 		for target in bpy.context.scene.stucTargets: #type:ignore
-			if not target.obj or sceneCache.isTargetInCache(bpy.context, target):
+			if not target.obj:
+				continue		
+			if col and sceneCache.getTargetInCacheIfVisible(col, target):
+				draw.batchCache.pop(f"{target.id}_{target.obj.name}",)
 				continue
 			#cProfile.runctx('drawTarget(target)', globals(), locals())
 			drawTarget(target)

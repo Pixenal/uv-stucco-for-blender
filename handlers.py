@@ -107,7 +107,11 @@ def getTargetMesh(
 	else:
 		return None
 
-def drawTarget(target: props.StucTarget) -> None:
+def drawTarget(
+	target: props.StucTarget,
+	frame: int,
+	matCache: dict[str, draw.MatCacheEntry]
+) -> None:
 	if type(target.obj.data) != bpy.types.Mesh:
 		return
 	cache = getTargetMesh(target)
@@ -123,6 +127,8 @@ def drawTarget(target: props.StucTarget) -> None:
 	draw.drawStucMeshInViewport(
 		f"{target.id}_{target.obj.name}",
 		cache[0],
+		frame,
+		matCache,
 		cache[1],
 		target.obj.matrix_world,
 		cache[3],
@@ -132,18 +138,25 @@ def drawTarget(target: props.StucTarget) -> None:
 	if cache[3] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT':
 		draw.drawEditOverlay(cache[1], target.obj)
 
+frame: int = 0
+
 @persistent
 def stucDrawHandler() -> None:
 	try :
+		global frame
+		frame += 1
 		col = sceneCache.getCacheIfVisible(bpy.context)
+		matCache = dict[str, draw.MatCacheEntry]()
 		for target in bpy.context.scene.stucTargets: #type:ignore
 			if not target.obj:
 				continue		
 			if col and sceneCache.getTargetInCacheIfVisible(col, target):
-				draw.batchCache.pop(f"{target.id}_{target.obj.name}",)
 				continue
 			#cProfile.runctx('drawTarget(target)', globals(), locals())
-			drawTarget(target)
+			drawTarget(target, frame, matCache)
+		draw.batchCache.clean(frame)
+		draw.previewArr.clear()
+		#print(f"draw cache size is {len(draw.batchCache.table.keys())}")
 	except Exception as e:
 		raise e
 

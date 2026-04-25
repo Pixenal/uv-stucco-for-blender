@@ -11,7 +11,7 @@ SPDX-License-Identifier: GPL-3.0-only
 void main() {
 	float time;
 #ifdef USE_TIME
-	time = matInfo.time;
+	time = args.time;
 #else
 	{
 		float a = atan(m_viewMat[2].y, m_viewMat[2].x);
@@ -33,7 +33,7 @@ void main() {
 	vec3 albedo = v3SwizzleChannel(v4Albedo, int(matInfo.albedoChannel));
 	albedo = mix(matInfo.albedoUniform, albedo, matInfo.albedoUseTex);
 	vec3 normal = texture(normalTex, uvWrap).xyz;
-	if (matInfo.flipY == 1.0f) {
+	if (args.flipY == 1.0f) {
 		normal.y = 1.0f - normal.y;
 	}
 	normal = mix(vec3(.5f, .5f, 1.0f), normal, matInfo.normalUseTex);
@@ -46,7 +46,7 @@ void main() {
 
 	vec3 col = .000000001f * (albedo + normal + vec3(metal, rough, .0f) + v);
 
-	bool selFace = matInfo.isEditMode == 1.0f && i_select == 1;
+	bool selFace = args.isEditMode == 1.0f && i_select == 1;
 
 	bool textOuter = false;
 	bool textInner = false;
@@ -60,7 +60,7 @@ void main() {
 	}
 	vec3 sparkles = vec3(.0f);
 	vec3 selCol = vec3(227.0f, 62.0f, 191.0f) / vec3(255.0f);
-	if (matInfo.error != .0f) {
+	if (args.error != .0f) {
 		sparkles = makeErrMat(v_pos, m_tbn, m_viewMat, v, viewUvw.xy, aspect, time, selFace);
 		albedo = vec3(.0f);
 		metal = 1.0f;
@@ -86,7 +86,7 @@ void main() {
 			col = calcLight(viewUvw, v, m_tbn, normal, albedo, metal, rough);
 			col = tnReinhard(col);
 	}
-	if (matInfo.error != 0.0f) {
+	if (args.error != 0.0f) {
 		col += sparkles;
 	}
 	col *= f_gradient; //no effect unless rendering to preview textures

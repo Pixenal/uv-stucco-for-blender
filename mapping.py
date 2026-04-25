@@ -197,7 +197,7 @@ def isTargetCrcEqual(
 		if target.dirty:
 			target.dirty = False
 		elif newCrc.value == crc.value:
-			print(f"skipping target {target.obj.name}")
+			#print(f"skipping target {target.obj.name}")
 			return True #assume mesh is unchanged, cancel mapping this target
 		crc = newCrc
 	crcOut.value = crc.value
@@ -218,7 +218,7 @@ def pushMappingJobToQueue(
 	   checkCrc and isTargetCrcEqual(target, infoTuple[0], crc) and not force:
 		return infoTuple[1]
 	
-	print(f"mapping target {target.obj.name}")
+	#print(f"mapping target {target.obj.name}")
 	info = infoTuple[0]
 	workMesh = stuc.StucMesh()
 	outIndexedAttribs = stuc.StucAttribIndexedArr()

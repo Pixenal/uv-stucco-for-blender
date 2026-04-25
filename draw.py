@@ -12,6 +12,7 @@ from datetime import datetime
 import pdb
 from typing import Any
 import sys
+import types
 
 import bpy
 import gpu
@@ -33,9 +34,38 @@ class ShaderErr(Enum):
 	NO_MAT = 4
 	INVALID_SHADER = 5
 
-offscreenAlbedo = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA8') #type:ignore
-offscreenNormal = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA16F') #type:ignore
-offscreenHrm = gpu.types.GPUOffScreen(2048, 2048, format = 'RGBA8') #type:ignore
+class PreviewOffScreenArr():
+	class Item():
+		def __init__(self) -> None:
+			res = 2048
+			self.albedo = gpu.types.GPUOffScreen(res, res, format = 'RGBA8') #type:ignore
+			self.normal = gpu.types.GPUOffScreen(res, res, format = 'RGBA16F') #type:ignore
+			self.hrm = gpu.types.GPUOffScreen(res, res, format = 'RGBA8') #type:ignore
+
+	def __init__(self) -> None:
+		self.arr = list[PreviewOffScreenArr.Item]()
+		self.size = 0
+		self.count = 0
+
+	def append(self) -> Item:
+		if self.count > self.size:
+			raise Exception("preview offscreen arr state is invalid")
+		if self.count == self.size:
+			self.arr.append(PreviewOffScreenArr.Item())
+			self.size += 1
+		item = self.arr[self.count]
+		self.count += 1
+		return item
+	
+	def clear(self) -> None:
+		self.count = 0
+	
+	def get(self, idx: int) -> Item:
+		if idx < -1 or idx >= self.count:
+			raise Exception("idx out of range")
+		return self.arr[self.count - 1] if idx == -1 else self.arr[idx]
+
+previewArr = PreviewOffScreenArr()
 
 def numpyFromStucAttrib(
 	mesh: stuc.StucMesh,
@@ -161,15 +191,18 @@ info.typedef_source("\
 		float albedoChannel;\
 		float metalChannel;\
 		float roughChannel;\
+	};\
+	struct Args {\
+		vec2 mapZBounds;\
+		vec2 padding;\
 		float isEditMode;\
 		float error;\
 		float time;\
 		float flipY;\
-		vec2 mapZBounds;\
-		vec2 padding;\
 	};\
 ")
 info.uniform_buf(0, "MatInfo", "matInfo")
+info.uniform_buf(1, "Args", "args")
 info.sampler(0, 'FLOAT_2D', "envTex")
 info.sampler(1, 'FLOAT_2D', "albedoTex")
 info.sampler(2, 'FLOAT_2D', "normalTex")
@@ -311,13 +344,17 @@ class MatInfo(ctypes.Structure):
 		("roughUseTex", ctypes.c_float),
 		("albedoChannel", ctypes.c_float),
 		("metalChannel", ctypes.c_float),
-		("roughChannel", ctypes.c_float),
+		("roughChannel", ctypes.c_float)
+	]
+
+class Args(ctypes.Structure):
+	_fields_ = [
+		("mapZBounds", ctypes.c_float * 2),
+		("padding", ctypes.c_float * 2),
 		("isEditMode", ctypes.c_float),
 		("error", ctypes.c_float),
 		("time", ctypes.c_float),
-		("flipY", ctypes.c_float),
-		("mapZBounds", ctypes.c_float * 2),
-		("padding", ctypes.c_float * 2)
+		("flipY", ctypes.c_float)
 	]
 
 def getMissingTex() -> gpu.types.GPUTexture:
@@ -396,19 +433,21 @@ def getErrTex(error: ShaderErr) -> gpu.types.GPUTexture | None:
 
 class BatchCache():
 	class Entry():
-		def __init__(self, key: str, timestamp: float, vertCount: int) -> None:
+		def __init__(self, key: str, timestamp: float, vertCount: int, frame: int) -> None:
 			self.key = key
 			self.timestamp = timestamp
 			self.data: gpu.types.GPUBatch | None = None
 			self.vertCount = vertCount
+			self.lastAccess = frame
 
 	def __init__(self) -> None:
 		self.table: dict[str, BatchCache.Entry] = {}
 		self.vertCount: int = 0
 
-	def get(self, key: str, timestamp: float, vertCount: int) -> Entry | None:
+	def get(self, key: str, timestamp: float, vertCount: int, frame: int) -> Entry | None:
 		entry = self.table.get(key, None)
 		if entry:
+			entry.lastAccess = frame
 			if timestamp != entry.timestamp:
 				entry.data = None
 				entry.timestamp = timestamp
@@ -419,7 +458,7 @@ class BatchCache():
 				raise Exception("draw cache state is invalid")
 			if self.vertCount > props.drawCacheMaxVerts:
 				return None #rejected from cache
-			entry = self.Entry(key, timestamp, vertCount)
+			entry = self.Entry(key, timestamp, vertCount, frame)
 		self.table[key] = entry
 		self.vertCount += vertCount
 		return entry
@@ -430,60 +469,97 @@ class BatchCache():
 			if item.key.startswith(key):
 				self.vertCount -= item.vertCount
 				self.table.pop(item.key)
+	
+	def clean(self, frame: int) -> None:
+		arr: list[BatchCache.Entry] = [self.table[i] for i in self.table.keys()]
+		for item in arr:
+			if abs(frame - item.lastAccess) > 0:
+				self.vertCount -= item.vertCount
+				self.table.pop(item.key)
 
 batchCache = BatchCache()
 
+class MatCacheEntry():
+	def __init__(
+		self,
+		buf: gpu.types.GPUUniformBuf,
+		texArr: list[gpu.types.GPUTexture]
+	) -> None:
+		self.buf = buf
+		self.texArr = texArr
+
+class TexOverride():
+	def __init__(self, key: str, texArr: list[gpu.types.GPUTexture]) -> None:
+		self.key = key
+		self.texArr = texArr
+
 def drawMeshForMat(
 	cacheEntry: BatchCache.Entry | None,
+	matCache: dict[str, MatCacheEntry],
 	pos, uv, normal, tangent, tSign, faceSel,
 	corners: numpy.ndarray | None,
 	mat: bpy.types.Material | None,
 	cacheType: stuc.MeshCacheType,
-	texOverride: list[gpu.types.GPUTexture] | None = None,
+	texOverride: TexOverride | None = None,
 	error: ShaderErr = ShaderErr.NONE,
 	zBounds: stuc.StucVec2 | None = None
 ) -> None:
-	area = getArea()
-	if not area:
-		return None
-	matInfo = MatInfo()
-	matInfo.isEditMode = float(cacheType == stuc.MeshCacheType.MESH_CACHE_IN_EDIT)
+	args = Args()
+	args.isEditMode = float(cacheType == stuc.MeshCacheType.MESH_CACHE_IN_EDIT)
 	if zBounds:
-		matInfo.mapZBounds[0] = zBounds.x
-		matInfo.mapZBounds[1] = zBounds.y
+		args.mapZBounds[0] = zBounds.x
+		args.mapZBounds[1] = zBounds.y
 	else:
-		matInfo.mapZBounds[0] = .0
-		matInfo.mapZBounds[1] = .0
+		args.mapZBounds[0] = .0
+		args.mapZBounds[1] = .0
 	texArr = None
 	if cacheType == stuc.MeshCacheType.MESH_CACHE_OUT:
 		if not mat:
 			raise Exception()
-	
-	if error == ShaderErr.NONE:
-		if texOverride:
-			if len(texOverride) != 4:
-				raise Exception("tex override list is wrong size")
-			texArr = texOverride
-			matInfo.albedoUseTex = True
-			matInfo.normalUseTex = True
-			matInfo.roughUseTex = True
-			matInfo.metalUseTex = True
-			matInfo.albedoChannel = -1
-			matInfo.roughChannel = 1
-			matInfo.metalChannel = 2
-		elif mat:
-			if mat.node_tree:
-				texArr = getMatParams(mat.node_tree, matInfo)
-			if not texArr:
-				error = ShaderErr.INVALID_SHADER
-	matInfo.error = float(error.value)
-	if not texArr:
-		missingTex = getMissingTex()
-		texArr = [missingTex, missingTex, missingTex, missingTex]
-		if mat:
-			setArrFromArr(matInfo.albedoUniform, mat.diffuse_color, 3)
-			matInfo.metalUniform = mat.metallic
-			matInfo.roughUniform = mat.roughness
+		
+	matCacheEntry = None
+	if mat or texOverride:
+		key = texOverride.key if texOverride else mat.name #type:ignore
+		matCacheEntry = matCache.get(key, None)
+	if matCacheEntry:
+		matInfoUbo = matCacheEntry.buf
+		texArr = matCacheEntry.texArr
+	else:
+		matInfo = MatInfo()
+		if error == ShaderErr.NONE:
+			if texOverride:
+				if len(texOverride.texArr) != 4:
+					raise Exception("tex override list is wrong size")
+				texArr = texOverride.texArr
+				matInfo.albedoUseTex = True
+				matInfo.normalUseTex = True
+				matInfo.roughUseTex = True
+				matInfo.metalUseTex = True
+				matInfo.albedoChannel = -1
+				matInfo.roughChannel = 1
+				matInfo.metalChannel = 2
+			elif mat:
+				if mat.node_tree:
+					texArr = getMatParams(mat.node_tree, matInfo)
+				if not texArr:
+					error = ShaderErr.INVALID_SHADER
+		args.error = float(error.value)
+		if not texArr:
+			missingTex = getMissingTex()
+			texArr = [missingTex, missingTex, missingTex, missingTex]
+			if mat:
+				setArrFromArr(matInfo.albedoUniform, mat.diffuse_color, 3)
+				matInfo.metalUniform = mat.metallic
+				matInfo.roughUniform = mat.roughness
+		matInfoUbo = gpu.types.GPUUniformBuf(
+			gpu.types.Buffer('UBYTE', ctypes.sizeof(MatInfo), matInfo) #type:ignore
+		)
+		if mat or texOverride:
+			matCacheEntry = MatCacheEntry(matInfoUbo, texArr)
+			key = texOverride.key if texOverride else mat.name #type:ignore
+			matCache[key] = matCacheEntry
+	meshShader.uniform_block("matInfo", matInfoUbo)
+
 	meshShader.uniform_sampler("albedoTex", texArr[0])
 	meshShader.uniform_sampler("normalTex", texArr[1])
 	meshShader.uniform_sampler("metalTex", texArr[2])
@@ -497,12 +573,15 @@ def drawMeshForMat(
 			meshShader.uniform_sampler("errTex", getMissingTex())
 
 	delta = (datetime.now() - datetime(1970, 1, 1))
-	matInfo.time = float(delta.seconds % 60) + delta.microseconds / 1000000.0
+	args.time = float(delta.seconds % 60) + delta.microseconds / 1000000.0
 
-	matInfoUbo = gpu.types.GPUUniformBuf(
-		gpu.types.Buffer('UBYTE', ctypes.sizeof(MatInfo), matInfo) #type:ignore
+	if matCacheEntry:
+		matInfoUbo = matCacheEntry
+	
+	argsUbo = gpu.types.GPUUniformBuf(
+		gpu.types.Buffer('UBYTE', ctypes.sizeof(Args), args) #type:ignore
 	)
-	meshShader.uniform_block("matInfo", matInfoUbo)
+	meshShader.uniform_block("args", argsUbo)
 
 	if not coreTextures:
 		raise Exception()
@@ -514,8 +593,8 @@ def drawMeshForMat(
 	if cacheEntry and cacheEntry.data:
 		batch = cacheEntry.data
 	else:
-		if type(corners) == None:
-			raise Exception("corners must be passed if batch cache is empty")
+		if type(corners) == types.NoneType or type(pos) == types.NoneType:
+			raise Exception("mesh data must be passed if batch cache is empty")
 		batch = gpu_extras.batch.batch_for_shader(
 			meshShader,
 			'TRIS',
@@ -525,7 +604,7 @@ def drawMeshForMat(
 				"normal" : normal,
 				"tangent" : tangent,
 				"tSign" : tSign,
-				"select" : faceSel if matInfo.isEditMode else tSign
+				"select" : faceSel if args.isEditMode else tSign
 			},
 			indices = corners
 		)
@@ -622,6 +701,8 @@ def getStucCorners(
 def prevSinglePass(
 	key: str,
 	timestamp: float,
+	frame: int,
+	matCache: dict[str, MatCacheEntry],
 	mesh: stuc.StucMesh,
 	idxAttribs: stuc.StucAttribIndexedArr,
 	matParam: int,
@@ -648,6 +729,8 @@ def prevSinglePass(
 		drawStucMesh(
 			key,
 			timestamp,
+			frame,
+			matCache,
 			mesh,
 			True,
 			perpMatrix,
@@ -663,18 +746,23 @@ def prevSinglePass(
 def drawStucPreview(
 	name: str,
 	timestamp: float,
+	frame: int,
+	matCache: dict[str, MatCacheEntry],
 	mesh: stuc.StucMesh,
 	idxAttribs: stuc.StucAttribIndexedArr,
 	zBounds: stuc.StucVec2
 ) -> None:
-	prevSinglePass(name, timestamp, mesh, idxAttribs, 0, offscreenAlbedo, zBounds)
-	prevSinglePass(name, timestamp, mesh, idxAttribs, 1, offscreenNormal, None)
-	prevSinglePass(name, timestamp, mesh, idxAttribs, 2, offscreenHrm, None)
+	offscreen = previewArr.get(-1)
+	prevSinglePass(name, timestamp, frame, matCache, mesh, idxAttribs, 0, offscreen.albedo, zBounds)
+	prevSinglePass(name, timestamp, frame, matCache, mesh, idxAttribs, 1, offscreen.normal, None)
+	prevSinglePass(name, timestamp, frame, matCache, mesh, idxAttribs, 2, offscreen.hrm, None)
 
 def getMatForPrev(
 	map: props.StucMap,
-	mapHandle: ctypes.c_void_p
-) -> list[gpu.types.GPUTexture] | None:
+	mapHandle: ctypes.c_void_p,
+	frame: int,
+	matCache: dict[str, MatCacheEntry]
+) -> TexOverride | None:
 	mapName = ctypes.c_char_p()
 	err = stucLib.stucBlenderMapNameGet(
 		mapHandle,
@@ -689,17 +777,23 @@ def getMatForPrev(
 	err = stucLib.stucBlenderMapZBoundsGet(mapHandle, ctypes.pointer(zBounds))
 	if err != 1:
 		raise Exception("failed to get map z-bounds")
-	drawStucPreview(map.name, float(map.timestamp), result[0], result[1], zBounds)
-	return [
-		offscreenAlbedo.texture_color,
-		offscreenNormal.texture_color,
-		offscreenHrm.texture_color,
-		offscreenHrm.texture_color
-	]
+	offscreen = previewArr.append()
+	drawStucPreview(map.name, float(map.timestamp), frame, matCache, result[0], result[1], zBounds)
+	return TexOverride(
+		map.name,
+		[
+			offscreen.albedo.texture_color,
+			offscreen.normal.texture_color,
+			offscreen.hrm.texture_color,
+			offscreen.hrm.texture_color
+		]
+	)
 
 def drawStucMesh(
 	key: str | None,
 	timestamp: float | None,
+	frame: int,
+	matCache: dict[str, MatCacheEntry],
 	mesh: stuc.StucMesh,
 	backfaceCull: bool,
 	perpMatrix: mathutils.Matrix,
@@ -720,15 +814,7 @@ def drawStucMesh(
 	isCycles = bpy.context.scene.render.engine == 'CYCLES'
 	if shadingType != 'MATERIAL' and (shadingType != 'RENDERED' or isCycles):
 		return
-	pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
-	uv = numpyFromStucAttrib(mesh, stuc.StucAttribUse.UV, 2)
-	normal = numpyFromStucAttrib(mesh, stuc.StucAttribUse.NORMAL, 3)
-	tangent = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TANGENT, 3)
-	tSign = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TSIGN, 1)
-	faceSel = None
 	editMode = cacheType == stuc.MeshCacheType.MESH_CACHE_IN_EDIT
-	if editMode:
-		faceSel = numpyFromStucAttrib(mesh, stuc.StucAttribUse.MISC, 1)
 
 	if not mats:
 		if not idxAttribs:
@@ -748,6 +834,13 @@ def drawStucMesh(
 				mat.use_fake_user = True
 			mats.append(mat)
 			i += 1
+
+	pos = None
+	uv = None
+	normal = None
+	tangent = None
+	tSign = None
+	faceSel = None
 
 	corners = stuc.PixtyI32Arr()
 	for i, mat in enumerate(mats):
@@ -771,8 +864,15 @@ def drawStucMesh(
 				error = ShaderErr.NO_MAP
 			elif not map or not mapHandle:
 				error = ShaderErr.MAP_NOT_LOADED
+			elif matCache.get(map.name, None):
+				texOverride = TexOverride(key = map.name, texArr = [])
 			else:
-				texOverride = getMatForPrev(map, ctypes.cast(mapHandle, ctypes.c_void_p))
+				texOverride = getMatForPrev(
+					map,
+					ctypes.cast(mapHandle, ctypes.c_void_p),
+					frame,
+					matCache
+				)
 
 		drawState = drawMeshInit(
 			backfaceCull,
@@ -789,11 +889,20 @@ def drawStucMesh(
 			if not timestamp:
 				raise Exception("timestamp is required if key is passed")
 			keyWithMat = f"{key}_{mat.name if mat else 'None'}"
-			cacheEntry = batchCache.get(keyWithMat, timestamp, mesh.vertCount)
+			cacheEntry = batchCache.get(keyWithMat, timestamp, mesh.vertCount, frame)
 			if not cacheEntry:
 				continue
+		if type(pos) == types.NoneType and (not cacheEntry or not cacheEntry.data):
+			pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
+			uv = numpyFromStucAttrib(mesh, stuc.StucAttribUse.UV, 2)
+			normal = numpyFromStucAttrib(mesh, stuc.StucAttribUse.NORMAL, 3)
+			tangent = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TANGENT, 3)
+			tSign = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TSIGN, 1)
+			if editMode:
+				faceSel = numpyFromStucAttrib(mesh, stuc.StucAttribUse.MISC, 1)
 		drawMeshForMat(
 			cacheEntry,
+			matCache,
 			pos, uv, normal, tangent, tSign, faceSel,
 			getStucCorners(mesh, i, corners) if not cacheEntry or not cacheEntry.data else None,
 			mat,
@@ -808,6 +917,8 @@ def drawStucMesh(
 def drawStucMeshInViewport(
 	key: str,
 	timestamp: float,
+	frame: int,
+	matCache: dict[str, MatCacheEntry],
 	mesh: stuc.StucMesh,
 	modelMatrix: mathutils.Matrix,
 	cacheType: stuc.MeshCacheType,
@@ -819,6 +930,8 @@ def drawStucMeshInViewport(
 	drawStucMesh(
 		key,
 		timestamp,
+		frame,
+		matCache,
 		mesh,
 		mapArr == None,
 		perpMatrix,
@@ -835,9 +948,6 @@ def drawEditOverlay(
 	mesh: stuc.StucMesh,
 	obj: bpy.types.Object
 ) -> None:
-	area = getArea()
-	if not area:
-		return
 	pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
 	edgeSel = numpyFromStucAttrib(mesh, stuc.StucAttribUse.MASK, 1, stuc.StucDomain.EDGE)
 	edges = numpyFromStucAttrib(
@@ -847,7 +957,9 @@ def drawEditOverlay(
 		stuc.StucDomain.EDGE,
 		ctypes.c_int32
 	)
-	if type(pos) == None or type(edgeSel) == None or type(edges) == None:
+	if type(pos) == types.NoneType or\
+	   type(edgeSel) == types.NoneType or\
+	   type(edges) == types.NoneType:
 		raise Exception("unable to get mesh attribs")
 
 	color = (ctypes.c_float * 4 * mesh.vertCount)()

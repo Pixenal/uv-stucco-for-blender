@@ -16,11 +16,11 @@ bl_info = {
 import importlib
 
 if ("bpy" in locals()):
-	importlib.reload(props)
-	importlib.reload(ops)
-	importlib.reload(io_ops)
-	importlib.reload(handlers)
-	importlib.reload(ui)
+	importlib.reload(props)#type:ignore
+	importlib.reload(ops)#type:ignore
+	importlib.reload(io_ops)#type:ignore
+	importlib.reload(handlers)#type:ignore
+	importlib.reload(ui)#type:ignore
 else:
 	from . import props
 	from . import ops

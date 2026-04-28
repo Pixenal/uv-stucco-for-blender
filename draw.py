@@ -493,10 +493,19 @@ class TexOverride():
 		self.key = key
 		self.texArr = texArr
 
+class VertBufs():
+	def __init__(self) -> None:
+		self.pos: numpy.ndarray | None = None
+		self.uv: numpy.ndarray | None = None
+		self.normal: numpy.ndarray | None = None
+		self.tangent: numpy.ndarray | None = None
+		self.tSign: numpy.ndarray | None = None
+		self.faceSel: numpy.ndarray | None = None
+
 def drawMeshForMat(
 	cacheEntry: BatchCache.Entry | None,
 	matCache: dict[str, MatCacheEntry],
-	pos, uv, normal, tangent, tSign, faceSel,
+	vertBufs: VertBufs,
 	corners: numpy.ndarray | None,
 	mat: bpy.types.Material | None,
 	cacheType: stuc.MeshCacheType,
@@ -593,18 +602,18 @@ def drawMeshForMat(
 	if cacheEntry and cacheEntry.data:
 		batch = cacheEntry.data
 	else:
-		if type(corners) == types.NoneType or type(pos) == types.NoneType:
+		if type(corners) == types.NoneType or type(vertBufs.pos) == types.NoneType:
 			raise Exception("mesh data must be passed if batch cache is empty")
 		batch = gpu_extras.batch.batch_for_shader(
 			meshShader,
 			'TRIS',
 			{
-				"position" : pos, #type:ignore
-				"uv" : uv,
-				"normal" : normal,
-				"tangent" : tangent,
-				"tSign" : tSign,
-				"select" : faceSel if args.isEditMode else tSign
+				"position" : vertBufs.pos, #type:ignore
+				"uv" : vertBufs.uv,
+				"normal" : vertBufs.normal,
+				"tangent" : vertBufs.tangent,
+				"tSign" : vertBufs.tSign,
+				"select" : vertBufs.faceSel if args.isEditMode else vertBufs.tSign
 			},
 			indices = corners
 		)
@@ -637,7 +646,7 @@ class DrawMeshState():
 		self.valid = True
 		self.depthTestMode = depthDestMode
 
-def drawMeshInit(
+def drawMeshStart(
 	backfaceCull: bool,
 	perpMatrix: mathutils.Matrix,
 	modelMatrix: mathutils.Matrix,
@@ -726,16 +735,15 @@ def prevSinglePass(
 		))
 		perpMatrix = scaleMatrix @ posMatrix
 		viewPos = mathutils.Vector((.0, .0, .5))
-		drawStucMesh(
+		drawMesh(
 			key,
 			timestamp,
 			frame,
 			matCache,
 			mesh,
-			True,
-			perpMatrix,
 			mathutils.Matrix.Identity(4),
 			stuc.MeshCacheType.MESH_CACHE_OUT,
+			perpMatrix = perpMatrix,
 			matParam = matParam,
 			envFileName = "forest.exr",
 			viewPos = viewPos,
@@ -789,27 +797,117 @@ def getMatForPrev(
 		]
 	)
 
-def drawStucMesh(
+def callDrawForMat(
+	idx: int,
 	key: str | None,
 	timestamp: float | None,
 	frame: int,
 	matCache: dict[str, MatCacheEntry],
 	mesh: stuc.StucMesh,
-	backfaceCull: bool,
-	perpMatrix: mathutils.Matrix,
 	modelMatrix: mathutils.Matrix,
 	cacheType: stuc.MeshCacheType,
-	mapArr: stuc.StucMapArr | None = None,
+	mat: bpy.types.Material | None,
+	editMode: bool,
+	vertBufs: VertBufs,
+	corners: stuc.PixtyI32Arr,
+	perpMatrix: mathutils.Matrix,
+	matParam: int = -1,
+	envFileName: str = "",
+	viewPos: mathutils.Vector = mathutils.Vector((.0, .0, .0)),
+	zBounds: stuc.StucVec2 | None = None,
+	backfaceCull: bool = True
+) -> None:
+	texOverride = None
+	error = ShaderErr.NONE
+	if cacheType != stuc.MeshCacheType.MESH_CACHE_OUT:
+		stucMat = None
+		if mat:
+			stucMat = bpy.context.scene.stucMats.get(mat.name, None) #type:ignore
+			if stucMat and stucMat.mat and len(stucMat.map):
+				map = bpy.context.scene.stucMaps.get(stucMat.map, None) #type:ignore
+				if map:
+					mapName = map.name.encode('utf-8')
+					stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
+					mapHandle = None if not map else stucLib.stucBlenderMapHandleGet(mapName)
+		if not stucMat:
+			return
+		if not stucMat.mat:
+			error = ShaderErr.NO_MAT
+		elif not len(stucMat.map):
+			error = ShaderErr.NO_MAP
+		elif not map or not mapHandle:
+			error = ShaderErr.MAP_NOT_LOADED
+		elif matCache.get(map.name, None):
+			texOverride = TexOverride(key = map.name, texArr = [])
+		else:
+			texOverride = getMatForPrev(
+				map,
+				ctypes.cast(mapHandle, ctypes.c_void_p),
+				frame,
+				matCache
+			)
+
+	drawState = drawMeshStart(
+		backfaceCull,
+		perpMatrix,
+		modelMatrix, 
+		matParam = matParam,
+		envFileName = envFileName,
+		viewPos = viewPos
+	)
+	if not drawState:
+		return
+	cacheEntry = None
+	if key:
+		if not timestamp:
+			raise Exception("timestamp is required if key is passed")
+		keyWithMat = f"{key}_{mat.name if mat else 'None'}"
+		cacheEntry = batchCache.get(keyWithMat, timestamp, mesh.vertCount, frame)
+		if not cacheEntry:
+			return
+	if type(vertBufs.pos) == types.NoneType and (not cacheEntry or not cacheEntry.data):
+		vertBufs.pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
+		vertBufs.uv = numpyFromStucAttrib(mesh, stuc.StucAttribUse.UV, 2)
+		vertBufs.normal = numpyFromStucAttrib(mesh, stuc.StucAttribUse.NORMAL, 3)
+		vertBufs.tangent = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TANGENT, 3)
+		vertBufs.tSign = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TSIGN, 1)
+		if editMode:
+			vertBufs.faceSel = numpyFromStucAttrib(mesh, stuc.StucAttribUse.MISC, 1)
+	drawMeshForMat(
+		cacheEntry,
+		matCache,
+		vertBufs,
+		getStucCorners(mesh, idx, corners) if not cacheEntry or not cacheEntry.data else None,
+		mat,
+		cacheType,
+		texOverride = texOverride,
+		error = error,
+		zBounds = zBounds
+	)
+	drawMeshEnd(drawState)
+
+def drawMesh(
+	key: str | None,
+	timestamp: float | None,
+	frame: int,
+	matCache: dict[str, MatCacheEntry],
+	mesh: stuc.StucMesh,
+	modelMatrix: mathutils.Matrix,
+	cacheType: stuc.MeshCacheType,
+	perpMatrix: mathutils.Matrix | None = None,
 	matParam: int = -1,
 	envFileName: str = "",
 	viewPos: mathutils.Vector = mathutils.Vector((.0, .0, .0)),
 	mats: list[bpy.types.Material | None] | None = None,
 	idxAttribs: stuc.StucAttribIndexedArr | None = None,
-	zBounds: stuc.StucVec2 | None = None
+	zBounds: stuc.StucVec2 | None = None,
+	backfaceCull: bool = True
 ) -> None:
 	area = getArea()
 	if not area:
 		return
+	if not perpMatrix:
+		perpMatrix = bpy.context.region_data.perspective_matrix
 	shadingType = area.spaces.active.shading.type #type:ignore
 	isCycles = bpy.context.scene.render.engine == 'CYCLES'
 	if shadingType != 'MATERIAL' and (shadingType != 'RENDERED' or isCycles):
@@ -835,86 +933,33 @@ def drawStucMesh(
 			mats.append(mat)
 			i += 1
 
-	pos = None
-	uv = None
-	normal = None
-	tangent = None
-	tSign = None
-	faceSel = None
+	vertBufs = VertBufs()
 
 	corners = stuc.PixtyI32Arr()
 	for i, mat in enumerate(mats):
-		texOverride = None
-		error = ShaderErr.NONE
-		if cacheType != stuc.MeshCacheType.MESH_CACHE_OUT:
-			stucMat = None
-			if mat:
-				stucMat = bpy.context.scene.stucMats.get(mat.name, None) #type:ignore
-				if stucMat and stucMat.mat and len(stucMat.map):
-					map = bpy.context.scene.stucMaps.get(stucMat.map, None) #type:ignore
-					if map:
-						mapName = map.name.encode('utf-8')
-						stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
-						mapHandle = None if not map else stucLib.stucBlenderMapHandleGet(mapName)
-			if not stucMat:
-				continue
-			if not stucMat.mat:
-				error = ShaderErr.NO_MAT
-			elif not len(stucMat.map):
-				error = ShaderErr.NO_MAP
-			elif not map or not mapHandle:
-				error = ShaderErr.MAP_NOT_LOADED
-			elif matCache.get(map.name, None):
-				texOverride = TexOverride(key = map.name, texArr = [])
-			else:
-				texOverride = getMatForPrev(
-					map,
-					ctypes.cast(mapHandle, ctypes.c_void_p),
-					frame,
-					matCache
-				)
-
-		drawState = drawMeshInit(
-			backfaceCull,
+		callDrawForMat(
+			i,
+			key,
+			timestamp,
+			frame,
+			matCache,
+			mesh,
+			modelMatrix,
+			cacheType,
+			mat,
+			editMode,
+			vertBufs,
+			corners,
 			perpMatrix,
-			modelMatrix, 
 			matParam = matParam,
 			envFileName = envFileName,
-			viewPos = viewPos
+			viewPos = viewPos,
+			zBounds = zBounds,
+			backfaceCull = backfaceCull
 		)
-		if not drawState:
-			continue
-		cacheEntry = None
-		if key:
-			if not timestamp:
-				raise Exception("timestamp is required if key is passed")
-			keyWithMat = f"{key}_{mat.name if mat else 'None'}"
-			cacheEntry = batchCache.get(keyWithMat, timestamp, mesh.vertCount, frame)
-			if not cacheEntry:
-				continue
-		if type(pos) == types.NoneType and (not cacheEntry or not cacheEntry.data):
-			pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
-			uv = numpyFromStucAttrib(mesh, stuc.StucAttribUse.UV, 2)
-			normal = numpyFromStucAttrib(mesh, stuc.StucAttribUse.NORMAL, 3)
-			tangent = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TANGENT, 3)
-			tSign = numpyFromStucAttrib(mesh, stuc.StucAttribUse.TSIGN, 1)
-			if editMode:
-				faceSel = numpyFromStucAttrib(mesh, stuc.StucAttribUse.MISC, 1)
-		drawMeshForMat(
-			cacheEntry,
-			matCache,
-			pos, uv, normal, tangent, tSign, faceSel,
-			getStucCorners(mesh, i, corners) if not cacheEntry or not cacheEntry.data else None,
-			mat,
-			cacheType,
-			texOverride = texOverride,
-			error = error,
-			zBounds = zBounds
-		)
-		drawMeshEnd(drawState)
 	stucLib.stucBlenderCallFree(corners.pArr)
 
-def drawStucMeshInViewport(
+def drawMeshInViewport(
 	key: str,
 	timestamp: float,
 	frame: int,
@@ -926,20 +971,17 @@ def drawStucMeshInViewport(
 	mats: list[bpy.types.Material | None] | None = None,
 	idxAttribs: stuc.StucAttribIndexedArr | None = None
 ) -> None:
-	perpMatrix = bpy.context.region_data.perspective_matrix
-	drawStucMesh(
+	drawMesh(
 		key,
 		timestamp,
 		frame,
 		matCache,
 		mesh,
-		mapArr == None,
-		perpMatrix,
 		modelMatrix,
 		cacheType,
-		mapArr = mapArr,
 		mats = mats,
-		idxAttribs = idxAttribs
+		idxAttribs = idxAttribs,
+		backfaceCull = mapArr == None
 	)
 
 editShader = gpu.shader.from_builtin('POLYLINE_SMOOTH_COLOR')

@@ -124,7 +124,7 @@ def drawTarget(
 	idxAttribs = cache[2] if cache[3] == stuc.MeshCacheType.MESH_CACHE_OUT else None
 	if idxAttribs != None and type(idxAttribs) != stuc.StucAttribIndexedArr:
 		raise Exception()
-	draw.drawStucMeshInViewport(
+	draw.drawMeshInViewport(
 		f"{target.id}_{target.obj.name}",
 		cache[0],
 		frame,

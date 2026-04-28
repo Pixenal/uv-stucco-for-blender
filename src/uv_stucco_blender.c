@@ -56,7 +56,7 @@ static PixuctHTable targetCache = {0};
 
 static
 U64 crc64Init() {
-	printf("\n");
+	//printf("\n");
 	return 0xFFFFFFFFFFFFFFFF;
 }
 
@@ -75,7 +75,7 @@ void crc64Contrib(U64 *pCrc, I64 messageSize, const void *pMessage) {
 
 static
 U64 crc64End(U64 crc) {
-	printf("\n");
+	//printf("\n");
 	return crc ^ 0xFFFFFFFFFFFFFFFF;
 }
 

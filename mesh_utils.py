@@ -135,40 +135,40 @@ def formatAsStucMesh(
 	tangents = None
 	tSign = None
 	if getTangents:
-			target.calc_tangents()
-			tangents = (ctypes.c_float * 3 * mesh.cornerCount)()
-			tangentsNumpy = numpy.ctypeslib.as_array(
-				ctypes.cast(tangents, ctypes.POINTER(ctypes.c_float)),
-				shape = (mesh.cornerCount * 3, 1)
-			)
-			target.loops.foreach_get(
-				"tangent",
-				tangentsNumpy #type:ignore
-			)
-			tangents = ctypes.cast(tangents, ctypes.c_void_p)
-			tSign = (ctypes.c_float * mesh.cornerCount)()
-			target.loops.foreach_get(
-				"bitangent_sign",
-				numpy.ctypeslib.as_array(tSign, shape = (mesh.cornerCount, 1)) #type:ignore
-			)
-			tSign = ctypes.cast(tSign, ctypes.c_void_p)
-			target.free_tangents()
-			attribUtils.appendAttrib(
-				mesh.cornerAttribs,
-				"tangent",
-				stuc.StucAttribType.V3_F32.value,
-				stuc.StucAttribUse.TANGENT.value,
-				tangents,
-				mesh.activeAttribs
-			)
-			attribUtils.appendAttrib(
-				mesh.cornerAttribs,
-				"tSign",
-				stuc.StucAttribType.F32.value,
-				stuc.StucAttribUse.TSIGN.value,
-				tSign,
-				mesh.activeAttribs
-			)
+		target.calc_tangents()
+		tangents = (ctypes.c_float * 3 * mesh.cornerCount)()
+		tangentsNumpy = numpy.ctypeslib.as_array(
+			ctypes.cast(tangents, ctypes.POINTER(ctypes.c_float)),
+			shape = (mesh.cornerCount * 3, 1)
+		)
+		target.loops.foreach_get(
+			"tangent",
+			tangentsNumpy #type:ignore
+		)
+		tangents = ctypes.cast(tangents, ctypes.c_void_p)
+		tSign = (ctypes.c_float * mesh.cornerCount)()
+		target.loops.foreach_get(
+			"bitangent_sign",
+			numpy.ctypeslib.as_array(tSign, shape = (mesh.cornerCount, 1)) #type:ignore
+		)
+		tSign = ctypes.cast(tSign, ctypes.c_void_p)
+		target.free_tangents()
+		attribUtils.appendAttrib(
+			mesh.cornerAttribs,
+			"tangent",
+			stuc.StucAttribType.V3_F32.value,
+			stuc.StucAttribUse.TANGENT.value,
+			tangents,
+			mesh.activeAttribs
+		)
+		attribUtils.appendAttrib(
+			mesh.cornerAttribs,
+			"tSign",
+			stuc.StucAttribType.F32.value,
+			stuc.StucAttribUse.TSIGN.value,
+			tSign,
+			mesh.activeAttribs
+		)
 
 
 	#to avoid garbage collection, edges, normals, & matIndices are returned as well

@@ -4,18 +4,23 @@ SPDX-License-Identifier: GPL-3.0-only
 '''
 
 import ctypes
-from enum import Enum
+import enum
+import inspect
+import sys
+
+from . import c_lib
+stucLib = c_lib.stucLib
 
 STUC_ATTRIB_NAME_MAX_LEN = 96
 STUC_ATTRIB_STRING_MAX_LEN = 64
 
-class MeshCacheType(Enum):
+class MeshCacheType(enum.Enum):
 	MESH_CACHE_NONE = 0
 	MESH_CACHE_IN = 1
 	MESH_CACHE_IN_EDIT = 2
 	MESH_CACHE_OUT = 3
 
-class StucAttribType(Enum):
+class StucAttribType(enum.Enum):
 	I8 = 0
 	I16 = 1
 	I32 = 2
@@ -44,13 +49,13 @@ class StucAttribType(Enum):
 	NONE = 25
 	ENUM_COUNT = 26
 
-class StucObjectType(Enum):
+class StucObjectType(enum.Enum):
 	NULL = 0
 	MESH = 1
 	MESH_INTERN = 2
 	MESH_BUF = 3
 
-class StucAttribUse(Enum):
+class StucAttribUse(enum.Enum):
 	NONE = 0
 	POS = 1
 	UV = 2
@@ -77,7 +82,7 @@ class StucAttribUse(Enum):
 	MISC = 23
 	ENUM_COUNT = 24
 
-class StucBlendMode(Enum):
+class StucBlendMode(enum.Enum):
 	REPLACE = 0
 	MULTIPLY = 1
 	DIVIDE = 2
@@ -91,7 +96,7 @@ class StucBlendMode(Enum):
 	COLOR_DODGE = 10
 	APPEND = 11
 
-class StucDomain(Enum):
+class StucDomain(enum.Enum):
 	NONE = 0
 	FACE = 1
 	CORNER = 2
@@ -99,7 +104,7 @@ class StucDomain(Enum):
 	VERT = 4
 	MESH = 5
 
-class StucAttribCopyOpt(Enum):
+class StucAttribCopyOpt(enum.Enum):
 	COPY = 0
 	DONT_COPY = 1
 
@@ -283,10 +288,11 @@ class PixioShmCtx(ctypes.Structure):
 	_fields_ = [
 		("pFile", ctypes.c_void_p),
 		("pBuf", ctypes.c_void_p),
+		("name", ctypes.c_byte * 40),
 		("blockSize", ctypes.c_int32)
 	]
 
-class ShmDesc(Enum):
+class ShmDesc(enum.Enum):
 	STUCB_SHM_NONE = 0
 	STUCB_SHM_DIR = 1
 	STUCB_SHM_NAME = 2
@@ -310,3 +316,15 @@ class PixthJob(ctypes.Structure):
 		("padding", ctypes.c_char * 36),
 		("err", ctypes.c_int32)
 	]
+
+#verify py classes mirrored from c lib
+def stucStructVerify():
+	try:
+		for item in inspect.getmembers(sys.modules[__name__], inspect.isclass):
+			if issubclass(item[1], enum.Enum) or item[0] == "StucBlendOptDomainArrs":
+				continue
+			verifyFunc = f"stucBlenderVerify{item[0]}"
+			if not eval(f"stucLib.{verifyFunc}({ctypes.sizeof(item[1])})"):
+				raise Exception("mirrored c-struct does not match library's")
+	except Exception as e:
+		raise e

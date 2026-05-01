@@ -278,3 +278,60 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderThreadPoolLogDump(const char *pPath);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapZBoundsGet(const StucMap pMap, PixtyV2_F32 *pZBounds);
+
+
+//funcs for verifying c structs mirrored in python are correct size
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucVec2(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucVec3(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStuc_M4x4_F32(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucAttribCore(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucAttrib(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucAttribIndexed(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucAttribIndexedArr(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucAttribArray(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucObjectData(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucAttribActive(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucMesh(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucObject(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucBlendConfig(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucBlendOpt(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucBlendOptArr(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucMapOrIdx(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucMapArrEntry(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucMapArr(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucFlatCutoffIdx(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucUsg(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucBlenderMatTable(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucBlenderMatTableArr(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyPixtyStrArr(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyPixtyI32Arr(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyPixioShmCtx(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyShmDesc(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyPixthJob(I32 size);

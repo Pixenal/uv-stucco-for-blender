@@ -1368,3 +1368,86 @@ PixErr stucBlenderMapZBoundsGet(const StucMap pMap, PixtyV2_F32 *pZBounds) {
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
+
+
+bool stucBlenderVerifyStucVec2(I32 size) {
+	return size == sizeof(PixtyV2_F32);
+}
+bool stucBlenderVerifyStucVec3(I32 size) {
+	return size == sizeof(PixtyV3_F32);
+}
+bool stucBlenderVerifyStuc_M4x4_F32(I32 size) {
+	return size == sizeof(Stuc_M4x4);
+}
+bool stucBlenderVerifyStucAttribCore(I32 size) {
+	return size == sizeof(StucAttribCore);
+}
+bool stucBlenderVerifyStucAttrib(I32 size) {
+	return size == sizeof(StucAttrib);
+}
+bool stucBlenderVerifyStucAttribIndexed(I32 size) {
+	return size == sizeof(StucAttribIndexed);
+}
+bool stucBlenderVerifyStucAttribIndexedArr(I32 size) {
+	return size == sizeof(StucAttribIndexedArr);
+}
+bool stucBlenderVerifyStucAttribArray(I32 size) {
+	return size == sizeof(StucAttribArray);
+}
+bool stucBlenderVerifyStucObjectData(I32 size) {
+	return size == sizeof(StucObjectData);
+}
+bool stucBlenderVerifyStucAttribActive(I32 size) {
+	return size == sizeof(StucAttribActive);
+}
+bool stucBlenderVerifyStucMesh(I32 size) {
+	return size == sizeof(StucMesh);
+}
+bool stucBlenderVerifyStucObject(I32 size) {
+	return size == sizeof(StucObject);
+}
+bool stucBlenderVerifyStucBlendConfig(I32 size) {
+	return size == sizeof(StucBlendConfig);
+}
+bool stucBlenderVerifyStucBlendOpt(I32 size) {
+	return size == sizeof(StucBlendOpt);
+}
+bool stucBlenderVerifyStucBlendOptArr(I32 size) {
+	return size == sizeof(StucBlendOptArr);
+}
+bool stucBlenderVerifyStucMapOrIdx(I32 size) {
+	return size == sizeof(StucMapOrIdx);
+}
+bool stucBlenderVerifyStucMapArrEntry(I32 size) {
+	return size == sizeof(StucMapArrEntry);
+}
+bool stucBlenderVerifyStucMapArr(I32 size) {
+	return size == sizeof(StucMapArr);
+}
+bool stucBlenderVerifyStucFlatCutoffIdx(I32 size) {
+	return size == sizeof(StucFlatCutoffIdx);
+}
+bool stucBlenderVerifyStucUsg(I32 size) {
+	return size == sizeof(StucUsg);
+}
+bool stucBlenderVerifyStucBlenderMatTable(I32 size) {
+	return size == sizeof(StucBlenderMatTable);
+}
+bool stucBlenderVerifyStucBlenderMatTableArr(I32 size) {
+	return size == sizeof(StucBlenderMatTableArr);
+}
+bool stucBlenderVerifyPixtyStrArr(I32 size) {
+	return size == sizeof(PixtyStrArr);
+}
+bool stucBlenderVerifyPixtyI32Arr(I32 size) {
+	return size == sizeof(PixtyI32Arr);
+}
+bool stucBlenderVerifyPixioShmCtx(I32 size) {
+	return size == sizeof(PixioShmCtx);
+}
+bool stucBlenderVerifyShmDesc(I32 size) {
+	return size == sizeof(ShmDesc);
+}
+bool stucBlenderVerifyPixthJob(I32 size) {
+	return size == sizeof(PixthJob);
+}

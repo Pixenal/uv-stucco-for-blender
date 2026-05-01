@@ -16,12 +16,14 @@ bl_info = {
 import importlib
 
 if ("bpy" in locals()):
+	importlib.reload(stuc)#type:ignore
 	importlib.reload(props)#type:ignore
 	importlib.reload(ops)#type:ignore
 	importlib.reload(io_ops)#type:ignore
 	importlib.reload(handlers)#type:ignore
 	importlib.reload(ui)#type:ignore
 else:
+	from . import stuc
 	from . import props
 	from . import ops
 	from . import io_ops
@@ -30,6 +32,7 @@ else:
 
 def register() -> None:
 	print("Registering UvStuccoB")
+	stuc.stucStructVerify()
 	props.register()
 	ops.register()
 	io_ops.register()

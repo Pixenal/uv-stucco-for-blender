@@ -23,8 +23,6 @@ from . import stuc
 from . import props
 from . import scene_cache as sceneCache
 from . import client
-if not bpy.app.background:
-	from . import draw
 
 @persistent
 def stucLoadPostHandler(dummy) -> None:
@@ -107,58 +105,61 @@ def getTargetMesh(
 	else:
 		return None
 
-def drawTarget(
-	target: props.StucTarget,
-	frame: int,
-	matCache: dict[str, draw.MatCacheEntry]
-) -> None:
-	if type(target.obj.data) != bpy.types.Mesh:
-		return
-	cache = getTargetMesh(target)
-	if not cache:
-		return
-	if type(cache[0]) != float or\
-	   type(cache[1]) != stuc.StucMesh or\
-	   type(cache[3]) != stuc.MeshCacheType:
-		raise Exception()
-	idxAttribs = cache[2] if cache[3] == stuc.MeshCacheType.MESH_CACHE_OUT else None
-	if idxAttribs != None and type(idxAttribs) != stuc.StucAttribIndexedArr:
-		raise Exception()
-	draw.drawMeshInViewport(
-		f"{target.id}_{target.obj.name}",
-		cache[0],
-		frame,
-		matCache,
-		cache[1],
-		target.obj.matrix_world,
-		cache[3],
-		idxAttribs = idxAttribs,
-		mats = None if idxAttribs else [mat for mat in target.obj.data.materials]
-	)
-	if cache[3] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT':
-		draw.drawEditOverlay(cache[1], target.obj)
+if not bpy.app.background:
+	from . import draw
 
-frame: int = 0
+	def drawTarget(
+		target: props.StucTarget,
+		frame: int,
+		matCache: dict[str, draw.MatCacheEntry]
+	) -> None:
+		if type(target.obj.data) != bpy.types.Mesh:
+			return
+		cache = getTargetMesh(target)
+		if not cache:
+			return
+		if type(cache[0]) != float or\
+		type(cache[1]) != stuc.StucMesh or\
+		type(cache[3]) != stuc.MeshCacheType:
+			raise Exception()
+		idxAttribs = cache[2] if cache[3] == stuc.MeshCacheType.MESH_CACHE_OUT else None
+		if idxAttribs != None and type(idxAttribs) != stuc.StucAttribIndexedArr:
+			raise Exception()
+		draw.drawMeshInViewport(
+			f"{target.id}_{target.obj.name}",
+			cache[0],
+			frame,
+			matCache,
+			cache[1],
+			target.obj.matrix_world,
+			cache[3],
+			idxAttribs = idxAttribs,
+			mats = None if idxAttribs else [mat for mat in target.obj.data.materials]
+		)
+		if cache[3] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT':
+			draw.drawEditOverlay(cache[1], target.obj)
 
-@persistent
-def stucDrawHandler() -> None:
-	try :
-		global frame
-		frame += 1
-		col = sceneCache.getCacheIfVisible(bpy.context)
-		matCache = dict[str, draw.MatCacheEntry]()
-		for target in bpy.context.scene.stucTargets: #type:ignore
-			if not target.obj:
-				continue		
-			if col and sceneCache.getTargetInCacheIfVisible(col, target):
-				continue
-			#cProfile.runctx('drawTarget(target)', globals(), locals())
-			drawTarget(target, frame, matCache)
-		draw.batchCache.clean(frame)
-		draw.previewArr.clear()
-		#print(f"draw cache size is {len(draw.batchCache.table.keys())}")
-	except Exception as e:
-		raise e
+	frame: int = 0
+
+	@persistent
+	def stucDrawHandler() -> None:
+		try :
+			global frame
+			frame += 1
+			col = sceneCache.getCacheIfVisible(bpy.context)
+			matCache = dict[str, draw.MatCacheEntry]()
+			for target in bpy.context.scene.stucTargets: #type:ignore
+				if not target.obj:
+					continue		
+				if col and sceneCache.getTargetInCacheIfVisible(col, target):
+					continue
+				#cProfile.runctx('drawTarget(target)', globals(), locals())
+				drawTarget(target, frame, matCache)
+			draw.batchCache.clean(frame)
+			draw.previewArr.clear()
+			#print(f"draw cache size is {len(draw.batchCache.table.keys())}")
+		except Exception as e:
+			raise e
 
 def register() -> None:
 	bpy.app.handlers.depsgraph_update_post.append(stucDepsgraphUpdatePostHandler)

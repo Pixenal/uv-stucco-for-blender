@@ -515,7 +515,7 @@ class STUC_OT_StucSceneExport(bpy.types.Operator):
 		try:
 			shmCtx = stuc.PixioShmCtx()
 			shmCtxPtr = ctypes.cast(ctypes.pointer(shmCtx), ctypes.c_void_p)
-			bShmName = (ctypes.c_byte * stucLib.stucBlenderShmNameMaxLen())()
+			bShmName = (ctypes.c_byte * (stucLib.stucBlenderShmNameMaxLen() + 1))()
 			err = stucLib.stucBlenderSceneExportInit(shmCtxPtr, bShmName)
 			if err != 1:
 				raise Exception()
@@ -537,7 +537,6 @@ class STUC_OT_StucSceneExport(bpy.types.Operator):
 				"--stuc-scene-cache-server",
 				filepath
 			]
-			
 			shmClient = subprocess.Popen(args,
 				#stdout = subprocess.DEVNULL,
 				#stderr = subprocess.DEVNULL

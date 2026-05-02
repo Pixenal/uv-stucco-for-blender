@@ -82,20 +82,33 @@ U64 crc64End(U64 crc) {
 static
 void clearMapEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pKeyData) {
 	MapEntry *pEntry = (MapEntry *)pCore;
+	PixErr err = PIX_ERR_SUCCESS;
 	if (pEntry->pMap) {
-		*(PixErr *)pUserData = stucMapFileUnload(&stucCtx, pEntry->pMap);
-		pEntry->pMap = NULL;
+		err = stucMapFileUnload(&stucCtx, pEntry->pMap);
 	}
-	*(PixErr *)pUserData = PIX_ERR_SUCCESS == stucMeshDestroy(&stucCtx, &pEntry->meshRender);
-	pEntry->meshRender = (StucMesh){0};
+	if (pEntry->meshRender.faceCount) {
+		err = PIX_ERR_SUCCESS == stucMeshDestroy(&stucCtx, &pEntry->meshRender) ?
+			err : PIX_ERR_ERROR;
+	}
+	*(PixErr *)pUserData = err;
+	*pEntry = (MapEntry){0};
 }
 
 static
 void clearTargetEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pKeyData) {
 	TargetEntry *pEntry = (TargetEntry *)pCore;
-	if (pEntry->mesh.faceCount) {
-		*(PixErr *)pUserData = stucMeshDestroy(&stucCtx, &pEntry->mesh);
+	PixErr err = PIX_ERR_SUCCESS;
+	if (pEntry->type != MESH_CACHE_NONE) {
+		if (pEntry->mesh.faceCount) {
+			err = stucMeshDestroy(&stucCtx, &pEntry->mesh);
+		}
+		if (pEntry->idxAttribs.pArr) {
+			err = PIX_ERR_SUCCESS == stucAttribIndexedArrDestroy(&stucCtx, &pEntry->idxAttribs) ?
+				err : PIX_ERR_ERROR;
+		}
 	}
+	*(PixErr *)pUserData = err;
+	*pEntry = (TargetEntry){0};
 }
 
 PixErr stucBlenderMapNameGet(StucMap pMap, const char **ppName) {
@@ -860,10 +873,26 @@ PixErr stucBlenderWaitForJobs(
 }
 
 void stucBlenderDestroy() {
+	//TODO errors are unused here.
+	//once report/ warning is implemented, warn about error during destroy funcs
 	if (mapTable.pTable) {
+		PixalcLinAllocIter iter = {0};
+		PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&mapTable, 0);
+		pixalcLinAllocIterInit(pAlloc, (PixtyRange){.start = 0, .end = INT32_MAX}, &iter);
+		for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
+			PixErr err = PIX_ERR_SUCCESS;
+			clearMapEntry(&err, pixalcLinAllocGetItem(&iter), NULL);
+		}
 		pixuctHTableDestroy(&mapTable);
 	}
 	if (targetCache.pTable) {
+		PixalcLinAllocIter iter = {0};
+		PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&targetCache, 0);
+		pixalcLinAllocIterInit(pAlloc, (PixtyRange){.start = 0, .end = INT32_MAX}, &iter);
+		for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
+			PixErr err = PIX_ERR_SUCCESS;
+			clearTargetEntry(&err, pixalcLinAllocGetItem(&iter), NULL);
+		}
 		pixuctHTableDestroy(&targetCache);
 	}
 	stucContextDestroy(&stucCtx);

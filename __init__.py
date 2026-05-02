@@ -41,6 +41,7 @@ def register() -> None:
 
 def unregister() -> None:
 	print("Unregistering UvStuccoB")
+	stuc.c_lib.stucLib.stucBlenderDestroy()
 	props.unregister()
 	ops.unregister()
 	io_ops.unregister()

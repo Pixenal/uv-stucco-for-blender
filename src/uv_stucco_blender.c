@@ -586,20 +586,20 @@ PixErr stucBlenderMapFileLoad(
 		pEntry->pMap = NULL;
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
-	StucMapLoad *pHandle = NULL;
+	StucMapLoad loadCtx = {0};
 	err = stucMapFileLoadInit(
 		&stucCtx,
-		&pHandle,
+		&loadCtx,
 		pFilepath,
 		timestamp,
 		&state,
 		mapGet, mapStore
 	);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = stucMapFileLoadDeps(pHandle);
+	err = stucMapFileLoadDeps(&loadCtx);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	StucMapStatus status = 0;
-	err = stucMapFileLoadGetDepStatus(pHandle, &status);
+	err = stucMapFileLoadGetDepStatus(&loadCtx, &status);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	switch (status) {
 		case STUC_MAP_LOADED:
@@ -608,7 +608,7 @@ PixErr stucBlenderMapFileLoad(
 			}
 			//v otherwise fallthrough v
 		case STUC_MAP_PENDING_LOAD:
-			err = stucMapFileLoad(pHandle);
+			err = stucMapFileLoad(&loadCtx);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
 			break;
 		case STUC_MAP_ERROR:
@@ -618,6 +618,7 @@ PixErr stucBlenderMapFileLoad(
 	PIX_ERR_CATCH(0, err,
 		stucBlenderMapFileUnload(pName);
 	);
+	stucMapLoadDestroy(&loadCtx);
 	if (state.pathBuf.pStr) {
 		free(state.pathBuf.pStr);
 	}

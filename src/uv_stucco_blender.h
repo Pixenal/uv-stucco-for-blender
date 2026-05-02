@@ -96,7 +96,7 @@ PixErr stucBlenderMapFileLoad(
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapMeshGet(
 	const char *pMap,
-	StucMesh **ppMesh,
+	const StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs,
 	bool forRender
 );

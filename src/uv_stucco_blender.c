@@ -101,7 +101,6 @@ void clearTargetEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void 
 PixErr stucBlenderMapNameGet(StucMap pMap, const char **ppName) {
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pMap, "");
-	const char *pName = NULL;
 	err = stucMapNameGet(&stucCtx, pMap, ppName);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
@@ -176,7 +175,7 @@ PixErr mapEntryGet(const char *pName, MapEntry **ppEntry, StucMap pMap) {
 		&mapTable,
 		0,
 		pName,
-		ppEntry,
+		(void **)ppEntry,
 		!!pMap,
 		pMap,
 		keyFromPath,
@@ -206,7 +205,7 @@ PixErr targetEntryGet(
 		&targetCache,
 		0,
 		&id,
-		ppEntry,
+		(void **)ppEntry,
 		!!pMesh,
 		init,
 		pixuctKeyFromI32,
@@ -515,7 +514,6 @@ PixErr mapGet(
 	LoadState *pState = pUserData;
 	I32 len = (I32)strnlen(pState->pathBuf.pStr, PIXIO_PATH_MAX);
 	memset(pState->pathBuf.pStr, 0, len);
-	double timestamp = .0;
 	I32 ret = pState->fpGetMapPath(pName, pState->pDepDirs, pState->pathBuf.pStr, pTimestamp);
 	PIX_ERR_RETURN_IFNOT_COND(err, !ret, "unable to find map in provided directories");
 
@@ -628,7 +626,7 @@ PixErr stucBlenderMapFileLoad(
 
 PixErr stucBlenderMapMeshGet(
 	const char *pMap,
-	StucMesh **ppMesh,
+	const StucMesh **ppMesh,
 	StucAttribIndexedArr **ppIdxAttribs,
 	bool forRender
 ) {
@@ -1251,13 +1249,13 @@ PixErr stucBlenderSceneImportMesh(PixioShmCtx *pShmCtx, StucMesh *pMesh) {
 	err = pixioShmReceive(pShmCtx, pMesh);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err =
-		sceneImport4ByteList(pShmCtx, STUCB_SHM_FACES, pMesh->faceCount + 1, &pMesh->pFaces);
+		sceneImport4ByteList(pShmCtx, STUCB_SHM_FACES, pMesh->faceCount + 1, (void **)&pMesh->pFaces);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err =
-		sceneImport4ByteList(pShmCtx, STUCB_SHM_CORNERS, pMesh->cornerCount, &pMesh->pCorners);
+		sceneImport4ByteList(pShmCtx, STUCB_SHM_CORNERS, pMesh->cornerCount, (void **)&pMesh->pCorners);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err =
-		sceneImport4ByteList(pShmCtx, STUCB_SHM_EDGES, pMesh->cornerCount, &pMesh->pEdges);
+		sceneImport4ByteList(pShmCtx, STUCB_SHM_EDGES, pMesh->cornerCount, (void **)&pMesh->pEdges);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	for (StucDomain domain = STUC_DOMAIN_FACE; domain <= STUC_DOMAIN_VERT; ++domain) {
 		StucAttribArray *pArr = NULL;

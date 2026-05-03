@@ -776,11 +776,13 @@ PixErr stucBlenderMapToMesh(
 	return err;
 }
 
+/*
 PixErr stucBlenderDestroyBlendOptArr(StucBlendOptArr *pBlendOptArr) {
 	PixErr err = stucDestroyBlendOptArr(&stucCtx, pBlendOptArr);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
+*/
 
 void stucBlenderCopyMeshCore(StucMesh *pDest, StucMesh *pSrc) {
 	memcpy(
@@ -1115,6 +1117,14 @@ void stucBlenderArrayCast(
 			sizeDest
 		);
 	}
+}
+
+StucErr stucBlenderAttribArrGet(
+	StucMesh *pMesh,
+	StucDomain domain,
+	StucAttribArray **ppArr
+) {
+	return stucAttribArrGet(&stucCtx, pMesh, domain, ppArr);
 }
 
 I32 stucBlenderShmNameMaxLen() {

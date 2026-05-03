@@ -366,7 +366,7 @@ def getAttribArr(
 			return mesh.vertAttribs
 		case _:
 			raise Exception("invalid domain")
-		
+
 def getActiveAttrib(
 	mesh: stuc.StucMesh,
 	use: stuc.StucAttribUse
@@ -376,6 +376,25 @@ def getActiveAttrib(
 		return None
 	attribArr = getAttribArr(mesh, activeEntry.domain)
 	return getAttribFromUse(attribArr, use.value)
+
+def commonAttribsMemInit(
+	stucLib: ctypes.CDLL,
+	mesh: stuc.StucMesh,
+	commonAttribs
+):
+	for i, domainArr in enumerate(commonAttribs):
+		if i == stuc.StucDomain.NONE.value:
+			continue
+		attribArr = ctypes.POINTER(stuc.StucAttribArray)()
+		err = stucLib.stucBlenderAttribArrGet(
+			ctypes.pointer(mesh),
+			i,
+			ctypes.pointer(attribArr)
+		)
+		if err != 1:
+			raise Exception("failed to get attrib array")
+		domainArr.size = attribArr.contents.count
+		domainArr.pArr = (stuc.StucBlendOpt * domainArr.size)()
 
 def updateCommonAttribs(
 		stucLib: ctypes.CDLL,
@@ -423,6 +442,8 @@ def updateCommonAttribs(
 			entry.mat = mat.mat
 			entry.map = mat.map
 
+		commonAttribsMemInit(stucLib, meshTuple.mesh, commonAttribList[i])
+
 		stucLib.stucBlenderQueryCommonAttribs.argtypes = (
 			ctypes.c_void_p,
 			ctypes.c_void_p,
@@ -465,7 +486,7 @@ def updateCommonAttribs(
 		)
 		i += 1
 	return commonAttribList if i == targetMatCount else None
-
+	
 def attribNameToStr(attrib: stuc.StucAttrib)-> str:
 	return ctypes.cast(attrib.core.name, ctypes.c_char_p).value.decode('utf-8') #type:ignore
 

@@ -127,8 +127,10 @@ PixErr stucBlenderQueryCommonAttribs(
 	const StucMap pMap,
 	StucBlendOptArr *pBlendOptArr
 );
+/*
 STUC_BLENDER_EXPORT
 PixErr stucBlenderDestroyBlendOptArr(StucBlendOptArr *pBlendOptArr);
+*/
 STUC_BLENDER_EXPORT
 void stucBlenderCopyMeshCore(StucMesh *pDest, StucMesh *pSrc);
 STUC_BLENDER_EXPORT
@@ -215,6 +217,12 @@ void stucBlenderArrayCast(
 	void *pDest, int32_t sizeDest,
 	void *pSrc, int32_t sizeSrc,
 	int32_t len
+);
+STUC_BLENDER_EXPORT
+StucErr stucBlenderAttribArrGet(
+	StucMesh *pMesh,
+	StucDomain domain,
+	StucAttribArray **ppArr
 );
 
 typedef enum ShmDesc {

@@ -110,7 +110,7 @@ def sceneImportToFile(shmName: str, shmServer: str) -> None:
 	bpy.ops.wm.quit_blender()
 
 def linkCache(context: bpy.types.Context, filepath: str) -> None:
-	cachePath = client.createCachePath(filepath)
+	cachePath = bpy.path.relpath(client.createCachePath(filepath))
 	stucCol = bpy.data.collections.get("_STUC_CACHE", None)
 	#reload existing linked objects if present
 	cacheLib = bpy.data.libraries.get(bpy.path.basename(cachePath), None)
@@ -129,6 +129,7 @@ def linkCache(context: bpy.types.Context, filepath: str) -> None:
 		]
 	if not stucCol:
 		stucCol = bpy.data.collections.new(name = "_STUC_CACHE")
+	if not context.scene.collection.children.get(stucCol.name, None):
 		context.scene.collection.children.link(stucCol)
 	for obj in dataDest.objects:
 		stucCol.objects.link(obj)

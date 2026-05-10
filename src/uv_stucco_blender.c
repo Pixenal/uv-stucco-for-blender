@@ -29,7 +29,7 @@ typedef double F64;
 
 typedef struct MapEntry {
 	PixuctHTableEntryCore core;
-	StucMap pMap;
+	struct StucMap *pMap;
 	StucMesh meshRender;
 } MapEntry;
 
@@ -49,7 +49,7 @@ static PixalcFPtrs allocPtrs = {
 	.fpRealloc = realloc,
 	.fpFree = free
 };
-static StucContextInternal stucCtx = {0};
+static StucCtx stucCtx = {0};
 static PixErr tableErr = PIX_ERR_SUCCESS;
 static PixuctHTable mapTable = {0};
 static PixuctHTable targetCache = {0};
@@ -111,7 +111,7 @@ void clearTargetEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void 
 	*pEntry = (TargetEntry){0};
 }
 
-PixErr stucBlenderMapNameGet(StucMap pMap, const char **ppName) {
+PixErr stucBlenderMapNameGet(struct StucMap *pMap, const char **ppName) {
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, pMap, "");
 	err = stucMapNameGet(&stucCtx, pMap, ppName);
@@ -182,7 +182,7 @@ PixuctKey keyFromPath(const void *pKeyData) {
 }
 
 static
-PixErr mapEntryGet(const char *pName, MapEntry **ppEntry, StucMap pMap) {
+PixErr mapEntryGet(const char *pName, MapEntry **ppEntry, struct StucMap *pMap) {
 	PixErr err = PIX_ERR_SUCCESS;
 	pixuctHTableGet(
 		&mapTable,
@@ -413,15 +413,15 @@ PixErr stucBlenderInit() {
 }
 
 StucErr stucBlenderMapExportInit(
-	void **ppHandle,
+	StucMapExport *pHandle,
 	const char *pPath,
 	bool compress
 ) {
-	return stucMapExportInit(&stucCtx, (StucMapExport **)ppHandle, pPath, compress);
+	return stucMapExportInit(&stucCtx, pHandle, pPath, compress);
 }
 
-StucErr stucBlenderMapExportEnd(void **ppHandle) {
-	return stucMapExportEnd((StucMapExport **)ppHandle);
+StucErr stucBlenderMapExportEnd(StucMapExport *pHandle) {
+	return stucMapExportEnd(pHandle);
 }
 
 StucErr stucBlenderMapExportTargetAdd(
@@ -521,7 +521,7 @@ PixErr mapGet(
 	const char *pName,
 	const char **ppFilepath,
 	double *pTimestamp,
-	StucMap * const ppMap
+	struct StucMap ** const ppMap
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	LoadState *pState = pUserData;
@@ -557,7 +557,7 @@ PixErr mapStore(
 	const char *pName,
 	const char *pFilepath,
 	double timestamp,
-	StucMap pMap,
+	struct StucMap *pMap,
 	StucMapStatus status,
 	const PixtyStrArr *pDeps
 ) {
@@ -738,7 +738,7 @@ PixErr stucBlenderMapMeshRenderUpdate(const char *pMap) {
 
 PixErr stucBlenderQueryCommonAttribs(
 	const StucMesh *pMesh,
-	const StucMap pMap,
+	const struct StucMap *pMap,
 	StucBlendOptArr *pBlendOptArr
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
@@ -1400,7 +1400,7 @@ PixErr stucBlenderThreadPoolLogDump(const char *pPath) {
 	return err;
 }
 
-PixErr stucBlenderMapZBoundsGet(const StucMap pMap, PixtyV2_F32 *pZBounds) {
+PixErr stucBlenderMapZBoundsGet(const struct StucMap *pMap, PixtyV2_F32 *pZBounds) {
 	PixErr err = PIX_ERR_SUCCESS;
 	err = stucMapZBoundsGet(&stucCtx, pMap, pZBounds);
 	PIX_ERR_RETURN_IFNOT(err, "");
@@ -1489,3 +1489,7 @@ bool stucBlenderVerifyShmDesc(I32 size) {
 bool stucBlenderVerifyPixthJob(I32 size) {
 	return size == sizeof(PixthJob);
 }
+bool stucBlenderVerifyStucMapExport(I32 size) {
+	return size == sizeof(StucMapExport);
+}
+

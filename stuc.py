@@ -270,6 +270,11 @@ class StucBlenderMatTableArr(ctypes.Structure):
 		("count", ctypes.c_int32)
 	]
 
+class StucMapExport(ctypes.Structure):
+	_fields_ = [
+		("data", ctypes.c_byte * 320)#members aren't accessed in python
+	]
+
 class PixtyStrArr(ctypes.Structure):
 	_fields_ = [
 		("pArr", ctypes.POINTER(ctypes.c_char_p)),

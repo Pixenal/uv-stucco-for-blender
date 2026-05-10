@@ -41,12 +41,12 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderInit();
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportInit(
-	void **ppHandle,
+	StucMapExport *pHandle,
 	const char *pPath,
 	bool compress
 );
 STUC_BLENDER_EXPORT
-StucErr stucBlenderMapExportEnd(void **ppHandle);
+StucErr stucBlenderMapExportEnd(StucMapExport *pHandle);
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportTargetAdd(
 	void *pHandle,
@@ -124,7 +124,7 @@ PixErr stucBlenderMapToMesh(
 STUC_BLENDER_EXPORT
 PixErr stucBlenderQueryCommonAttribs(
 	const StucMesh *pMesh,
-	const StucMap pMap,
+	const struct StucMap *pMap,
 	StucBlendOptArr *pBlendOptArr
 );
 /*
@@ -195,7 +195,7 @@ PixErr stucBlenderTargetCacheClear(int32_t id);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderCornersForMat(StucMesh *pMesh, I32 mat, PixtyI32Arr *pCorners);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapNameGet(StucMap pMap, const char **ppName);
+PixErr stucBlenderMapNameGet(struct StucMap *pMap, const char **ppName);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderEditOverlayCol(
 	I32 edgeCount,
@@ -285,7 +285,7 @@ PixErr stucBlenderSceneImportDestroy(PixioShmCtx *pShmCtx);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderThreadPoolLogDump(const char *pPath);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapZBoundsGet(const StucMap pMap, PixtyV2_F32 *pZBounds);
+PixErr stucBlenderMapZBoundsGet(const struct StucMap *pMap, PixtyV2_F32 *pZBounds);
 
 
 //funcs for verifying c structs mirrored in python are correct size
@@ -343,3 +343,5 @@ STUC_BLENDER_EXPORT
 bool stucBlenderVerifyShmDesc(I32 size);
 STUC_BLENDER_EXPORT
 bool stucBlenderVerifyPixthJob(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucMapExport(I32 size);

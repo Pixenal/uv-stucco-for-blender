@@ -29,7 +29,7 @@ class CutoffTable():
 		self.count = 0
 
 def addFlatCutoff(
-	handle : ctypes.c_void_p,
+	handle : stuc.StucMapExport,
 	depsgraph : bpy.types.Depsgraph,
 	cutoffTable : CutoffTable,
 	flatCutoff : bpy.types.Object
@@ -40,7 +40,7 @@ def addFlatCutoff(
 	if not cutoffIdx:
 		cutoffObj = meshUtils.formatAsStucObj(flatCutoff, True, depsgraph, False)
 		err = stucLib.stucBlenderMapExportUsgCutoffAdd(
-			handle,
+			ctypes.pointer(handle),
 			ctypes.pointer(cutoffObj.obj)
 		)
 		if err != 1:
@@ -51,7 +51,7 @@ def addFlatCutoff(
 	return stuc.StucFlatCutoffIdx(cutoffIdx, True)
 
 def addUsgToMapExport(
-	handle : ctypes.c_void_p,
+	handle : stuc.StucMapExport,
 	depsgraph : bpy.types.Depsgraph,
 	obj : bpy.types.Object,
 	cutoffTable : CutoffTable
@@ -63,13 +63,13 @@ def addUsgToMapExport(
 	if (flatCutoff):
 		usg.flatCutoff =\
 			addFlatCutoff(handle, depsgraph, cutoffTable, flatCutoff)
-	err = stucLib.stucBlenderMapExportUsgAdd(handle, ctypes.pointer(usg))
+	err = stucLib.stucBlenderMapExportUsgAdd(ctypes.pointer(handle), ctypes.pointer(usg))
 	if err != 1:
 		raise Exception("stuc map export usg add failed")
 	
 def addObjToMapExport(
 	context : bpy.types.Context,
-	handle : ctypes.c_void_p,
+	handle : stuc.StucMapExport,
 	depsgraph : bpy.types.Depsgraph,
 	obj : bpy.types.Object
 ) -> None:
@@ -90,7 +90,7 @@ def addObjToMapExport(
 				ctypes.c_float
 			)
 			err = stucLib.stucBlenderMapExportTargetAdd(
-				handle,
+				ctypes.pointer(handle),
 				ctypes.pointer(info.mapArr),
 				ctypes.pointer(info.stucObj.obj),
 				ctypes.pointer(info.inIndexedArr),
@@ -103,14 +103,14 @@ def addObjToMapExport(
 	idxAttribs = mapping.createMatIdxAttrib(obj.data) #type:ignore
 	stucObj = meshUtils.formatAsStucObj(obj, True, depsgraph, True)
 	err = stucLib.stucBlenderMapExportObjAdd(
-		handle,
+		ctypes.pointer(handle),
 		ctypes.pointer(stucObj.obj),
 		ctypes.pointer(idxAttribs)
 	)
 	if err != 1:
 		raise Exception("stuc map export obj add failed")
 
-def addToMapExport(context : bpy.types.Context, handle : ctypes.c_void_p) -> None:
+def addToMapExport(context : bpy.types.Context, handle : stuc.StucMapExport) -> None:
 	depsgraph = context.evaluated_depsgraph_get()
 	cutoffTable = CutoffTable()
 
@@ -144,7 +144,7 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 			filepath = self.filepath #type:ignore
 			filePathUtf8 = filepath.encode('utf-8')
 
-			handle = ctypes.c_void_p()
+			handle = stuc.StucMapExport()
 
 			err = stucLib.stucBlenderMapExportInit(
 				ctypes.pointer(handle),

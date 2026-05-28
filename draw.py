@@ -433,44 +433,63 @@ def getErrTex(error: ShaderErr) -> gpu.types.GPUTexture | None:
 
 class BatchCache():
 	class Entry():
-		def __init__(self, key: str, timestamp: float, vertCount: int, frame: int) -> None:
+		def __init__(self, key: str, timestamp: float, frame: int) -> None:
 			self.key = key
 			self.timestamp = timestamp
 			self.data: gpu.types.GPUBatch | None = None
-			self.vertCount = vertCount
+			self.vertCount: int = 0
 			self.lastAccess = frame
 
 	def __init__(self) -> None:
 		self.table: dict[str, BatchCache.Entry] = {}
 		self.vertCount: int = 0
+		self.entryHasSetVertCount: bool = True
 
-	def get(self, key: str, timestamp: float, vertCount: int, frame: int) -> Entry | None:
+	def __checkEntryHasSetVertCount(self) -> None:
+		if not self.entryHasSetVertCount:
+			raise Exception("setVertCount must be called after adding a new entry")
+		
+	def __isCacheFull(self) -> bool:
+		return self.vertCount > props.drawCacheMaxVerts
+
+	def __getIntern(self, key: str, timestamp: float, frame: int) -> Entry | None:
 		entry = self.table.get(key, None)
 		if entry:
 			entry.lastAccess = frame
 			if timestamp != entry.timestamp:
-				entry.data = None
 				entry.timestamp = timestamp
-				entry.vertCount = vertCount
-			return entry
+				self.vertCount -= entry.vertCount
+				if self.__isCacheFull():
+					self.table.pop(key)
+					return None
+				entry.vertCount = 0
+				entry.data = None
 		else:
 			if self.vertCount < 0:
+				pdb.set_trace()
 				raise Exception("draw cache state is invalid")
-			if self.vertCount > props.drawCacheMaxVerts:
-				return None #rejected from cache
-			entry = self.Entry(key, timestamp, vertCount, frame)
-		self.table[key] = entry
-		self.vertCount += vertCount
+			if self.__isCacheFull():
+				return None
+			entry = self.Entry(key, timestamp, frame)
+			self.table[key] = entry
 		return entry
-	
-	def pop(self, key: str) -> None:
-		arr: list[BatchCache.Entry] = [self.table[i] for i in self.table.keys()]
-		for item in arr:
-			if item.key.startswith(key):
-				self.vertCount -= item.vertCount
-				self.table.pop(item.key)
+
+	def get(self, key: str, timestamp: float, frame: int) -> Entry | None:
+		self.__checkEntryHasSetVertCount()
+		entry = self.__getIntern(key, timestamp, frame)
+		if entry and not entry.data:
+			self.entryHasSetVertCount = False
+		return entry
+
+	def setVertCount(self, entry: Entry, vertCount: int) -> None:
+		if self.entryHasSetVertCount:
+			raise Exception("invalid call to func")
+		entry.vertCount = vertCount
+		self.vertCount += vertCount
+		self.entryHasSetVertCount = True
 	
 	def clean(self, frame: int) -> None:
+		self.__checkEntryHasSetVertCount()
 		arr: list[BatchCache.Entry] = [self.table[i] for i in self.table.keys()]
 		for item in arr:
 			if abs(frame - item.lastAccess) > 0:
@@ -691,8 +710,8 @@ def drawMeshEnd(state: DrawMeshState) -> None:
 
 def getStucCorners(
 	mesh: stuc.StucMesh,
-	matIdx: int, corners:
-	stuc.PixtyI32Arr
+	matIdx: int,
+	corners: stuc.PixtyI32Arr
 ) -> numpy.ndarray:
 	corners.count = 0
 	err = stucLib.stucBlenderCornersForMat(
@@ -857,14 +876,22 @@ def callDrawForMat(
 	)
 	if not drawState:
 		return
+	
 	cacheEntry = None
 	if key:
 		if not timestamp:
 			raise Exception("timestamp is required if key is passed")
 		keyWithMat = f"{key}_{mat.name if mat else 'None'}"
-		cacheEntry = batchCache.get(keyWithMat, timestamp, mesh.vertCount, frame)
+		cacheEntry = batchCache.get(keyWithMat, timestamp, frame)
 		if not cacheEntry:
 			return
+		
+	if not cacheEntry or not cacheEntry.data:
+		stucCorners = getStucCorners(mesh, idx, corners)
+		if cacheEntry:
+			batchCache.setVertCount(cacheEntry, corners.count)
+	else:
+		stucCorners = None
 	if type(vertBufs.pos) == types.NoneType and (not cacheEntry or not cacheEntry.data):
 		vertBufs.pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
 		vertBufs.uv = numpyFromStucAttrib(mesh, stuc.StucAttribUse.UV, 2)
@@ -877,7 +904,7 @@ def callDrawForMat(
 		cacheEntry,
 		matCache,
 		vertBufs,
-		getStucCorners(mesh, idx, corners) if not cacheEntry or not cacheEntry.data else None,
+		stucCorners,
 		mat,
 		cacheType,
 		texOverride = texOverride,

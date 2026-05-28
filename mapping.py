@@ -106,25 +106,30 @@ def createMapArr(
 		i += 1
 	return mapArr
 
+def getTargetObj(
+	target: props.StucTarget,
+	requireSelInEdit: bool = True
+) -> bpy.types.Object | None:
+	if type(target.obj.data) != bpy.types.Mesh:
+		return None
+	if target.obj.mode == 'OBJECT':
+		obj = target.obj
+	elif target.obj.mode == 'EDIT':
+		obj = meshUtils.bmEditToObj(target.obj, requireSelInEdit)
+	else:
+		return None
+	if not obj or not obj.data or type(obj.data) != bpy.types.Mesh:
+		return None
+	return obj
+
 #returns None if aborted
 def prepTargetForMapping(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph | None,
 	target: props.StucTarget,
-	requireSelInEdit: bool = True
-) -> tuple[MappingInfo, int, None] | tuple[None, int, None] | tuple[None, int, bpy.types.Object]:
+	obj: bpy.types.Object
+) -> MappingInfo | None:
 	#TODO return tuple/ lists like this should probably be dicts
-	if type(target.obj.data) != bpy.types.Mesh:
-		return (None, 0, None)
-	if target.obj.mode == 'OBJECT':
-		obj = target.obj
-	elif target.obj.mode == 'EDIT':
-		obj = meshUtils.bmEditToObj(target.obj, requireSelInEdit)
-		if not obj or not obj.data or type(obj.data) != bpy.types.Mesh:
-			return (None, 1, None)
-	else:
-		return (None, 1, None)
-
 	commonAttribs = attribUtils.updateCommonAttribs(
 		stucLib,
 		context,
@@ -135,7 +140,7 @@ def prepTargetForMapping(
 	)
 	#hide_viewport is the moniter icon, and hide_get is the eye
 	if not commonAttribs or obj.hide_viewport or obj.hide_get():
-		return (None, 1, obj if target.obj.mode == 'EDIT' else None) #type:ignore
+		return None
 	wScale = obj.get("stucWScale", None)
 	if wScale == None:
 		wScale = context.scene.stuc.wScale #type:ignore
@@ -153,7 +158,7 @@ def prepTargetForMapping(
 	
 	mapArr = createMapArr(context, objEval, meshEval, commonAttribs) #type:ignore
 	if not mapArr:
-		return (None, 1, obj if target.obj.mode == 'EDIT' else None) #type:ignore
+		return None
 	inIndexedArr = createMatIdxAttrib(meshEval) #type:ignore
 	stucObj = meshUtils.formatAsStucObj(
 		objEval,
@@ -173,7 +178,7 @@ def prepTargetForMapping(
 		receiveLen,
 		target.obj.mode == 'EDIT'
 	)
-	return (info, 0, None)
+	return info
 
 def isTargetCrcEqual(
 	target: props.StucTarget,
@@ -203,6 +208,7 @@ def isTargetCrcEqual(
 	crcOut.value = crc.value
 	return False
 
+#returns true if target should be cached
 def pushMappingJobToQueue(
 	context: bpy.types.Context,
 	depsgraph: bpy.types.Depsgraph,
@@ -211,15 +217,18 @@ def pushMappingJobToQueue(
 	triangulate: bool,
 	checkCrc: bool,
 	force: bool = False
-) -> int:
-	infoTuple = prepTargetForMapping(context, depsgraph, target)
+) -> bool:
+	obj = getTargetObj(target)
+	if not obj:
+		return False
+	info = prepTargetForMapping(context, depsgraph, target, obj)
 	crc = ctypes.c_uint64(0)
-	if not infoTuple[0] or\
-	   checkCrc and isTargetCrcEqual(target, infoTuple[0], crc) and not force:
-		return infoTuple[1]
+	if not info:
+		return True
+	if checkCrc and isTargetCrcEqual(target, info, crc) and not force:
+		return False
 	
 	#print(f"mapping target {target.obj.name}")
-	info = infoTuple[0]
 	workMesh = stuc.StucMesh()
 	outIndexedAttribs = stuc.StucAttribIndexedArr()
 	jobHandle = stuc.PixthJob()
@@ -237,7 +246,7 @@ def pushMappingJobToQueue(
 		ctypes.c_bool(triangulate)
 	)
 	if not pushedJobs:
-		return 1
+		return True
 	if err != 1:
 		raise Exception("error pushing job to queue")
 	targetCache.append(TargetJob(
@@ -247,7 +256,7 @@ def pushMappingJobToQueue(
 		outIndexedAttribs,
 		crc = crc
 	))
-	return 0
+	return False
 
 def getStucCol(context: bpy.types.Context) -> bpy.types.Collection:
 	stucCol = bpy.data.collections.get("_STUC_OUT", None)
@@ -358,8 +367,8 @@ def waitForAndCopyOutMeshes(
 def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 	selFaces = (ctypes.c_float * mesh.cornerCount)()
 	selEdges = (ctypes.c_float * mesh.edgeCount)()
-	size = mesh.edgeCount * 2
-	edges = (ctypes.c_int32 * size)()
+	size = mesh.edgeCount * 2#type:ignore
+	edges = (ctypes.c_int32 * size)()#type:ignore
 	attribUtils.appendAttrib(
 		mesh.cornerAttribs,
 		"selFaces",
@@ -399,7 +408,7 @@ def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 		selEdges,
 		numpy.ctypeslib.as_ctypes(selEdgesNumpy)
 	)
-	edgesNumpy = numpy.ctypeslib.as_array(edges, shape = (size, 1))
+	edgesNumpy = numpy.ctypeslib.as_array(edges, shape = (size, 1))#type:ignore
 	obj.data.edges.foreach_get("vertices", edgesNumpy) #type:ignore
 
 def cacheTarget(
@@ -437,6 +446,8 @@ def cacheTarget(
 		)
 		stucMesh = stucObj.meshData.mesh
 	if edit:
+		if len(obj.data.edges) != stucMesh.edgeCount:
+			pdb.set_trace()
 		appendSelAttrib(obj, stucMesh) #type:ignore
 	cpyAndTris = cacheType != stuc.MeshCacheType.MESH_CACHE_OUT
 	meshRender = meshUtils.prepStucMeshForRender(stucMesh, cpyAndTris, cpyAndTris)
@@ -465,7 +476,7 @@ def mapToTarget(
 	crc = ctypes.c_uint64(0) #dummy
 	match target.obj.mode:
 		case 'OBJECT':
-			result = pushMappingJobToQueue(
+			cacheInMesh = pushMappingJobToQueue(
 				context,
 				depsgraph,
 				target,
@@ -474,27 +485,19 @@ def mapToTarget(
 				cache,
 				force = force
 			)
-			if result and cache:
+			if cacheInMesh and cache:
 				cacheTarget(target, crc)
 		case 'EDIT':
 			if not cache:
 				return
 			#TODO add a ui option to enable mapping in edit mode
 			#it's just laggy
-			info = prepTargetForMapping(
-				bpy.context,
-				None,
-				target,
-				requireSelInEdit = False
-			)
-			if info[0]:
-				cacheTarget(target, crc, stucMesh = info[0].stucObj.meshData.mesh, edit = True)
-			elif info[2]:
-				cacheTarget(target, crc, objOverride = info[2], edit = True)
-			else:
+			obj = getTargetObj(target, requireSelInEdit = False)
+			if not obj:
 				err = stucLib.stucBlenderTargetCacheClear(target.id)
 				if err != 1:
 					raise Exception()
+			cacheTarget(target, crc, objOverride = obj, edit = True)
 		case _:
 			if cache:
 				cacheTarget(target, crc)

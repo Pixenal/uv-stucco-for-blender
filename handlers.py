@@ -144,6 +144,8 @@ if not bpy.app.background:
 	@persistent
 	def stucDrawHandler() -> None:
 		try :
+			if bpy.context.scene.stuc.dontDraw:#type:ignore
+				return
 			global frame
 			frame += 1
 			col = sceneCache.getCacheIfVisible(bpy.context)

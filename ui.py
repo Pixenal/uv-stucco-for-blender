@@ -313,6 +313,7 @@ class STUC_PT_StucDev(StucParentPanel, bpy.types.Panel):
 		col0 = self.layout.column()
 		col0.operator("stuc.stuc_force_update_targets", icon = 'CUBE')
 		col0.operator("stuc.thread_pool_log_dump", icon = "FILE_BLANK")
+		col0.prop(context.scene.stuc, "dontDraw", text = "Don't Draw")#type:ignore
 
 classes = [
 	STUC_PT_Stuc,

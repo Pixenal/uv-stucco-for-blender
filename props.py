@@ -46,7 +46,7 @@ def matSetInvisible(context: bpy.types.Context, mat: bpy.types.Material, value: 
 			emisNode.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0) #type:ignore
 			links = mat.node_tree.links
 			links.new(emisNode.outputs[0], nodeOut.inputs[0])
-	mat.blend_method = 'HASHED' if value else 'OPAQUE'
+	mat.blend_method = 'BLEND' if value else 'OPAQUE'
 	mat.shadow_method = 'NONE' if value else 'OPAQUE' #type:ignore
 	if value:
 		mat["StucMat"] = True
@@ -211,6 +211,7 @@ class StucProperties(bpy.types.PropertyGroup):
 		default = drawCacheMaxVerts,
 		update = drawCacheSizeUpdate
 	)
+	dontDraw : bpy.props.BoolProperty(default = False)
 	#breakPoint : bpy.props.BoolProperty(default = False)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):

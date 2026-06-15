@@ -79,7 +79,11 @@ def addObjToMapExport(
 			target = item
 			break
 	if target:
-		info = mapping.prepTargetForMapping(context, depsgraph, target)[0]
+		#TODO is it ok if this runs while in edit mode?
+		targetObj = mapping.getTargetObj(target, requireSelInEdit = False)
+		if not targetObj:
+			raise Exception("failed to get target obj")
+		info = mapping.prepTargetForMapping(context, depsgraph, target, targetObj)
 		if info:
 			stucLib.stucBlenderMapExportTargetAdd.argtypes = (
 				ctypes.c_void_p,

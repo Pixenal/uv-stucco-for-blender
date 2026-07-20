@@ -389,7 +389,7 @@ PixErr stucBlenderInit() {
 #else
 	bool threadLogging = false;
 #endif
-	err = stucContextInit(&stucCtx, NULL, NULL, NULL, NULL, NULL, threadLogging);
+	err = stucInit(&stucCtx, NULL, NULL, NULL, NULL, NULL, threadLogging);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	pixuctHTableInit(
 		&allocPtrs,
@@ -1485,6 +1485,9 @@ bool stucBlenderVerifyPixioShmCtx(I32 size) {
 }
 bool stucBlenderVerifyShmDesc(I32 size) {
 	return size == sizeof(ShmDesc);
+}
+bool stucBlenderVerifyPixthJobInfo(I32 size) {
+	return size == sizeof(PixthJobInfo);
 }
 bool stucBlenderVerifyPixthJob(I32 size) {
 	return size == sizeof(PixthJob);

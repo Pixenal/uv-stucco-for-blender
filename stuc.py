@@ -313,13 +313,18 @@ class ShmDesc(enum.Enum):
 	STUCB_SHM_IDX_ATTRIB = 12
 	STUCB_SHM_IDX_ATTRIB_DATA = 13
 
-class PixthJob(ctypes.Structure):
+class PixthJobInfo(ctypes.Structure):
 	_fields_ = [
 		("pJob", ctypes.c_void_p),
 		("pArgs", ctypes.c_void_p),
-		("hash", ctypes.c_uint64),
-		("padding", ctypes.c_char * 36),
-		("err", ctypes.c_int32)
+		("hash", ctypes.c_uint64)
+	]
+
+class PixthJob(ctypes.Structure):
+	_fields_ = [
+		("info", PixthJobInfo),
+		("err", ctypes.c_int32),
+		("padding", ctypes.c_char * 40)
 	]
 
 #verify py classes mirrored from c lib
@@ -330,6 +335,7 @@ def stucStructVerify():
 				continue
 			verifyFunc = f"stucBlenderVerify{item[0]}"
 			if not eval(f"stucLib.{verifyFunc}({ctypes.sizeof(item[1])})"):
-				raise Exception("mirrored c-struct does not match library's")
+				errStr = f"mirrored c-struct {item[0]} does not match library's"
+				raise Exception(errStr)
 	except Exception as e:
 		raise e

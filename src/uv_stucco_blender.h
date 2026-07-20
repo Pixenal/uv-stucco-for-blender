@@ -342,6 +342,8 @@ bool stucBlenderVerifyPixioShmCtx(I32 size);
 STUC_BLENDER_EXPORT
 bool stucBlenderVerifyShmDesc(I32 size);
 STUC_BLENDER_EXPORT
+bool stucBlenderVerifyPixthJobInfo(I32 size);
+STUC_BLENDER_EXPORT
 bool stucBlenderVerifyPixthJob(I32 size);
 STUC_BLENDER_EXPORT
 bool stucBlenderVerifyStucMapExport(I32 size);

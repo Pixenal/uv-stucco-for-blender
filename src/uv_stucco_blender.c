@@ -674,7 +674,7 @@ PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate) {
 	}
 	//else assume already triangulated
 	PIX_ERR_ASSERT(
-		"tangent and tsign attribs must be mutually inclusive",
+		"tangent and tsign attribs must be present",
 		!(
 			pMesh->activeAttribs[STUC_ATTRIB_USE_TANGENT].active ^
 			pMesh->activeAttribs[STUC_ATTRIB_USE_TSIGN].active

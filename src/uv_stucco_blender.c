@@ -1407,6 +1407,9 @@ PixErr stucBlenderMapZBoundsGet(const struct StucMap *pMap, PixtyV2_F32 *pZBound
 	return err;
 }
 
+void stucBlenderLogEnableSet(bool value) {
+	stucLogEnableSet(&stucCtx, value);
+}
 
 bool stucBlenderVerifyStucVec2(I32 size) {
 	return size == sizeof(PixtyV2_F32);

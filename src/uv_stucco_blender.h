@@ -286,7 +286,8 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderThreadPoolLogDump(const char *pPath);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapZBoundsGet(const struct StucMap *pMap, PixtyV2_F32 *pZBounds);
-
+STUC_BLENDER_EXPORT
+void stucBlenderLogEnableSet(bool value);
 
 //funcs for verifying c structs mirrored in python are correct size
 STUC_BLENDER_EXPORT

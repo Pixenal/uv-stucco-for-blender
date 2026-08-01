@@ -117,7 +117,9 @@ def relPathsUpdate(self, context: bpy.types.Context) -> None:
 			dir.name = bpy.path.relpath(dir.name)
 		else:
 			dir.name = bpy.path.abspath(dir.name)
-			
+
+def logEnabledUpdate(self, context: bpy.types.Context) -> None:
+	stucLib.stucBlenderLogEnableSet(self.logEnabled)
 
 class StucAttribMirror(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()#type:ignore
@@ -211,7 +213,8 @@ class StucProperties(bpy.types.PropertyGroup):
 		default = drawCacheMaxVerts,
 		update = drawCacheSizeUpdate
 	)
-	dontDraw : bpy.props.BoolProperty(default = False)
+	dontDraw : bpy.props.BoolProperty(default = False)#type:ignore
+	logEnabled : bpy.props.BoolProperty(default = False, update = logEnabledUpdate)#type:ignore
 	#breakPoint : bpy.props.BoolProperty(default = False)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):

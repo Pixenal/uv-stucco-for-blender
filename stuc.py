@@ -289,6 +289,16 @@ class PixtyI32Arr(ctypes.Structure):
 		("count", ctypes.c_int32)
 	]
 
+class PixtyV3_F32(ctypes.Structure):
+	_fields_ = [("d", ctypes.c_float * 3)]
+
+class PixtyV3_F32Arr(ctypes.Structure):
+	_fields_ = [
+		("pArr", ctypes.POINTER(PixtyV3_F32)),
+		("size", ctypes.c_int32),
+		("count", ctypes.c_int32)
+	]
+
 class PixioShmCtx(ctypes.Structure):
 	_fields_ = [
 		("pFile", ctypes.c_void_p),

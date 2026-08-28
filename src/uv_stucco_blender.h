@@ -288,6 +288,13 @@ STUC_BLENDER_EXPORT
 PixErr stucBlenderMapZBoundsGet(const struct StucMap *pMap, PixtyV2_F32 *pZBounds);
 STUC_BLENDER_EXPORT
 void stucBlenderLogEnableSet(bool value);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderVertNormalsCalc(
+	const PixtyI32Arr *pFaces,
+	const PixtyI32Arr *pCorners,
+	const PixtyV3_F32Arr *pPos,
+	PixtyV3_F32 *pNormals
+);
 
 //funcs for verifying c structs mirrored in python are correct size
 STUC_BLENDER_EXPORT
@@ -338,6 +345,10 @@ STUC_BLENDER_EXPORT
 bool stucBlenderVerifyPixtyStrArr(I32 size);
 STUC_BLENDER_EXPORT
 bool stucBlenderVerifyPixtyI32Arr(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyPixtyV3_F32(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyPixtyV3_F32Arr(I32 size);
 STUC_BLENDER_EXPORT
 bool stucBlenderVerifyPixioShmCtx(I32 size);
 STUC_BLENDER_EXPORT

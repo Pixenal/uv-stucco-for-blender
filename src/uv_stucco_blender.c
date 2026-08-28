@@ -8,11 +8,9 @@ SPDX-License-Identifier: GPL-3.0-only
 #include <string.h>
 
 #include <pixenals_io_utils.h>
-#include <pixenals_structs.h>
+#include <pixenals_mesh_utils.h>
 
 #include <uv_stucco_blender.h>
-
-#include <pixenals_math_utils.h>
 
 typedef int8_t I8;
 typedef int16_t I16;
@@ -1414,6 +1412,73 @@ void stucBlenderLogEnableSet(bool value) {
 	stucLogEnableSet(&stucCtx, value);
 }
 
+typedef struct TempMesh {
+	const PixtyI32Arr *pFaces;
+	const PixtyI32Arr *pCorners;
+	const PixtyV3_F32Arr *pPos;
+} TempMesh;
+
+static
+PixtyV3_F32 tempMeshPosGet(
+	const void *pMeshRaw,
+	PixmshFaceRange face,
+	int32_t corner
+) {
+	const TempMesh *pMesh = pMeshRaw;
+	PIX_ERR_ASSERT("", corner >= 0 && corner < face.size);
+	return pMesh->pPos->pArr[pMesh->pCorners->pArr[face.start + corner]];
+}
+
+//assumes 'pNormals' is already zero allocated
+PixErr stucBlenderVertNormalsCalc(
+	const PixtyI32Arr *pFaces,
+	const PixtyI32Arr *pCorners,
+	const PixtyV3_F32Arr *pPos,
+	PixtyV3_F32 *pNormals
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	TempMesh mesh = {.pFaces = pFaces, .pCorners = pCorners, .pPos = pPos};
+	for (I32 i = 0; i < pFaces->count; ++i) {
+		PixmshFaceRange face = {.start = pFaces->pArr[i]};
+		face.size = pFaces->pArr[i + 1] - face.start;
+		PIX_ERR_ASSERT("", face.size > 2);
+		PixtyV3_F32 faceNormal =
+			pixmshCalcFaceNormal(face, &mesh, tempMeshPosGet, true);
+		PIX_ERR_RETURN_IFNOT_COND(
+			err,
+			faceNormal.d[0] || faceNormal.d[1] || faceNormal.d[2],
+			"invalid face normal"
+		);
+
+		I32 last = face.size - 1;
+		PixtyV3_F32 a = pPos->pArr[pCorners->pArr[face.start + last]];
+		PixtyV3_F32 ba = pixmV3F32Normalize(
+			_(a V3SUB pPos->pArr[pCorners->pArr[face.start]])
+		);
+		for (I32 j = 0; j < face.size; ++j) {
+			//get angle of abc, where a is prev corner, b is current, & c is next
+			I32 vert = pCorners->pArr[face.start + j];
+			PIX_ERR_ASSERT("", vert >= 0 && vert < pPos->count);
+			PixtyV3_F32 b = pPos->pArr[vert];
+			I32 next = (j + 1) % face.size;
+			PixtyV3_F32 c = pPos->pArr[pCorners->pArr[face.start + next]];
+			PixtyV3_F32 bc = pixmV3F32Normalize(_(c V3SUB b));
+			F32 weight = acosf(_(ba V3DOT bc));
+			_(pNormals + vert V3ADDEQL _(faceNormal V3MULS weight));
+			ba = _(bc V3MULS -1.0f);
+		}
+	}
+	for (I32 i = 0 ; i < pPos->count; ++i) {
+		pNormals[i] = pixmV3F32Normalize(pNormals[i]);
+		PIX_ERR_RETURN_IFNOT_COND(
+			err,
+			pNormals[i].d[0] || pNormals[i].d[1] || pNormals[i].d[2],
+			"unable to make valid vert normal"
+		);
+	}
+	return err;
+}
+
 bool stucBlenderVerifyStucVec2(I32 size) {
 	return size == sizeof(PixtyV2_F32);
 }
@@ -1485,6 +1550,12 @@ bool stucBlenderVerifyPixtyStrArr(I32 size) {
 }
 bool stucBlenderVerifyPixtyI32Arr(I32 size) {
 	return size == sizeof(PixtyI32Arr);
+}
+bool stucBlenderVerifyPixtyV3_F32(I32 size) {
+	return size == sizeof(PixtyV3_F32);
+}
+bool stucBlenderVerifyPixtyV3_F32Arr(I32 size) {
+	return size == sizeof(PixtyV3_F32Arr);
 }
 bool stucBlenderVerifyPixioShmCtx(I32 size) {
 	return size == sizeof(PixioShmCtx);

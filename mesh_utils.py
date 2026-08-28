@@ -104,8 +104,21 @@ def formatAsStucMesh(
 			return StucMeshData(mesh, edges, None, None, None, None, None)
 	vertNormals = None
 	if getVertNormals:
-		vertNormalsPtr = target.vertex_normals[0].as_pointer()
-		vertNormals = ctypes.cast(vertNormalsPtr, ctypes.c_void_p)
+		vertNormals = (ctypes.c_float * 3 * mesh.vertCount)()
+		vertNormals = ctypes.cast(vertNormals, ctypes.c_void_p)
+		posActive = mesh.activeAttribs[stuc.StucAttribUse.POS.value]
+		if not posActive.active:
+			raise Exception("no active position attrib?")
+		posAttrib = mesh.vertAttribs.pArr[posActive.idx]
+		posData = ctypes.cast(posAttrib.core.pData, ctypes.POINTER(stuc.PixtyV3_F32))
+		err = stucLib.stucBlenderVertNormalsCalc(
+			ctypes.pointer(stuc.PixtyI32Arr(mesh.pFaces, 0, mesh.faceCount)),
+			ctypes.pointer(stuc.PixtyI32Arr(mesh.pCorners, 0, mesh.cornerCount)),
+			ctypes.pointer(stuc.PixtyV3_F32Arr(posData, 0, mesh.vertCount)),
+			vertNormals
+		)
+		if err != 1:
+			raise Exception("failed to build vert normals")
 		attribUtils.appendAttrib(
 			mesh.vertAttribs,
 			"vertNormals",
@@ -169,11 +182,6 @@ def formatAsStucMesh(
 			tSign,
 			mesh.activeAttribs
 		)
-
-
-	#to avoid garbage collection, edges, normals, & matIndices are returned as well
-	#is there a better way to do this? TODO maybe make edges, normals, & matIndices
-	#out params, so there's a reference in the calling function. Probably cleaner than this.
 	return StucMeshData(mesh, edges, normals, matIndices, vertNormals, tangents, tSign)
 
 def copyStucMeshToBlenderMesh(

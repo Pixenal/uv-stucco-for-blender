@@ -92,13 +92,28 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 		col0 = self.layout.column()
 		col0.operator("stuc.scene_export", text = "Export Scene", icon = 'EXPORT')
 		col0.label(text = "")
+
+class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
+	bl_idname = "STUC_PT_StucMaps"
+	bl_label = "Maps"
+	bl_parent_id = "STUC_PT_Stuc"
+
+	def draw(self, context: bpy.types.Context) -> None:
+		col0 = self.layout.column()
 		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
 		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
+		col0.template_list(
+			"STUC_UL_StucMaps",
+			"",
+			context.scene, "stucMaps",
+			context.scene, "stucMapsIdx",
+			rows = 4, maxrows = 6
+		)
 
 class STUC_PT_StucDepDirs(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_StucDepDirs"
 	bl_label = "Extra Dep Dirs"
-	bl_parent_id = "STUC_PT_Stuc"
+	bl_parent_id = "STUC_PT_StucMaps"
 	bl_options = {'DEFAULT_CLOSED'}
 
 	def draw(self, context: bpy.types.Context) -> None:
@@ -113,21 +128,6 @@ class STUC_PT_StucDepDirs(StucParentPanel, bpy.types.Panel):
 		col1 = row0.column(align = True)
 		col1.scale_x = .35
 		col1.operator("stuc.extra_dep_dir_add", text = " ", icon = "ADD")
-
-class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
-	bl_idname = "STUC_PT_StucMaps"
-	bl_label = "Maps"
-	bl_parent_id = "STUC_PT_Stuc"
-
-	def draw(self, context: bpy.types.Context) -> None:
-		col0 = self.layout.column()
-		col0.template_list(
-			"STUC_UL_StucMaps",
-			"",
-			context.scene, "stucMaps",
-			context.scene, "stucMapsIdx",
-			rows = 4, maxrows = 6
-		)
 
 class STUC_PT_StucMapDeps(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_StucMapDeps"
@@ -273,6 +273,7 @@ class STUC_PT_StucUsg(StucParentPanel, bpy.types.Panel):
 	bl_idname = "STUC_PT_StucUsg"
 	bl_label = "USG"
 	bl_parent_id = "STUC_PT_Stuc"
+	bl_options = {'DEFAULT_CLOSED'}
 
 	def draw(self, context: bpy.types.Context) -> None:
 		col0 = self.layout.column()
@@ -313,21 +314,21 @@ class STUC_PT_StucDev(StucParentPanel, bpy.types.Panel):
 		col0 = self.layout.column()
 		col0.operator("stuc.stuc_force_update_targets", icon = 'CUBE')
 		col0.prop(context.scene.stuc, "dontDraw", text = "Don't Draw")#type:ignore
-		col0.label(text = "")
+		#col0.label(text = "")
 		col0.prop(context.scene.stuc, "logEnabled", text = "Log")#type:ignore
 		#col0.label(text = "^ Unrelated v")
 		#col0.operator("stuc.thread_pool_log_dump", icon = "FILE_BLANK")
 
 classes = [
 	STUC_PT_Stuc,
-	STUC_PT_StucDepDirs,
 	STUC_PT_StucMaps,
 	STUC_PT_StucMapDeps,
 	STUC_PT_StucMapActive,
+	STUC_PT_StucDepDirs,
 	STUC_PT_StucMats,
 	STUC_PT_StucTargets,
 	STUC_PT_StucCommonAttribs,
-	STUC_PT_StucUsg,
+	#STUC_PT_StucUsg,#TODO add back when usg's are integrated with refactor
 	STUC_PT_StucOpts,
 	STUC_PT_StucDev,
 	STUC_UL_StucTargets,

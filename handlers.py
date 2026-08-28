@@ -28,9 +28,16 @@ from . import client
 def stucLoadPostHandler(dummy) -> None:
 	try:
 		sceneCache.correctCacheLib()
-		err = stucLib.stucBlenderInit()
+		
+		if not c_lib.initDir:
+			raise Exception("init failed, init-dir is None")
+		logDir = f"{c_lib.initDir}/log"
+		if not os.path.exists(logDir):
+			os.mkdir(logDir)
+		err = stucLib.stucBlenderInit(f"{logDir}/uv_stucco.cark".encode('utf-8'))
 		if err != 1:
 			raise Exception("failed to init stuc for blender")
+		
 		bpy.context.scene.stucAgeNext = 0 #type:ignore
 		for map in bpy.context.scene.stucMaps: #type:ignore
 			map.timestamp = ".0"

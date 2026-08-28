@@ -383,7 +383,7 @@ PixErr targetEntryDestroy(I32 id) {
 	return err;
 }
 
-PixErr stucBlenderInit() {
+PixErr stucBlenderInit(const char *pLogPath) {
 	PixErr err = PIX_ERR_SUCCESS;
 #ifdef STUC_DEBUG_UTILS
 	bool threadLogging = true;
@@ -391,6 +391,8 @@ PixErr stucBlenderInit() {
 	bool threadLogging = false;
 #endif
 	err = stucInit(&stucCtx, NULL, NULL, NULL, NULL, NULL, threadLogging);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = stucLogPathSet(&stucCtx, pLogPath);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	pixuctHTableInit(
 		&allocPtrs,

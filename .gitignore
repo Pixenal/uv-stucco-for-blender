@@ -7,4 +7,5 @@ Documentation/
 compile_commands.json
 CMakeUserPresets.json
 .vscode/
-lib
+lib/
+log/

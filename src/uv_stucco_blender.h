@@ -38,7 +38,7 @@ typedef struct StrWithLen {
 } StrWithLen;
 
 STUC_BLENDER_EXPORT
-PixErr stucBlenderInit();
+PixErr stucBlenderInit(const char *pLogPath);
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportInit(
 	StucMapExport *pHandle,

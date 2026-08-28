@@ -10,6 +10,7 @@ import addon_utils
 
 import pdb
 initPath = None
+initDir = None
 for module in addon_utils.modules():
 	if module.bl_info['name'] == "UV Stucco":
 		initPath = module.__file__

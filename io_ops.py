@@ -566,7 +566,8 @@ class STUC_OT_StucSceneImport(bpy.types.Operator):
 		shmFile = bpy.data.filepath
 		sceneCache.sceneImportToFile(shmName, shmFile)
 		return {'FINISHED'}
-	
+
+'''
 class STUC_OT_StucThreadPoolLogDump(bpy.types.Operator, ExportHelper):
 	bl_idname = "stuc.thread_pool_log_dump"
 	bl_label = "Dump Thread Log"
@@ -589,6 +590,7 @@ class STUC_OT_StucThreadPoolLogDump(bpy.types.Operator, ExportHelper):
 			self.report({'ERROR'}, "failed to dump thread pool log")
 			raise e
 		return {'FINISHED'}
+'''
 
 classes = [
 	STUC_OT_StucExportStucFile,
@@ -599,7 +601,7 @@ classes = [
 	STUC_OT_StucExtraDepDirRemove,
 	STUC_OT_StucSceneExport,
 	STUC_OT_StucSceneImport,
-	STUC_OT_StucThreadPoolLogDump
+	#STUC_OT_StucThreadPoolLogDump
 ]
 
 def register() -> None:

@@ -315,8 +315,8 @@ class STUC_PT_StucDev(StucParentPanel, bpy.types.Panel):
 		col0.prop(context.scene.stuc, "dontDraw", text = "Don't Draw")#type:ignore
 		col0.label(text = "")
 		col0.prop(context.scene.stuc, "logEnabled", text = "Log")#type:ignore
-		col0.label(text = "^ Unrelated v")
-		col0.operator("stuc.thread_pool_log_dump", icon = "FILE_BLANK")
+		#col0.label(text = "^ Unrelated v")
+		#col0.operator("stuc.thread_pool_log_dump", icon = "FILE_BLANK")
 
 classes = [
 	STUC_PT_Stuc,

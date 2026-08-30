@@ -108,6 +108,13 @@ class StucAttribCopyOpt(enum.Enum):
 	COPY = 0
 	DONT_COPY = 1
 
+class DepStatus(enum.Enum):
+	NONE = 0
+	DIRTY_MAP = 1
+	DIRTY_DEP = 2
+	CLEAN = 3
+	FILE_NOT_FOUND = 4
+
 class StucVec2(ctypes.Structure):
 	_fields_ = [
 		("x", ctypes.c_float),
@@ -307,6 +314,22 @@ class PixioShmCtx(ctypes.Structure):
 		("blockSize", ctypes.c_int32)
 	]
 
+class StucMapDepEntry(ctypes.Structure):
+	_fields_ = [
+		("data0", ctypes.c_byte * 32),
+		("timestamp", ctypes.c_double),
+		("pNameInFile", ctypes.c_char_p),
+		("pName", ctypes.c_char_p),
+		("data1", ctypes.c_byte * 16)
+	]
+
+class StucMapDepPtrArr(ctypes.Structure):
+	_fields_ = [
+		("pArr", ctypes.POINTER(ctypes.POINTER(StucMapDepEntry))),
+		("size", ctypes.c_int32),
+		("count", ctypes.c_int32)
+	]
+
 class ShmDesc(enum.Enum):
 	STUCB_SHM_NONE = 0
 	STUCB_SHM_DIR = 1
@@ -334,7 +357,7 @@ class PixthJob(ctypes.Structure):
 	_fields_ = [
 		("info", PixthJobInfo),
 		("err", ctypes.c_int32),
-		("padding", ctypes.c_char * 40)
+		("padding", ctypes.c_byte * 40)
 	]
 
 #verify py classes mirrored from c lib

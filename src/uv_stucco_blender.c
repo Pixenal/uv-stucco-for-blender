@@ -25,6 +25,16 @@ typedef uint64_t U64;
 typedef float F32;
 typedef double F64;
 
+typedef struct MapDepEntry {
+	const struct StucMap *pMap;
+	double timestamp;
+} MapDepEntry;
+
+typedef struct MapDepEntryArr {
+	MapDepEntry *pArr;
+	I32 size;
+} MapDepEntryArr;
+
 typedef struct MapEntry {
 	PixuctHTableEntryCore core;
 	struct StucMap *pMap;
@@ -82,7 +92,7 @@ void clearMapEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pK
 	MapEntry *pEntry = (MapEntry *)pCore;
 	PixErr err = PIX_ERR_SUCCESS;
 	if (pEntry->pMap) {
-		err = stucMapFileUnload(&stucCtx, pEntry->pMap);
+		err = stucMapUnload(&stucCtx, pEntry->pMap);
 	}
 	if (pEntry->meshRender.faceCount) {
 		err = PIX_ERR_SUCCESS == stucMeshDestroy(&stucCtx, &pEntry->meshRender) ?
@@ -465,7 +475,7 @@ StucErr stucBlenderMapExportUsgCutoffAdd(void *pHandle, StucObject *pFlatCutoff)
 }
 
 //TODO get this working again
-PixErr stucBlenderMapFileLoadForEdit(
+PixErr stucBlenderMapLoadForEdit(
 	const char *pName,
 	I32 *pObjCount,
 	StucObject **ppObjArr,
@@ -475,7 +485,7 @@ PixErr stucBlenderMapFileLoadForEdit(
 	StucObject **ppFlatCutoffArr,
 	StucAttribIndexedArr *pIndexedAttribs
 ) {
-	PixErr err = stucMapFileLoadForEdit(
+	PixErr err = stucMapLoadForEdit(
 		&stucCtx,
 		pName,
 		pObjCount,
@@ -490,7 +500,7 @@ PixErr stucBlenderMapFileLoadForEdit(
 	return err;
 }
 
-PixErr stucBlenderMapFileUnload(const char *pName) {
+PixErr stucBlenderMapUnload(const char *pName) {
 	PixErr err = PIX_ERR_SUCCESS;
 
 	MapEntry *pEntry = NULL;
@@ -508,49 +518,69 @@ PixErr stucBlenderMapFileUnload(const char *pName) {
 typedef struct LoadState {
 	PixtyStrArr *pDepDirs;
 	StrWithLen pathBuf;
-	I32 (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, char *, double *);
+	I32 (* fpGetMapPath)(
+		const char *,
+		const char *,
+		const PixtyStrArr *Dirs,
+		char *,
+		double *
+	);
 	void (* fpStoreMap)(
 		const char *,
 		const char *,
 		double,
 		StucMapStatus,
-		const PixtyStrArr *
+		const StucMapDepPtrArr *
 	);
 } LoadState;
 
 static
 PixErr mapGet(
 	void *pUserData,
-	const char *pName,
+	const char *pParentName,
+	const char *pDepName,
 	const char **ppFilepath,
 	double *pTimestamp,
-	struct StucMap ** const ppMap
+	struct StucMap ** const ppMap,
+	bool *pHasChanged
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	LoadState *pState = pUserData;
 	I32 len = (I32)strnlen(pState->pathBuf.pStr, PIXIO_PATH_MAX);
 	memset(pState->pathBuf.pStr, 0, len);
-	I32 ret = pState->fpGetMapPath(pName, pState->pDepDirs, pState->pathBuf.pStr, pTimestamp);
-	PIX_ERR_RETURN_IFNOT_COND(err, !ret, "unable to find map in provided directories");
-
-	bool noPath = !pState->pathBuf.pStr[0];
 	MapEntry *pEntry = NULL;
-	err = mapEntryGet(pName, &pEntry, NULL);
+	err = mapEntryGet(pDepName, &pEntry, NULL);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	if (pEntry && pEntry->pMap) {
-		if (noPath) {
-			//loaded map is up to date
+	DepStatus status = pState->fpGetMapPath(
+		pParentName,
+		pDepName,
+		pState->pDepDirs,
+		pState->pathBuf.pStr,
+		pTimestamp
+	);
+	switch(status) {
+		case DEP_STATUS_DIRTY_MAP:
+			//dep itself is up to date, but has changed since map was last loaded
+			*pHasChanged = true;
+			// v fallthrough v
+		case DEP_STATUS_CLEAN://loaded dep is up to date
 			*ppMap = pEntry->pMap;
-			return err;
-		}
-		else {
-			err = stucMapFileUnload(&stucCtx, pEntry->pMap);
-			pEntry->pMap = NULL;
-			PIX_ERR_RETURN_IFNOT(err, "");
-		}
+			break;
+		case DEP_STATUS_DIRTY_DEP://dep is outdated & must be reloaded from disk
+			if (pEntry) {
+				PIX_ERR_ASSERT("", pEntry->pMap);
+				pEntry = NULL;
+				err = stucBlenderMapUnload(pDepName);
+				PIX_ERR_RETURN_IFNOT(err, "");
+			}
+			PIX_ERR_ASSERT("", pState->pathBuf.pStr[0]);
+			*ppFilepath = pState->pathBuf.pStr;
+			break;
+		case DEP_STATUS_FILE_NOT_FOUND:
+			PIX_ERR_RETURN(err, "unable to find map dependency in provided directories");
+		default:
+			PIX_ERR_ASSERT("invalid return status", false);
 	}
-	PIX_ERR_ASSERT("", !noPath);
-	*ppFilepath = pState->pathBuf.pStr;
 	return err;
 }
 
@@ -562,7 +592,7 @@ PixErr mapStore(
 	double timestamp,
 	struct StucMap *pMap,
 	StucMapStatus status,
-	const PixtyStrArr *pDeps
+	const StucMapDepPtrArr *pDeps
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	MapEntry *pEntry = NULL;
@@ -572,20 +602,69 @@ PixErr mapStore(
 	return err;
 }
 
-PixErr stucBlenderMapFileLoad(
+typedef struct MapLoadStackEntry {
+	StucMapDepEntry *pDep;
+	StucMapLoad ctx;
+	PixalcLinAllocIter iter;
+	bool dirty;
+} MapLoadStackEntry;
+
+typedef struct MapLoadStack {
+	MapLoadStackEntry *pArr;
+	I32 size;
+	I32 ptr;
+} MapLoadStack;
+
+static
+void mapLoadStackPush(MapLoadStack *pStack, StucMapDepEntry *pMap) {
+	pStack->ptr += pStack->size ? 1 : 0;
+	PIXALC_DYN_ARR_RESIZE(MapLoadStackEntry, &allocPtrs, pStack, pStack->ptr + 1);
+	pStack->pArr[pStack->ptr] = (MapLoadStackEntry){.pDep = pMap};
+}
+
+static
+PixErr mapLoadStackPop(MapLoadStack *pStack) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_ASSERT("", pStack->ptr >= 0 && pStack->size > 0);
+	MapLoadStackEntry *pEntry = pStack->pArr + pStack->ptr;
+	if (pEntry->dirty) {
+		//reload
+		err = stucMapLoad(&pEntry->ctx);
+		PIX_ERR_RETURN_IFNOT(err, "");
+		if (pEntry->pDep) {
+			//update parent dependency with new map
+			PIX_ERR_ASSERT("", pEntry->pDep->status == STUC_MAP_LOADED);
+			MapEntry *pMapEntry = NULL;
+			err = mapEntryGet(pEntry->pDep->pName, &pMapEntry, NULL);
+			PIX_ERR_RETURN_IFNOT(err, "");
+			pEntry->pDep->pMap = pMapEntry->pMap;
+		}
+	}
+	err = stucMapLoadDestroy(&pEntry->ctx);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	--pStack->ptr;
+	return err;
+}
+
+PixErr stucBlenderMapLoad(
 	const char *pFilepath,
 	const char *pName,
 	F64 timestamp,
 	PixtyStrArr *pDepDirs,
-	I32 (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, char *, double *),
+	I32 (* fpGetMapPath)(
+		const char *,
+		const char *,
+		const PixtyStrArr *,
+		char *,
+		double *
+	),
 	void (* fpStoreMap)(
 		const char *,
 		const char *,
 		double,
 		StucMapStatus,
-		const PixtyStrArr *
-	),
-	bool dirty 
+		const StucMapDepPtrArr *
+	)
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	LoadState state = {
@@ -594,47 +673,52 @@ PixErr stucBlenderMapFileLoad(
 		.fpStoreMap = fpStoreMap,
 		.pathBuf.pStr = calloc(PIXIO_PATH_MAX, 1)
 	};
-	MapEntry *pEntry = NULL;
-	err = mapEntryGet(pName, &pEntry, NULL);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	if (pEntry) {
-		err = stucMapFileUnload(&stucCtx, pEntry->pMap);
-		pEntry->pMap = NULL;
-		PIX_ERR_THROW_IFNOT(err, "", 0);
-	}
-	StucMapLoad loadCtx = {0};
-	err = stucMapFileLoadInit(
-		&stucCtx,
-		&loadCtx,
-		pFilepath,
-		timestamp,
-		&state,
-		mapGet, mapStore
-	);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = stucMapFileLoadDeps(&loadCtx);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	StucMapStatus status = 0;
-	err = stucMapFileLoadGetDepStatus(&loadCtx, &status);
-	PIX_ERR_THROW_IFNOT(err, "", 0);
-	switch (status) {
-		case STUC_MAP_LOADED:
-			if (!dirty) {
-				break; //file is already up to date
-			}
-			//v otherwise fallthrough v
-		case STUC_MAP_PENDING_LOAD:
-			err = stucMapFileLoad(&loadCtx);
+	MapLoadStack stack = {0};
+	mapLoadStackPush(&stack, NULL);
+	do {
+		MapLoadStackEntry *pEntry = stack.pArr + stack.ptr;
+		if (!pEntry->iter.valid) {
+			err = stucMapLoadInit(
+				&stucCtx,
+				&pEntry->ctx,
+				pName,
+				&state,
+				mapGet, mapStore
+			);
 			PIX_ERR_THROW_IFNOT(err, "", 0);
-			break;
-		case STUC_MAP_ERROR:
-		case STUC_MAP_MISSING_DEP:
-			PIX_ERR_THROW(err, "unable to load one or more dependencies", 0);
+			err = stucMapLoadDeps(&pEntry->ctx);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+			err = stucMapLoadIterInit(&pEntry->ctx, &pEntry->iter);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
+		}
+		else if (stucMapLoadIterAtEnd(&pEntry->iter)) {
+			mapLoadStackPop(&stack);
+			continue;
+		}
+		StucMapDepEntry *pMap = stucMapLoadIterGetMap(&pEntry->iter);
+		switch (pMap->status) {
+			case STUC_MAP_LOADED:
+				/*
+				if (pEntry->pDep && pMap->pMap == pEntry->pDep->pMap) {
+					PIX_ERR_ASSERT("this shouldn't happen with deps", !pEntry->iter.count);
+					break;
+				}
+				mapLoadStackPush(&stack, pMap);
+				*/
+				break;
+			case STUC_MAP_PENDING_LOAD:
+				pEntry->dirty = true;
+				break;
+			case STUC_MAP_ERROR:
+			case STUC_MAP_MISSING_DEP:
+				PIX_ERR_THROW(err, "unable to load one or more dependencies", 0);
+		}
+		stucMapLoadIterInc(&pEntry->iter);
+	} while(stack.ptr >= 0);
+	PIX_ERR_CATCH(0, err, ;);
+	if (stack.pArr) {
+		free(stack.pArr);
 	}
-	PIX_ERR_CATCH(0, err,
-		stucBlenderMapFileUnload(pName);
-	);
-	stucMapLoadDestroy(&loadCtx);
 	if (state.pathBuf.pStr) {
 		free(state.pathBuf.pStr);
 	}
@@ -655,11 +739,11 @@ PixErr stucBlenderMapMeshGet(
 	if (forRender) {
 		PIX_ERR_RETURN_IFNOT_COND(err, pEntry->meshRender.faceCount, "");
 		*ppMesh = &pEntry->meshRender;
-		err = stucMapFileMeshGet(&stucCtx, pEntry->pMap, NULL, ppIdxAttribs);
+		err = stucMapMeshGet(&stucCtx, pEntry->pMap, NULL, ppIdxAttribs);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
 	else {
-		err = stucMapFileMeshGet(&stucCtx, pEntry->pMap, ppMesh, ppIdxAttribs);
+		err = stucMapMeshGet(&stucCtx, pEntry->pMap, ppMesh, ppIdxAttribs);
 		PIX_ERR_THROW_IFNOT(err, "", 0);
 	}
 	PIX_ERR_CATCH(0, err,
@@ -726,7 +810,7 @@ PixErr stucBlenderMapMeshRenderUpdate(const char *pMap) {
 	pEntry->meshRender = (StucMesh){0};
 
 	const StucMesh *pMesh = NULL;
-	err = stucMapFileMeshGet(&stucCtx, pEntry->pMap, &pMesh, NULL);
+	err = stucMapMeshGet(&stucCtx, pEntry->pMap, &pMesh, NULL);
 	PIX_ERR_RETURN_IFNOT_COND(err, pMesh, "");
 	err = stucBlenderMeshCpy(&pEntry->meshRender, pMesh);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
@@ -1573,5 +1657,11 @@ bool stucBlenderVerifyPixthJob(I32 size) {
 }
 bool stucBlenderVerifyStucMapExport(I32 size) {
 	return size == sizeof(StucMapExport);
+}
+bool stucBlenderVerifyStucMapDepEntry(I32 size) {
+	return size == sizeof(StucMapDepEntry);
+}
+bool stucBlenderVerifyStucMapDepPtrArr(I32 size) {
+	return size == sizeof(StucMapDepPtrArr);
 }
 

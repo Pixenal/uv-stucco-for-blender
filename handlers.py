@@ -43,6 +43,10 @@ def stucLoadPostHandler(dummy) -> None:
 			map.timestamp = ".0"
 			map.age = 0
 			map.status = '0'
+			for dep in map.deps:
+				dep.timestamp = ""
+				if dep.map == "":
+					dep.map = dep.name
 		bpy.context.scene.stucTargetIdNext = 0 #type:ignore
 		for target in bpy.context.scene.stucTargets: #type:ignore
 			target.id = bpy.context.scene.stucTargetIdNext #type:ignore

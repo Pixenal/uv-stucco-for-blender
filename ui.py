@@ -57,7 +57,7 @@ class STUC_UL_StucMapDeps(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:
 		if self.layout_type in {'DEFAULT', 'COMPACT'}:
 			row0 = layout.row(align = True)
-			row0.prop_search(item, "name", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
+			row0.prop_search(item, "map", context.scene, "stucMaps", text = "", icon = 'MESH_PLANE')
 
 class STUC_UL_StucCommonAttribs(bpy.types.UIList):
 	def draw_item(self, context, layout, data, item, icon, active_data, active_propname) -> None:

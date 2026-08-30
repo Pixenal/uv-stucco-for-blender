@@ -198,7 +198,7 @@ class STUC_OT_StucMapRemove(bpy.types.Operator):
 			map = context.scene.stucMaps[self.itemIdx] #type:ignore
 			name = map.name.encode('utf-8')
 			context.scene.stucMaps.remove(self.itemIdx) #type:ignore
-			if stucLib.stucBlenderMapFileUnload(name) != 1:
+			if stucLib.stucBlenderMapUnload(name) != 1:
 				raise Exception()
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to unload map")

@@ -22,6 +22,15 @@ typedef enum TargetCacheType {
 	MESH_CACHE_OUT
 } TargetCacheType;
 
+typedef enum DepStatus {
+	DEP_STATUS_NONE,
+	DEP_STATUS_DIRTY_MAP,
+	DEP_STATUS_DIRTY_DEP,
+	DEP_STATUS_CLEAN,
+	DEP_STATUS_FILE_NOT_FOUND,
+} DepStatus;
+
+//TODO this isn't really a library header, so we don't need to prefix types like this
 typedef struct StucBlenderMatTable{
 	int8_t *pArr;
 	int32_t count;
@@ -67,7 +76,7 @@ StucErr stucBlenderMapExportUsgAdd(void *pHandle, StucUsg *pUsg);
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportUsgCutoffAdd(void *pHandle, StucObject *pFlatCutoff);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapFileLoadForEdit(
+PixErr stucBlenderMapLoadForEdit(
 	const char *pFilepath,
 	int32_t *pObjCount,
 	StucObject **ppObjArr,
@@ -78,20 +87,25 @@ PixErr stucBlenderMapFileLoadForEdit(
 	StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapFileLoad(
+PixErr stucBlenderMapLoad(
 	const char *pFilepath,
 	const char *pName,
 	double timestamp,
 	PixtyStrArr *pDepDirs,
-	int32_t (* fpGetMapPath)(const char *, const PixtyStrArr *Dirs, char *, double *),
+	int32_t (* fpGetMapPath)(
+		const char *,
+		const char *,
+		const PixtyStrArr *,
+		char *,
+		double *
+	),
 	void (* fpStoreMap)(
 		const char *,
 		const char *,
 		double,
 		StucMapStatus,
-		const PixtyStrArr *
-	),
-	bool dirty
+		const StucMapDepPtrArr *
+	)
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapMeshGet(
@@ -107,7 +121,7 @@ PixErr stucBlenderMeshCpy(StucMesh *pDest, const StucMesh *pSrc);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapMeshRenderUpdate(const char *pMap);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMapFileUnload(const char *pName);
+PixErr stucBlenderMapUnload(const char *pName);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapToMesh(
 	PixthJob *pJobHandle,
@@ -359,3 +373,7 @@ STUC_BLENDER_EXPORT
 bool stucBlenderVerifyPixthJob(I32 size);
 STUC_BLENDER_EXPORT
 bool stucBlenderVerifyStucMapExport(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucMapDepEntry(I32 size);
+STUC_BLENDER_EXPORT
+bool stucBlenderVerifyStucMapDepPtrArr(I32 size);

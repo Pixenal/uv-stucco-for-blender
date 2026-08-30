@@ -121,6 +121,18 @@ def relPathsUpdate(self, context: bpy.types.Context) -> None:
 def logEnabledUpdate(self, context: bpy.types.Context) -> None:
 	stucLib.stucBlenderLogEnableSet(self.logEnabled)
 
+def mapDepNameUpdate(self, context: bpy.types.Context) -> None:
+	print("dep name updated")
+	self.timestamp = ""
+	self.map = self.name
+
+def mapDepUpdate(self, context: bpy.types.Context) -> None:
+	if self.timestamp != "":
+		print("dep map updated, setting timestamp to '' & reloading maps")
+		self.timestamp = ""
+		bpy.ops.stuc.reload_stuc_file()#type:ignore
+	print("dep map updated, doing nothing")
+
 class StucAttribMirror(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()#type:ignore
 	use : bpy.props.IntProperty()#type:ignore
@@ -141,7 +153,9 @@ class StucMap(bpy.types.PropertyGroup):
 	age : bpy.props.IntProperty()#type:ignore
 
 class StucDep(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty()#type:ignore
+	name : bpy.props.StringProperty(update = mapDepNameUpdate)#type:ignore
+	map : bpy.props.StringProperty(update = mapDepUpdate)#type:ignore
+	timestamp : bpy.props.StringProperty()#type:ignore
 
 class StucTarget(bpy.types.PropertyGroup):
 	obj : bpy.props.PointerProperty(#type:ignore

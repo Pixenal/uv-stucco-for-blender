@@ -186,7 +186,7 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 			usgArr = ctypes.POINTER(stuc.StucUsg)()
 			flatCutoffArr = ctypes.POINTER(stuc.StucObject)()
 			indexedAttribs = stuc.StucAttribIndexedArr()
-			err = stucLib.stucBlenderMapFileLoadForEdit(
+			err = stucLib.stucBlenderMapLoadForEdit(
 				filepathUtf8,
 				ctypes.pointer(objCount),
 				ctypes.pointer(objArr),
@@ -244,38 +244,71 @@ class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 			raise e
 		return {'FINISHED'}
 
+def mapDepsAreDirty(map: props.StucMap) -> bool:
+	for dep in map.deps:#type:ignore
+		if dep.timestamp == "":
+			return True
+	return False
+
 @ctypes.CFUNCTYPE(
-	ctypes.c_int32,
+	ctypes.c_int,
+	ctypes.c_char_p,
 	ctypes.c_char_p,
 	ctypes.POINTER(stuc.PixtyStrArr),
 	ctypes.POINTER(ctypes.c_byte),
 	ctypes.POINTER(ctypes.c_double)
 )
-def getMapInDirs(mapNameUtf8: ctypes.c_char_p, dirArrPtr, path, timestamp) -> int:
-	mapName = mapNameUtf8.decode('utf-8') #type:ignore
-	map = bpy.context.scene.stucMaps.get(mapName, None) #type:ignore
+def getDepInDirs(
+	mapNameUtf8: ctypes.c_char_p,
+	depNameUtf8: ctypes.c_char_p,
+	dirArrPtr,
+	path,
+	timestamp
+) -> int:
+	StatusEnum = stuc.DepStatus
+	map = None
+	if mapNameUtf8:
+		mapName = mapNameUtf8.decode('utf-8')#type:ignore
+		map = bpy.context.scene.stucMaps.get(mapName, None)#type:ignore
+	depName = depNameUtf8.decode('utf-8')#type:ignore
+	dep = None
+	status = StatusEnum.NONE
 	if map:
-		pathAsStr = os.path.join(bpy.path.abspath(map.dir), map.name)
+		dep = map.deps.get(depName, None)
+		if dep:
+			if dep.timestamp == "":
+				#should only occur if dep.map has been set by user since last load
+				status = StatusEnum.DIRTY_DEP
+			depName = dep.map
+	depMap = bpy.context.scene.stucMaps.get(depName, None)#type:ignore
+	if depMap:
+		if status != StatusEnum.DIRTY_DEP and dep and dep.timestamp != depMap.timestamp:
+			#dep map has changed since last load
+			status = StatusEnum.DIRTY_MAP
+		pathAsStr = os.path.join(bpy.path.abspath(depMap.dir), depMap.name)
 		if os.path.exists(pathAsStr):
 			fileTimestamp = os.path.getmtime(pathAsStr)
-			if float(map.timestamp) == fileTimestamp:
-				return 0 #map is up to date
-			else:
-				utils.copyString(path, pathAsStr, 32768)
-				timestamp.contents.value = fileTimestamp
-				return 0
+			if float(depMap.timestamp) != fileTimestamp:
+				status = StatusEnum.DIRTY_DEP#dep map is not up to date with file
+			elif status == StatusEnum.NONE:
+				return StatusEnum.CLEAN.value
+			utils.copyString(path, pathAsStr, 32768)#TODO replace magic number
+			timestamp.contents.value = fileTimestamp
+			return status.value
+	#dep isn't loaded, find file in map-search directories
 	dirArr = dirArrPtr.contents
 	i = 0
 	while i < dirArr.count:
 		for root, dirs, files in os.walk(dirArr.pArr[i].decode('utf-8')):
 			for name in files:
-				if name == mapName:
-					pathAsStr = os.path.join(root, name)
-					utils.copyString(path, pathAsStr, 32768)
-					timestamp.contents = ctypes.c_double(os.path.getmtime(pathAsStr)) #type:ignore
-					return 0
+				if name != depName:
+					continue
+				pathAsStr = os.path.join(root, name)
+				utils.copyString(path, pathAsStr, 32768)
+				timestamp.contents.value = os.path.getmtime(pathAsStr)#type:ignore
+				return StatusEnum.DIRTY_DEP.value
 		i += 1
-	return 1
+	return StatusEnum.FILE_NOT_FOUND.value
 
 def markMapUsersDirty(context: bpy.types.Context, map: props.StucMap) -> None:
 	for target in context.scene.stucTargets:#type:ignore
@@ -294,7 +327,7 @@ def addOrUpdateMap(
 	path: str,
 	timestamp: float,
 	status: int,
-	deps: stuc.PixtyStrArr
+	deps: Any
 ) -> props.StucMap:
 	map = context.scene.stucMaps.get(name, None) #type:ignore
 	if map:
@@ -312,15 +345,18 @@ def addOrUpdateMap(
 	context.scene.stucAgeNext += 1 #type:ignore
 
 	i = 0
-	while i < deps.count:
+	while i < deps.contents.count:
 		entry = map.deps.add()
-		depName = deps.pArr[i].decode('utf-8')
-		entry.name = depName
+		entry.name = deps.contents.pArr[i].contents.pNameInFile.decode('utf-8')
+		entry.map = deps.contents.pArr[i].contents.pName.decode('utf-8')
+		entry.timestamp = str(float(deps.contents.pArr[i].contents.timestamp))
 		i += 1
 
 	map.attribs.clear() #type:ignore
 	mapInfo = meshUtils.getMapMesh(name)
 	if type(mapInfo[0]) != stuc.StucMesh or type(mapInfo[1]) != stuc.StucAttribIndexedArr:
+		#TODO this is a c callback, so return error for caller to handle.
+		#py exceptions will display a message in console, but are otherwise ignored
 		raise Exception()
 	mesh = mapInfo[0]
 
@@ -356,7 +392,7 @@ def addOrUpdateMap(
 	ctypes.c_char_p,
 	ctypes.c_double,
 	ctypes.c_int32,
-	ctypes.POINTER(stuc.PixtyStrArr)
+	ctypes.POINTER(stuc.StucMapDepPtrArr)
 )
 def storeMap(
 	name: ctypes.c_char_p,
@@ -371,7 +407,7 @@ def storeMap(
 		path.decode('utf-8'),#type:ignore
 		timestamp,
 		status,
-		deps.contents
+		deps
 	)
 
 def getDepDirs(
@@ -391,42 +427,48 @@ def getDepDirs(
 		dirs.count += 1
 	return dirs
 
+'''
+def isMapDirty(context: bpy.types.Context, timestamp: float, map: props.StucMap) -> bool:
+	if not map or map.status != '1': #status != LOADED
+		return True
+	#print(f"timestamp {timestamp}, map-timestamp {float(map.timestamp)}")
+	if timestamp != float(map.timestamp):
+		return True
+	for dep in map.deps: #type:ignore
+		print(f"dep name is {dep.name}")
+		depMap = context.scene.stucMaps.get(dep.name, None)#type:ignore
+		print(f"depMap is {depMap}, depmap age is {depMap.age}, map age is {map.age}")
+		
+		if not depMap or depMap.age > map.age:
+			return True
+	return False
+'''
+
 def loadMap(
 	context: bpy.types.Context,
 	filepath: str,
 	name: str
 ) -> int:
+	err = 1
 	timestamp = os.path.getmtime(filepath) #type:ignore
 	map = context.scene.stucMaps.get(name, None) #type:ignore
-	dirty = isMapDirty(timestamp, map)
+	#dirty = isMapDirty(context, timestamp, map)
 	depDirsList = [] #declared here to keep relevant in memory
 	dirs = getDepDirs(context, filepath, depDirsList) #type:ignore
 
-	err = stucLib.stucBlenderMapFileLoad(
+	err = stucLib.stucBlenderMapLoad(
 		filepath.encode('utf-8'),
 		name.encode('utf-8'),
 		ctypes.c_double(timestamp),
 		ctypes.pointer(dirs),
-		getMapInDirs,
-		storeMap,
-		dirty
+		getDepInDirs,
+		storeMap
 	)
 	if err != 1:
 		return err
 	
 	context.scene.stucMapsIdx = context.scene.stucMaps.find(name) #type:ignore
 	return err
-
-def isMapDirty(timestamp: float, map: props.StucMap) -> bool:
-	if not map or map.status != 1: #status != LOADED
-		return True
-	#print(f"timestamp {timestamp}, map-timestamp {float(map.timestamp)}")
-	if timestamp != float(map.timestamp):
-		return True
-	for dep in map.deps: #type:ignore
-		if dep.map and dep.map.age > map.age:
-			return True
-	return False
 
 class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 	bl_idname = "stuc.load_stuc_file"

@@ -141,6 +141,10 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 	
 	compress : bpy.props.BoolProperty(name = "Compress", default = True) #type:ignore
 
+	@classmethod
+	def poll(cls, context: bpy.types.Context) -> bool:
+		return len(context.selected_objects)#type:ignore
+
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			if (len(context.selected_objects) == 0):
@@ -544,7 +548,10 @@ class STUC_OT_StucSceneExport(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
-		return bpy.data.is_saved and len(context.selected_objects)#type:ignore
+		targetsLen = len(context.scene.stucTargets)#type:ignore
+		matsLen = len(context.scene.stucMats)#type:ignore
+		mapsLen = len(context.scene.stucMaps)#type:ignore
+		return bpy.data.is_saved and targetsLen and matsLen and mapsLen#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:

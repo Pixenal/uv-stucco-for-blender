@@ -158,9 +158,10 @@ if not bpy.app.background:
 			frame += 1
 			col = sceneCache.getCacheIfVisible(bpy.context)
 			matCache = dict[str, draw.MatCacheEntry]()
-			for target in bpy.context.scene.stucTargets: #type:ignore
-				if not target.obj:
-					continue		
+			for i, target in enumerate(bpy.context.scene.stucTargets): #type:ignore
+				if not target.obj or\
+				   not bpy.context.view_layer.objects.get(target.obj.name, None):
+					continue
 				if col and sceneCache.getTargetInCacheIfVisible(col, target):
 					continue
 				#cProfile.runctx('drawTarget(target)', globals(), locals())

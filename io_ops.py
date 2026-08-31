@@ -23,6 +23,8 @@ from . import attrib_utils as attribUtils
 from . import scene_cache as sceneCache
 from . import client
 
+mapIdNext: int = 0
+
 class CutoffTable():
 	def __init__(self):
 		self.dict = {}
@@ -278,11 +280,13 @@ def getDepInDirs(
 		if dep:
 			if dep.timestamp == "":
 				#should only occur if dep.map has been set by user since last load
-				status = StatusEnum.DIRTY_DEP
+				status = StatusEnum.DIRTY_MAP
 			depName = dep.map
 	depMap = bpy.context.scene.stucMaps.get(depName, None)#type:ignore
 	if depMap:
-		if status != StatusEnum.DIRTY_DEP and dep and dep.timestamp != depMap.timestamp:
+		if status != StatusEnum.DIRTY_MAP and\
+		   dep and\
+		   (dep.timestamp != depMap.timestamp or dep.id != depMap.id):
 			#dep map has changed since last load
 			status = StatusEnum.DIRTY_MAP
 		pathAsStr = os.path.join(bpy.path.abspath(depMap.dir), depMap.name)
@@ -291,7 +295,7 @@ def getDepInDirs(
 			if float(depMap.timestamp) != fileTimestamp:
 				status = StatusEnum.DIRTY_DEP#dep map is not up to date with file
 			elif status == StatusEnum.NONE:
-				return StatusEnum.CLEAN.value
+				status = StatusEnum.CLEAN
 			utils.copyString(path, pathAsStr, 32768)#TODO replace magic number
 			timestamp.contents.value = fileTimestamp
 			return status.value
@@ -341,15 +345,20 @@ def addOrUpdateMap(
 	map.dir = os.path.dirname(path)
 	map.timestamp = str(timestamp)
 	map.status = str(status)
-	map.age = context.scene.stucAgeNext #type:ignore
-	context.scene.stucAgeNext += 1 #type:ignore
+	global mapIdNext
+	map.id = mapIdNext
+	mapIdNext += 1 #type:ignore
 
 	i = 0
 	while i < deps.contents.count:
 		entry = map.deps.add()
 		entry.name = deps.contents.pArr[i].contents.pNameInFile.decode('utf-8')
 		entry.map = deps.contents.pArr[i].contents.pName.decode('utf-8')
-		entry.timestamp = str(float(deps.contents.pArr[i].contents.timestamp))
+		depMap = context.scene.stucMaps.get(entry.map, None)#type:ignore
+		if not depMap:
+					raise Exception()
+		entry.timestamp = depMap.timestamp
+		entry.id = depMap.id
 		i += 1
 
 	map.attribs.clear() #type:ignore
@@ -427,47 +436,21 @@ def getDepDirs(
 		dirs.count += 1
 	return dirs
 
-'''
-def isMapDirty(context: bpy.types.Context, timestamp: float, map: props.StucMap) -> bool:
-	if not map or map.status != '1': #status != LOADED
-		return True
-	#print(f"timestamp {timestamp}, map-timestamp {float(map.timestamp)}")
-	if timestamp != float(map.timestamp):
-		return True
-	for dep in map.deps: #type:ignore
-		print(f"dep name is {dep.name}")
-		depMap = context.scene.stucMaps.get(dep.name, None)#type:ignore
-		print(f"depMap is {depMap}, depmap age is {depMap.age}, map age is {map.age}")
-		
-		if not depMap or depMap.age > map.age:
-			return True
-	return False
-'''
-
 def loadMap(
 	context: bpy.types.Context,
 	filepath: str,
 	name: str
 ) -> int:
-	err = 1
-	timestamp = os.path.getmtime(filepath) #type:ignore
-	map = context.scene.stucMaps.get(name, None) #type:ignore
-	#dirty = isMapDirty(context, timestamp, map)
 	depDirsList = [] #declared here to keep relevant in memory
 	dirs = getDepDirs(context, filepath, depDirsList) #type:ignore
-
 	err = stucLib.stucBlenderMapLoad(
-		filepath.encode('utf-8'),
 		name.encode('utf-8'),
-		ctypes.c_double(timestamp),
 		ctypes.pointer(dirs),
 		getDepInDirs,
 		storeMap
 	)
 	if err != 1:
 		return err
-	
-	context.scene.stucMapsIdx = context.scene.stucMaps.find(name) #type:ignore
 	return err
 
 class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
@@ -485,6 +468,8 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 			err = loadMap(context, self.filepath, name) #type:ignore
 			if err != 1:
 				raise Exception("error loading map")
+			context.scene.stucMapsIdx = context.scene.stucMaps.find(name) #type:ignore
+			bpy.ops.stuc.reload_stuc_file()#type:ignore
 		except Exception as e:
 			self.report({'ERROR'}, "Load failed")
 			raise e

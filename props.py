@@ -122,16 +122,13 @@ def logEnabledUpdate(self, context: bpy.types.Context) -> None:
 	stucLib.stucBlenderLogEnableSet(self.logEnabled)
 
 def mapDepNameUpdate(self, context: bpy.types.Context) -> None:
-	print("dep name updated")
 	self.timestamp = ""
 	self.map = self.name
 
 def mapDepUpdate(self, context: bpy.types.Context) -> None:
 	if self.timestamp != "":
-		print("dep map updated, setting timestamp to '' & reloading maps")
 		self.timestamp = ""
 		bpy.ops.stuc.reload_stuc_file()#type:ignore
-	print("dep map updated, doing nothing")
 
 class StucAttribMirror(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()#type:ignore
@@ -150,12 +147,13 @@ class StucMap(bpy.types.PropertyGroup):
 		('2', "Error", ""),
 		('3', "Missing Dep", "")
 	])
-	age : bpy.props.IntProperty()#type:ignore
+	id : bpy.props.IntProperty()#type:ignore
 
 class StucDep(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty(update = mapDepNameUpdate)#type:ignore
 	map : bpy.props.StringProperty(update = mapDepUpdate)#type:ignore
 	timestamp : bpy.props.StringProperty()#type:ignore
+	id : bpy.props.IntProperty()#type:ignore
 
 class StucTarget(bpy.types.PropertyGroup):
 	obj : bpy.props.PointerProperty(#type:ignore
@@ -272,7 +270,6 @@ def register() -> None:
 	bpy.types.Scene.stucMatToRm = bpy.props.PointerProperty(type = StucMat)#type:ignore
 	bpy.types.Scene.stucDepDirs = bpy.props.CollectionProperty(name = "Dep Dirs", type = StucPath)#type:ignore
 	bpy.types.Scene.stucDepDirsIdx = bpy.props.IntProperty(name = "Dep Dirs Index")#type:ignore
-	bpy.types.Scene.stucAgeNext = bpy.props.IntProperty()#type:ignore
 	StucCommonAttribTableEntry.mesh = bpy.props.CollectionProperty(type = StucCommonAttrib)#type:ignore
 	StucCommonAttribTableEntry.faces = bpy.props.CollectionProperty(type = StucCommonAttrib)#type:ignore
 	StucCommonAttribTableEntry.corners = bpy.props.CollectionProperty(type = StucCommonAttrib)#type:ignore

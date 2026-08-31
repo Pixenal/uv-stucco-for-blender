@@ -38,13 +38,13 @@ def stucLoadPostHandler(dummy) -> None:
 		if err != 1:
 			raise Exception("failed to init stuc for blender")
 		
-		bpy.context.scene.stucAgeNext = 0 #type:ignore
 		for map in bpy.context.scene.stucMaps: #type:ignore
 			map.timestamp = ".0"
-			map.age = 0
+			map.id = 0
 			map.status = '0'
 			for dep in map.deps:
 				dep.timestamp = ""
+				dep.id = 0
 				if dep.map == "":
 					dep.map = dep.name
 		bpy.context.scene.stucTargetIdNext = 0 #type:ignore

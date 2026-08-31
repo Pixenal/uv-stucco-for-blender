@@ -88,9 +88,7 @@ PixErr stucBlenderMapLoadForEdit(
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapLoad(
-	const char *pFilepath,
 	const char *pName,
-	double timestamp,
 	PixtyStrArr *pDepDirs,
 	int32_t (* fpGetMapPath)(
 		const char *,

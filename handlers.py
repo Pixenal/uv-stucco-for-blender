@@ -48,6 +48,7 @@ def stucLoadPostHandler(dummy) -> None:
 				if dep.map == "":
 					dep.map = dep.name
 		bpy.context.scene.stucTargetIdNext = 0 #type:ignore
+		props.relPathsUpdate(bpy.context.scene.stuc, bpy.context)#type:ignore
 		for target in bpy.context.scene.stucTargets: #type:ignore
 			target.id = bpy.context.scene.stucTargetIdNext #type:ignore
 			bpy.context.scene.stucTargetIdNext += 1 #type:ignore
@@ -82,11 +83,7 @@ def stucSavePreHandler(dummy) -> None:
 def stucSavePostHandler(dummy) -> None:
 	try:
 		sceneCache.correctCacheLib()
-		if not len(bpy.data.filepath) or not bpy.context.scene.stuc.relPaths: #type:ignore
-			#this shouldn't be possible right?
-			return
-		for map in bpy.context.scene.stucMaps: #type:ignore
-			map.dir = bpy.path.relpath(map.dir)
+		props.relPathsUpdate(bpy.context.scene.stuc, bpy.context)#type:ignore
 	except Exception as e:
 		raise e
 

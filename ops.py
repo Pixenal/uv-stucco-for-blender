@@ -90,10 +90,12 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 	bl_label = "STUC Assign"
 	bl_options = {'REGISTER'}
 
+	@classmethod
+	def poll(cls, context) -> bool:
+		return len(context.selected_objects)#type:ignore
+
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			if len(context.selected_objects) == 0:
-				return {'CANCELLED'}
 			for obj in context.selected_objects:
 				if type(obj.data) != bpy.types.Mesh:
 					continue
@@ -136,11 +138,13 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 	bl_label = "STUC Remove"
 	bl_options = {"REGISTER"}
 
+	@classmethod
+	def poll(cls, context) -> bool:
+		return context.scene.stucTargetsIdx < len(context.scene.stucTargets)#type:ignore
+
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			scene = context.scene
-			if scene.stucTargetsIdx >= len(scene.stucTargets): #type:ignore
-				return {'CANCELLED'}
 			target: props.StucTarget = scene.stucTargets[scene.stucTargetsIdx] #type:ignore
 			stucLib.stucBlenderTargetCacheRemove(target.id)
 			if target.obj:
@@ -176,6 +180,10 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 
 	itemIdx : bpy.props.IntProperty() #type:ignore
 
+	@classmethod
+	def poll(cls, context) -> bool:
+		return context.scene.stucMatsIdx < len(context.scene.stucMats)#type:ignore
+
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			context.scene.stucMats.remove(self.itemIdx) #type:ignore
@@ -191,6 +199,10 @@ class STUC_OT_StucMapRemove(bpy.types.Operator):
 
 	itemIdx : bpy.props.IntProperty() #type:ignore
 
+	@classmethod
+	def poll(cls, context) -> bool:
+		return context.scene.stucMapsIdx < len(context.scene.stucMaps)#type:ignore
+
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			if self.itemIdx >= len(context.scene.stucMaps): #type:ignore
@@ -204,7 +216,7 @@ class STUC_OT_StucMapRemove(bpy.types.Operator):
 			self.report({'ERROR'}, "Failed to unload map")
 			raise e
 		return {'FINISHED'}
-	
+
 class STUC_OT_StucReloadTextures(bpy.types.Operator):
 	bl_idname = "stuc.stuc_reload_textures"
 	bl_label = "Stuc Reload Textures"
@@ -214,7 +226,7 @@ class STUC_OT_StucReloadTextures(bpy.types.Operator):
 		if not bpy.app.background:
 			draw.reloadCoreTextures()
 		return {'FINISHED'}
-	
+
 class STUC_OT_StucForceUpdateTargets(bpy.types.Operator):
 	bl_idname = "stuc.stuc_force_update_targets"
 	bl_label = "Force Update Targets"

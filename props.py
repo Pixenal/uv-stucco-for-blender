@@ -20,10 +20,10 @@ def drawCacheSizeUpdate(self, context: bpy.types.Context) -> None:
 	global drawCacheMaxVerts
 	drawCacheMaxVerts = self.drawCacheMaxVerts
 
-def stucMapDirUpdate(self, context: bpy.types.Context) -> None:
-	dir = utils.makeRel(context, self.dir)
+def stucDirUpdate(self, context: bpy.types.Context) -> None:
+	dir = utils.makeRel(context, self.name)
 	if dir:
-		self.dir = dir
+		self.name = dir
 
 def isMatReleventToStuc(context: bpy.types.Context, mat: bpy.types.Material) -> bool:
 	matMap = context.scene.stucMats.get(mat.name, None) #type:ignore
@@ -105,16 +105,16 @@ def stucMatUpdate(self, context: bpy.types.Context) -> None:
 		self.name = ""
 
 def relPathsUpdate(self, context: bpy.types.Context) -> None:
-	if not bpy.data.filepath:
+	if not len(bpy.data.filepath):
 		return
 	for map in context.scene.stucMaps:#type:ignore
 		if self.relPaths:
-			map.dir = map.dir #update func will make relative
+			map.dir.name = map.dir.name #update func will make relative
 		else:
-			map.dir = bpy.path.abspath(map.dir)
+			map.dir.name = bpy.path.abspath(map.dir.name)
 	for dir in context.scene.stucDepDirs:#type:ignore
 		if self.relPaths:
-			dir.name = bpy.path.relpath(dir.name)
+			dir.name = dir.name #update func will make relative
 		else:
 			dir.name = bpy.path.abspath(dir.name)
 
@@ -134,9 +134,11 @@ class StucAttribMirror(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()#type:ignore
 	use : bpy.props.IntProperty()#type:ignore
 
+class StucPath(bpy.types.PropertyGroup):
+	name : bpy.props.StringProperty(subtype = 'DIR_PATH', update = stucDirUpdate)#type:ignore
+
 class StucMap(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()#type:ignore
-	dir : bpy.props.StringProperty(subtype = 'DIR_PATH', update = stucMapDirUpdate)#type:ignore
 	#storing as a string, value too large for Int or Float prop
 	timestamp : bpy.props.StringProperty()#type:ignore
 	activeAttribIdx : bpy.props.IntProperty()#type:ignore
@@ -233,9 +235,6 @@ class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
 	mat : bpy.props.PointerProperty(type = bpy.types.Material)#type:ignore
 	map : bpy.props.StringProperty()#type:ignore
 
-class StucPath(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty(subtype = 'DIR_PATH')#type:ignore
-
 classes = [
 	StucProperties,
 	StucTarget,
@@ -280,6 +279,7 @@ def register() -> None:
 	StucMap.activeAttribs = bpy.props.CollectionProperty(type = StucMapActiveAttrib)#type:ignore
 	StucMap.attribs = bpy.props.CollectionProperty(type = StucAttribMirror)#type:ignore
 	StucMap.deps = bpy.props.CollectionProperty(type = StucDep)#type:ignore
+	StucMap.dir = bpy.props.PointerProperty(type = StucPath)#type:ignore
 
 #TODO don't you need to delete the other props as well?
 def unregister() -> None:

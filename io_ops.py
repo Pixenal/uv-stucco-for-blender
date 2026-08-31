@@ -283,13 +283,13 @@ def getDepInDirs(
 				status = StatusEnum.DIRTY_MAP
 			depName = dep.map
 	depMap = bpy.context.scene.stucMaps.get(depName, None)#type:ignore
-	if depMap:
+	if depMap and len(depMap.dir.name):
 		if status != StatusEnum.DIRTY_MAP and\
 		   dep and\
 		   (dep.timestamp != depMap.timestamp or dep.id != depMap.id):
 			#dep map has changed since last load
 			status = StatusEnum.DIRTY_MAP
-		pathAsStr = os.path.join(bpy.path.abspath(depMap.dir), depMap.name)
+		pathAsStr = os.path.join(bpy.path.abspath(depMap.dir.name), depMap.name)
 		if os.path.exists(pathAsStr):
 			fileTimestamp = os.path.getmtime(pathAsStr)
 			if float(depMap.timestamp) != fileTimestamp:
@@ -303,7 +303,8 @@ def getDepInDirs(
 	dirArr = dirArrPtr.contents
 	i = 0
 	while i < dirArr.count:
-		for root, dirs, files in os.walk(dirArr.pArr[i].decode('utf-8')):
+		absDir = bpy.path.abspath(dirArr.pArr[i].decode('utf-8'))
+		for root, dirs, files in os.walk(absDir):
 			for name in files:
 				if name != depName:
 					continue
@@ -342,7 +343,7 @@ def addOrUpdateMap(
 		map = context.scene.stucMaps.add() #type:ignore
 		map.name = name
 	context.scene.stucMapsIdx = context.scene.stucMaps.find(name) #type:ignore
-	map.dir = os.path.dirname(path)
+	map.dir.name = os.path.dirname(path)
 	map.timestamp = str(timestamp)
 	map.status = str(status)
 	global mapIdNext
@@ -482,13 +483,13 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context) -> bool:
-		return len(context.scene.stucMaps) > 0 #type:ignore
+		return len(context.scene.stucMaps) #type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
 			err = 1
 			for map in context.scene.stucMaps: #type:ignore
-				filepath = os.path.join(bpy.path.abspath(map.dir), map.name)
+				filepath = os.path.join(bpy.path.abspath(map.dir.name), map.name)
 				if loadMap(context, filepath, map.name) != 1:
 					err = 2
 			if err != 1:
@@ -508,11 +509,10 @@ class STUC_OT_StucExtraDepDirAdd(bpy.types.Operator, ImportHelper):
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			dir = utils.makeRel(context, self.directory)
-			entry = context.scene.stucDepDirs.get(dir, None) #type:ignore
+			entry = context.scene.stucDepDirs.get(self.directory, None) #type:ignore
 			if not entry:
 				entry = context.scene.stucDepDirs.add() #type:ignore
-				entry.name = dir
+				entry.name = self.directory
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to add dependency dir")
 			raise e
@@ -524,6 +524,10 @@ class STUC_OT_StucExtraDepDirRemove(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	itemIdx : bpy.props.IntProperty() #type:ignore
+
+	@classmethod
+	def poll(cls, context) -> bool:
+		return context.scene.stucDepDirsIdx < len(context.scene.stucDepDirs)#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
@@ -540,7 +544,7 @@ class STUC_OT_StucSceneExport(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
-		return bpy.data.is_saved
+		return bpy.data.is_saved and len(context.selected_objects)#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:

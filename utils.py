@@ -94,7 +94,8 @@ def initActiveAttrib(
 
 def makeRel(context: bpy.types.Context, dir: str) -> str | None:
 	if len(bpy.data.filepath) and context.scene.stuc.relPaths: #type:ignore
-		relDir = bpy.path.relpath(dir)
-		if dir != relDir:
-			return relDir
+		if len(dir) and dir[0] == bpy.data.filepath[0]:
+			relDir = bpy.path.relpath(dir)
+			if dir != relDir:
+				return relDir
 	return None

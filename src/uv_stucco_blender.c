@@ -555,11 +555,13 @@ PixErr mapGet(
 		pState->pathBuf.pStr,
 		pTimestamp
 	);
-	const char *pName = pState->pathBuf.pStr[0] ?
+	const char *pName = pState->pathBuf.pStr && pState->pathBuf.pStr[0] ?
 		stucNameFromPath(pState->pathBuf.pStr, NULL, NULL) : NULL;
 	MapEntry *pEntry = NULL;
-	err = mapEntryGet(pName, &pEntry, NULL);
-	PIX_ERR_RETURN_IFNOT(err, "");
+	if (pName) {
+		err = mapEntryGet(pName, &pEntry, NULL);
+		PIX_ERR_RETURN_IFNOT(err, "");
+	}
 	PIX_ERR_ASSERT(
 		"map exists on python side but not in c map-table?",
 		pEntry || status == DEP_STATUS_FILE_NOT_FOUND || status == DEP_STATUS_DIRTY_DEP

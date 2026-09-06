@@ -71,6 +71,14 @@ def stucLoadPreHandler(dummy) -> None:
 
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:
+	#update mat-map pair names (if blend mat name has changed)
+	#this can't be caught in prop update callback, so is done here instead
+	for stucMat in bpy.context.scene.stucMats:#type:ignore
+		if stucMat.mat:
+			stucMat.name = stucMat.mat.name
+		elif len(stucMat.name):
+			raise Exception("'mat' in mat-map pair empty but entry name wasn't updated?")
+
 	utils.updateUiTargetIdx(bpy.context)
 	mapping.mapToTargetsInScene(bpy.context)
 

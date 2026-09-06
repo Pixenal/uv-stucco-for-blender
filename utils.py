@@ -46,6 +46,8 @@ def findMatInCol(
 	mat: bpy.types.Material,
 	col: Any
 ) -> int | None:
+	if not mat:
+		return None
 	i = 0
 	for item in col:
 		if item.mat and item.mat.name == mat.name:
@@ -67,9 +69,9 @@ def findObjInCol(
 def getMatsInStucMats(context: bpy.types.Context, mesh: bpy.types.Mesh) -> list[Any]:
 	targetMats = []
 	for mat in mesh.materials:
-		idx = findMatInCol(mat, cast(Any, context.scene).stucMats)
-		if idx != None:
-			targetMats.append(cast(Any, context.scene).stucMats[idx])
+		stucMat = context.scene.stucMats.get(mat.name, None)#type:ignore
+		if stucMat != None:
+			targetMats.append(stucMat)
 	return targetMats
 
 def updateUiTargetIdx(context: bpy.types.Context) -> int | None:

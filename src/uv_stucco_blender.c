@@ -103,7 +103,11 @@ void clearMapEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pK
 }
 
 static
-void clearTargetEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void *pKeyData) {
+void clearTargetEntry(
+	void *pUserData,
+	PixuctHTableEntryCore *pCore,
+	const void *pKeyData
+) {
 	TargetEntry *pEntry = (TargetEntry *)pCore;
 	PixErr err = PIX_ERR_SUCCESS;
 	if (pEntry->type != MESH_CACHE_NONE) {
@@ -111,8 +115,8 @@ void clearTargetEntry(void *pUserData, PixuctHTableEntryCore *pCore, const void 
 			err = stucMeshDestroy(&stucCtx, &pEntry->mesh);
 		}
 		if (pEntry->idxAttribs.pArr) {
-			err = PIX_ERR_SUCCESS == stucAttribIndexedArrDestroy(&stucCtx, &pEntry->idxAttribs) ?
-				err : PIX_ERR_ERROR;
+			PixErr errTmp = stucAttribIndexedArrDestroy(&stucCtx, &pEntry->idxAttribs);
+			err = err == PIX_ERR_SUCCESS ? errTmp : err;
 		}
 	}
 	*(PixErr *)pUserData = err;
@@ -1057,7 +1061,7 @@ PixErr stucBlenderTargetCacheClear(I32 id) {
 static
 void copyCorners(const StucMesh *pMesh, PixtyI32Arr *pCorners, I32 start, I32 toCpy) {
 	I32 newCount = pCorners->count + toCpy;
-	PIXALC_DYN_ARR_RESIZE(I32, &allocPtrs, pCorners, newCount);
+	PIXALC_DYN_ARR_RESIZE(&allocPtrs, pCorners, newCount);
 	memcpy(
 		pCorners->pArr + pCorners->count,
 		pMesh->pCorners + start,
@@ -1092,10 +1096,7 @@ PixErr stucBlenderCornersForMat(StucMesh *pMesh, I32 mat, PixtyI32Arr *pCorners)
 		copyCorners(pMesh, pCorners, start, pMesh->cornerCount - start);
 	}
 	PIX_ERR_CATCH(0, err,
-		if (pCorners->pArr) {
-			free(pCorners->pArr);
-			*pCorners = (PixtyI32Arr){0};
-		}
+		PIXALC_DYN_ARR_DESTROY(&allocPtrs, pCorners);
 	);
 	return err;
 }

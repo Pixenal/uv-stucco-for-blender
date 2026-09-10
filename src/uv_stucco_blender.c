@@ -3,6 +3,8 @@ SPDX-FileCopyrightText: 2025 Caleb Dawson
 SPDX-License-Identifier: GPL-3.0-only
 */
 
+//once report/ warning is implemented, warn about error during destroy funcs
+
 #define HANDLE_TABLE_SIZE 64
 
 #include <string.h>
@@ -928,16 +930,15 @@ PixErr stucBlenderWaitForJobs(
 	return err;
 }
 
-void stucBlenderDestroy() {
-	//TODO errors are unused here.
-	//once report/ warning is implemented, warn about error during destroy funcs
+PixErr stucBlenderDestroy() {
+	PixErr err = PIX_ERR_SUCCESS;
 	if (mapTable.pTable) {
 		PixalcLinAllocIter iter = {0};
 		PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&mapTable, 0);
 		pixalcLinAllocIterInit(pAlloc, (PixtyRange){.start = 0, .end = INT32_MAX}, &iter);
 		for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
-			PixErr err = PIX_ERR_SUCCESS;
 			clearMapEntry(&err, pixalcLinAllocGetItem(&iter), NULL);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
 		pixuctHTableDestroy(&mapTable);
 	}
@@ -946,13 +947,15 @@ void stucBlenderDestroy() {
 		PixalcLinAlloc *pAlloc = pixuctHTableAllocGet(&targetCache, 0);
 		pixalcLinAllocIterInit(pAlloc, (PixtyRange){.start = 0, .end = INT32_MAX}, &iter);
 		for (; !pixalcLinAllocIterAtEnd(&iter); pixalcLinAllocIterInc(&iter)) {
-			PixErr err = PIX_ERR_SUCCESS;
 			clearTargetEntry(&err, pixalcLinAllocGetItem(&iter), NULL);
+			PIX_ERR_THROW_IFNOT(err, "", 0);
 		}
 		pixuctHTableDestroy(&targetCache);
 	}
-	stucContextDestroy(&stucCtx);
-	return;
+	PIX_ERR_CATCH(0, err, ;);
+	err = stucCtxDestroy(&stucCtx);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
 }
 
 void stucBlenderCallFree(void *pData) {

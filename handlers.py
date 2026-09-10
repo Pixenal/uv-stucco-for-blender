@@ -66,8 +66,10 @@ def stucLoadPostHandler(dummy) -> None:
 
 @persistent
 def stucLoadPreHandler(dummy) -> None:
-	stucLib.stucBlenderDestroy()
 	bpy.context.scene.stucMaps.clear() #type:ignore
+	err = stuc.c_lib.stucLib.stucBlenderDestroy()
+	if err != 1:
+		raise Exception("failed to destroy uv-stucco context")
 
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:

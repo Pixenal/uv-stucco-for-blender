@@ -161,7 +161,7 @@ PixErr stucBlenderWaitForJobs(
 	bool *pDone
 );
 STUC_BLENDER_EXPORT
-void stucBlenderDestroy();
+PixErr stucBlenderDestroy();
 STUC_BLENDER_EXPORT
 void stucBlenderCallFree(void *pData);
 STUC_BLENDER_EXPORT

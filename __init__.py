@@ -31,7 +31,7 @@ else:
 	from . import ui
 
 def register() -> None:
-	print("Registering UvStuccoB")
+	print("Registering UV Stucco")
 	stuc.stucStructVerify()
 	props.register()
 	ops.register()
@@ -40,11 +40,13 @@ def register() -> None:
 	ui.register()
 
 def unregister() -> None:
-	print("Unregistering UvStuccoB")
-	stuc.c_lib.stucLib.stucBlenderDestroy()
+	print("Unregistering UV Stucco")
 	props.unregister()
 	ops.unregister()
 	io_ops.unregister()
 	handlers.unregister()
 	ui.unregister()
+	err = stuc.c_lib.stucLib.stucBlenderDestroy()
+	if err != 1:
+		raise Exception("failed to destroy uv-stucco context")
 

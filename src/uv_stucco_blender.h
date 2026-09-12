@@ -193,7 +193,7 @@ PixErr stucBlenderCrcFromTarget(
 	uint64_t *pCrc
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderTargetCrc(int32_t id, uint64_t *pCrc);
+PixErr stucBlenderTargetCrc(int32_t id, TargetCacheType type, uint64_t *pCrc);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderTargetCacheGet(
 	int32_t id,

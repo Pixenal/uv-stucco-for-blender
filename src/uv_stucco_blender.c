@@ -154,7 +154,9 @@ bool cmpTarget(
 	const void *pKeyData,
 	const void *pInitInfo
 ) {
-	return *(I32 *)pKeyData == ((TargetEntry *)pCore)->id;
+	bool entryIsEdit = (((TargetEntry *)pCore)->type == MESH_CACHE_IN_EDIT);
+	I32 key = *(I32 *)pKeyData;
+	return key >> 1 == ((TargetEntry *)pCore)->id && (key & 0x1) == entryIsEdit;
 }
 
 static
@@ -178,13 +180,13 @@ void initTargetEntry(
 ) {
 	void **ppInitArr = pInitInfo;
 	TargetEntry *pEntry = (TargetEntry *)pCore;
-	pEntry->id = *(I32 *)pKeyData;
-	pEntry->timestamp = *(double *)ppInitArr[0];
+	pEntry->id = *(I32 *)pKeyData >> 1;
+	pEntry->timestamp = *(double *)ppInitArr[0];//TODO replace these with an init struct
 	pEntry->mesh = *(StucMesh *)ppInitArr[1];
 	pEntry->type = *(TargetCacheType *)ppInitArr[3];
-	pEntry->crc = *(U64 *)ppInitArr[4];//TODO replace these with an init struct
+	pEntry->crc = *(U64 *)ppInitArr[4];
 	if (pEntry->type == MESH_CACHE_OUT) {
-		PIX_ERR_ASSERT("", ppInitArr[1]);
+		PIX_ERR_ASSERT("", ppInitArr[2]);
 		pEntry->idxAttribs = *(StucAttribIndexedArr *)ppInitArr[2];
 	}
 }
@@ -216,6 +218,12 @@ PixErr mapEntryGet(const char *pName, MapEntry **ppEntry, struct StucMap *pMap) 
 }
 
 static
+I32 targetCacheKey(I32 id, TargetCacheType type) {
+	bool isEdit = type == MESH_CACHE_IN_EDIT;
+	return id << 1 | isEdit;
+}
+
+static
 PixErr targetEntryGet(
 	I32 id,
 	F64 *pTimestamp,
@@ -229,11 +237,13 @@ PixErr targetEntryGet(
 	PIX_ERR_RETURN_IFNOT_COND(err, !(!pMesh ^ !pIdxAttribs) || type != MESH_CACHE_OUT, "");
 	//TODO maybe don't do this? make an init struct
 	void *init[] = {pTimestamp, pMesh, pIdxAttribs, &type, &crc};
+	I32 key = targetCacheKey(id, type);
+	TargetEntry *pEntry = NULL;
 	SearchResult result = pixuctHTableGet(
 		&targetCache,
 		0,
-		&id,
-		(void **)ppEntry,
+		&key,
+		&pEntry,
 		!!pMesh,
 		init,
 		NULL,
@@ -243,30 +253,32 @@ PixErr targetEntryGet(
 		cmpTarget
 	);
 	PIX_ERR_RETURN_IFNOT_COND(err, tableErr == PIX_ERR_SUCCESS, "");
-	if (result == PIX_SEARCH_FOUND) {
-		//update entry
-		PIX_ERR_ASSERT("", *ppEntry);
-		if (pMesh) {
-			if ((*ppEntry)->mesh.faceCount) {
-				err = stucMeshDestroy(&stucCtx, &(*ppEntry)->mesh);
-				PIX_ERR_RETURN_IFNOT(err, "");
-			}
-			PIX_ERR_ASSERT("", type != MESH_CACHE_NONE);
-			(*ppEntry)->type = type;
-			(*ppEntry)->mesh = *pMesh;
-			(*ppEntry)->crc = crc;
+	*ppEntry = pEntry;
+	if (result != PIX_SEARCH_FOUND) {
+		return err;
+	}
+	//update entry
+	PIX_ERR_ASSERT("", pEntry);
+	if (pMesh) {
+		if (pEntry->mesh.faceCount) {
+			err = stucMeshDestroy(&stucCtx, &pEntry->mesh);
+			PIX_ERR_RETURN_IFNOT(err, "");
 		}
-		if (pIdxAttribs) {
-			if ((*ppEntry)->idxAttribs.count) {
-				err = stucAttribIndexedArrDestroy(&stucCtx, &(*ppEntry)->idxAttribs);
-				PIX_ERR_RETURN_IFNOT(err, "");
-			}
-			(*ppEntry)->idxAttribs = *pIdxAttribs;
+		PIX_ERR_ASSERT("", type != MESH_CACHE_NONE);
+		pEntry->type = type;
+		pEntry->mesh = *pMesh;
+		pEntry->crc = crc;
+	}
+	if (pIdxAttribs) {
+		if (pEntry->idxAttribs.count) {
+			err = stucAttribIndexedArrDestroy(&stucCtx, &pEntry->idxAttribs);
+			PIX_ERR_RETURN_IFNOT(err, "");
 		}
-		if (pTimestamp) {
-			(*ppEntry)->timestamp = *pTimestamp;
-		}
-	}	
+		pEntry->idxAttribs = *pIdxAttribs;
+	}
+	if (pTimestamp) {
+		pEntry->timestamp = *pTimestamp;
+	}
 	return err;
 }
 
@@ -359,13 +371,14 @@ PixErr stucBlenderCrcFromTarget(
 	return err;
 }
 
-PixErr stucBlenderTargetCrc(I32 id, U64 *pCrc) {
+PixErr stucBlenderTargetCrc(I32 id, TargetCacheType type, U64 *pCrc) {
 	PixErr err = PIX_ERR_SUCCESS;
 	TargetEntry *pEntry = NULL;
+	I32 key = targetCacheKey(id, type);
 	SearchResult result = pixuctHTableGet(
 		&targetCache,
 		0,
-		&id,
+		&key,
 		(void **)&pEntry,
 		false,
 		NULL,
@@ -1026,7 +1039,7 @@ PixErr stucBlenderTargetCacheGet(
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(err, ppMesh || ppIdxAttribs, "");
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE, 0u);
+	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, *pType, 0u);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->type != MESH_CACHE_NONE) {
 		PIX_ERR_ASSERT("", pEntry->mesh.faceCount);

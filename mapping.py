@@ -186,7 +186,10 @@ def isTargetCrcEqual(
 	crcOut: ctypes.c_uint64
 ) -> bool:
 	crc = ctypes.c_uint64(0)
-	err = stucLib.stucBlenderTargetCrc(target.id, ctypes.pointer(crc))
+	type =\
+		stuc.MeshCacheType.MESH_CACHE_IN_EDIT if info.editMode else\
+		stuc.MeshCacheType.MESH_CACHE_OUT
+	err = stucLib.stucBlenderTargetCrc(target.id, type.value, ctypes.pointer(crc))
 	if err != 3:#doesn't equal PIX_ERR_QUIET (QUIET is returned if target isn't in cache)
 		if err != 1:
 			raise Exception("error getting cached target crc")
@@ -203,6 +206,7 @@ def isTargetCrcEqual(
 			target.dirty = False
 		elif newCrc.value == crc.value:
 			#print(f"skipping target {target.obj.name}")
+			crcOut.value = crc.value
 			return True #assume mesh is unchanged, cancel mapping this target
 		crc = newCrc
 	crcOut.value = crc.value

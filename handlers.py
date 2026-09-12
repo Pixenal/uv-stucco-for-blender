@@ -103,13 +103,16 @@ def getTargetMesh(
 	timestamp = ctypes.c_double()
 	mesh = ctypes.POINTER(stuc.StucMesh)()
 	idxAttribs = ctypes.POINTER(stuc.StucAttribIndexedArr)()
-	cacheType = ctypes.c_int32()
+	type =\
+		stuc.MeshCacheType.MESH_CACHE_IN_EDIT if target.obj.mode == 'EDIT'\
+		else stuc.MeshCacheType.MESH_CACHE_NONE
+	cType = ctypes.c_int32(type.value)
 	err = stucLib.stucBlenderTargetCacheGet(
 		target.id,
 		ctypes.pointer(timestamp),
 		ctypes.pointer(mesh),
 		ctypes.pointer(idxAttribs),
-		ctypes.pointer(cacheType)
+		ctypes.pointer(cType)
 	)
 	if err != 1:
 		raise Exception("error getting target mesh")
@@ -118,7 +121,7 @@ def getTargetMesh(
 			timestamp.value,
 			mesh.contents,
 			idxAttribs.contents,
-			stuc.MeshCacheType(cacheType.value)
+			stuc.MeshCacheType(cType.value)
 		]
 	else:
 		return None

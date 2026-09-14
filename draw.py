@@ -25,6 +25,9 @@ from . import mesh_utils as meshUtils
 from . import c_lib
 stucLib = c_lib.stucLib
 from . import props
+from . import utils
+
+frame: int = 0
 
 class ShaderErr(Enum):
 	NONE = 0
@@ -36,11 +39,17 @@ class ShaderErr(Enum):
 
 class PreviewOffScreenArr():
 	class Item():
+		class Buf:
+			def __init__(self, name: str, res: int, format: str, colorSpace: str) -> None:
+				self.name = name
+				self.format = format
+				self.colorSpace = colorSpace
+				self.buf = gpu.types.GPUOffScreen(res, res, format = format)#type:ignore
 		def __init__(self) -> None:
-			res = 2048
-			self.albedo = gpu.types.GPUOffScreen(res, res, format = 'RGBA8') #type:ignore
-			self.normal = gpu.types.GPUOffScreen(res, res, format = 'RGBA16F') #type:ignore
-			self.hrm = gpu.types.GPUOffScreen(res, res, format = 'RGBA8') #type:ignore
+			self.res = 2048
+			self.albedo =  self.Buf("albedo", self.res, 'RGBA16F', 'sRGB')
+			self.normal = self.Buf("normal", self.res, 'RGBA16F', "Non-Color")
+			self.hrm = self.Buf("hrm", self.res, 'RGBA16F', "Non-Color")
 
 	def __init__(self) -> None:
 		self.arr = list[PreviewOffScreenArr.Item]()
@@ -728,16 +737,23 @@ def getStucCorners(
 
 def prevSinglePass(
 	key: str,
+	dir: str,
 	timestamp: float,
 	frame: int,
 	matCache: dict[str, MatCacheEntry],
 	mesh: stuc.StucMesh,
 	idxAttribs: stuc.StucAttribIndexedArr,
 	matParam: int,
-	offscreen: gpu.types.GPUOffScreen,
+	offscreen: PreviewOffScreenArr.Item.Buf,
 	zBounds: stuc.StucVec2 | None
-) -> None:
-	with offscreen.bind():
+) -> bpy.types.Image:
+	name = f"{key}_{offscreen.name}"
+	image = bpy.data.images.get(name, None)
+	if image and\
+	   image.size[0] == offscreen.buf.width and\
+	   image.size[1] == offscreen.buf.height:
+		return image
+	with offscreen.buf.bind():
 		framebuf = gpu.state.active_framebuffer_get() #type:ignore
 		framebuf.clear(color = (.0, .0, .0, .0), depth = (1.0))
 		scaleMatrix = mathutils.Matrix((
@@ -769,20 +785,68 @@ def prevSinglePass(
 			idxAttribs = idxAttribs,
 			zBounds = zBounds
 		)
+		#now update preview texture in blender data
+		width = offscreen.buf.width
+		height = offscreen.buf.height
+		buf = framebuf.read_color(0, 0, width, height, 4, 0, 'FLOAT')
+		if image:
+			bpy.data.images.remove(image)
+		image = bpy.data.images.new(name, width, height)
+		buf.dimensions = width * height * 4
+		image.colorspace_settings.name = offscreen.colorSpace#type:ignore
+		image.pixels.foreach_set(buf)#type:ignore
+		path = f"{bpy.path.abspath(dir)}/.preview_cache/{name}.png"
+		image.save(filepath = path)
+		return image
 
 def drawStucPreview(
 	name: str,
+	dir: str,
 	timestamp: float,
 	frame: int,
 	matCache: dict[str, MatCacheEntry],
 	mesh: stuc.StucMesh,
 	idxAttribs: stuc.StucAttribIndexedArr,
 	zBounds: stuc.StucVec2
-) -> None:
+) -> list[bpy.types.Image]:
 	offscreen = previewArr.get(-1)
-	prevSinglePass(name, timestamp, frame, matCache, mesh, idxAttribs, 0, offscreen.albedo, zBounds)
-	prevSinglePass(name, timestamp, frame, matCache, mesh, idxAttribs, 1, offscreen.normal, None)
-	prevSinglePass(name, timestamp, frame, matCache, mesh, idxAttribs, 2, offscreen.hrm, None)
+	albedo = prevSinglePass(
+		name,
+		dir,
+		timestamp,
+		frame,
+		matCache,
+		mesh,
+		idxAttribs,
+		0,
+		offscreen.albedo,
+		zBounds
+	)
+	normal = prevSinglePass(
+		name,
+		dir,
+		timestamp,
+		frame,
+		matCache,
+		mesh,
+		idxAttribs,
+		1,
+		offscreen.normal,
+		None
+	)
+	hrm = prevSinglePass(
+		name,
+		dir,
+		timestamp,
+		frame,
+		matCache,
+		mesh,
+		idxAttribs,
+		2, 
+		offscreen.hrm,
+		None
+	)
+	return [albedo, normal, hrm]
 
 def getMatForPrev(
 	map: props.StucMap,
@@ -804,16 +868,25 @@ def getMatForPrev(
 	err = stucLib.stucBlenderMapZBoundsGet(mapHandle, ctypes.pointer(zBounds))
 	if err != 1:
 		raise Exception("failed to get map z-bounds")
-	offscreen = previewArr.append()
-	drawStucPreview(map.name, float(map.timestamp), frame, matCache, result[0], result[1], zBounds)
+	previewArr.append()
+	imageArr = drawStucPreview(
+		map.name,
+		map.dir.name,#type:ignore
+		float(map.timestamp),
+		frame,
+		matCache,
+		result[0],
+		result[1],
+		zBounds
+	)
 	return TexOverride(
 		map.name,
 		[
-			offscreen.albedo.texture_color,
-			offscreen.normal.texture_color,
-			offscreen.hrm.texture_color,
-			offscreen.hrm.texture_color
-		]
+			gpu.texture.from_image(imageArr[0]),
+			gpu.texture.from_image(imageArr[1]),
+			gpu.texture.from_image(imageArr[2]),
+			gpu.texture.from_image(imageArr[2])
+   		]
 	)
 
 def callDrawForMat(
@@ -842,14 +915,14 @@ def callDrawForMat(
 		stucMat = None
 		if mat:
 			stucMat = bpy.context.scene.stucMats.get(mat.name, None) #type:ignore
-			if stucMat and stucMat.mat and len(stucMat.map):
-				map = bpy.context.scene.stucMaps.get(stucMat.map, None) #type:ignore
-				if map:
-					mapName = map.name.encode('utf-8')
-					stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
-					mapHandle = None if not map else stucLib.stucBlenderMapHandleGet(mapName)
 		if not stucMat:
 			return
+		if stucMat.mat and len(stucMat.map):
+			map = bpy.context.scene.stucMaps.get(stucMat.map, None) #type:ignore
+			if map:
+				mapName = map.name.encode('utf-8')
+				stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
+				mapHandle = None if not map else stucLib.stucBlenderMapHandleGet(mapName)
 		if not stucMat.mat:
 			error = ShaderErr.NO_MAT
 		elif not len(stucMat.map):
@@ -865,7 +938,6 @@ def callDrawForMat(
 				frame,
 				matCache
 			)
-
 	drawState = drawMeshStart(
 		backfaceCull,
 		perpMatrix,

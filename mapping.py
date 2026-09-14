@@ -492,7 +492,7 @@ def mapToTarget(
 			if cacheInMesh and cache:
 				cacheTarget(target, crc)
 		case 'EDIT':
-			if not cache:
+			if not cache or context.scene.stuc.dontDraw:#type:ignore
 				return
 			#TODO add a ui option to enable mapping in edit mode
 			#it's just laggy

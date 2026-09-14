@@ -101,3 +101,18 @@ def makeRel(context: bpy.types.Context, dir: str) -> str | None:
 			if dir != relDir:
 				return relDir
 	return None
+
+def nodeGet(nodeTree: bpy.types.NodeTree, name: str, nodeType: str) -> bpy.types.Node:
+	imgNode = nodeTree.nodes.get(name, None)
+	if not imgNode:
+		imgNode = nodeTree.nodes.new(nodeType)
+		imgNode.name = name
+	return imgNode
+
+def matAlphaSet(mat: bpy.types.Material, mul: float) -> None:
+	if mat.node_tree:
+		alphaMulNode = mat.node_tree.nodes.get("Alpha Mul", None)
+		if not alphaMulNode:
+			raise Exception()
+		if alphaMulNode.inputs[1].default_value != mul:#type:ignore
+			alphaMulNode.inputs[1].default_value = mul#type:ignore

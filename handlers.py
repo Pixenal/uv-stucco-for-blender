@@ -129,7 +129,18 @@ def getTargetMesh(
 if not bpy.app.background:
 	from . import draw
 
+	def setAlphaForTarget(
+		context: bpy.types.Context,
+		target: props.StucTarget,
+		mul: float
+	) -> None:
+		for mat in target.obj.data.materials:
+			stucMat = context.scene.stucMats.get(mat.name, None)#type:ignore
+			if stucMat:
+				utils.matAlphaSet(stucMat.mat, mul)#make preview visible
+
 	def drawTarget(
+		context: bpy.types.Context,
 		target: props.StucTarget,
 		frame: int,
 		matCache: dict[str, draw.MatCacheEntry]
@@ -137,15 +148,23 @@ if not bpy.app.background:
 		if type(target.obj.data) != bpy.types.Mesh:
 			return
 		cache = getTargetMesh(target)
+		#selected = target.obj.select_get()
+		#if not cache or target.obj.mode == 'EDIT':#disabling draw in edit mode
+			#if selected:
+			#	setAlphaForTarget(context, target, 1.0)
+			#return
 		if not cache:
 			return
 		if type(cache[0]) != float or\
 		type(cache[1]) != stuc.StucMesh or\
 		type(cache[3]) != stuc.MeshCacheType:
 			raise Exception()
-		idxAttribs = cache[2] if cache[3] == stuc.MeshCacheType.MESH_CACHE_OUT else None
+		isOutMesh = cache[3] == stuc.MeshCacheType.MESH_CACHE_OUT
+		idxAttribs = cache[2] if isOutMesh else None
 		if idxAttribs != None and type(idxAttribs) != stuc.StucAttribIndexedArr:
 			raise Exception()
+		#if isOutMesh and selected:
+		#	setAlphaForTarget(context, target, .0)
 		draw.drawMeshInViewport(
 			f"{target.id}_{target.obj.name}",
 			cache[0],
@@ -160,15 +179,19 @@ if not bpy.app.background:
 		if cache[3] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT':
 			draw.drawEditOverlay(cache[1], target.obj)
 
-	frame: int = 0
-
 	@persistent
 	def stucDrawHandler() -> None:
 		try :
 			if bpy.context.scene.stuc.dontDraw:#type:ignore
 				return
-			global frame
-			frame += 1
+			area = draw.getArea()
+			if not area:
+				return
+			shadingType = area.spaces.active.shading.type #type:ignore
+			isCycles = bpy.context.scene.render.engine == 'CYCLES'
+			if shadingType != 'MATERIAL' and (shadingType != 'RENDERED' or isCycles):
+				return
+			draw.frame += 1
 			col = sceneCache.getCacheIfVisible(bpy.context)
 			matCache = dict[str, draw.MatCacheEntry]()
 			for i, target in enumerate(bpy.context.scene.stucTargets): #type:ignore
@@ -178,8 +201,8 @@ if not bpy.app.background:
 				if col and sceneCache.getTargetInCacheIfVisible(col, target):
 					continue
 				#cProfile.runctx('drawTarget(target)', globals(), locals())
-				drawTarget(target, frame, matCache)
-			draw.batchCache.clean(frame)
+				drawTarget(bpy.context, target, draw.frame, matCache)
+			draw.batchCache.clean(draw.frame)
 			draw.previewArr.clear()
 			#print(f"draw cache size is {len(draw.batchCache.table.keys())}")
 		except Exception as e:

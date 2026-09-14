@@ -31,21 +31,62 @@ def isMatReleventToStuc(context: bpy.types.Context, mat: bpy.types.Material) -> 
 		return True
 	return False
 
-def matSetInvisible(context: bpy.types.Context, mat: bpy.types.Material, value: bool) -> None:
+def matGraphSetup(nodeTree: bpy.types.NodeTree, mapName: str) -> None:
+	nodeOut = None
+	for node in nodeTree.nodes:
+		if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
+			nodeOut = node
+			break
+	if not nodeOut:
+		return
+	links = nodeTree.links
+	pbrNode = utils.nodeGet(nodeTree, "Principled BSDF", 'ShaderNodeBsdfPrincipled')
+	socketArr = ("Base Color", "Normal", "Roughness", "Metallic")
+	imgNodeArr: list[bpy.types.Node | None] = [None, None, None, None]
+	srcArr = (("albedo", -1), ("normal", -1), ("hrm", 1), ("hrm", 2))
+	for i, socket in enumerate(socketArr):
+		imgNode = utils.nodeGet(nodeTree, f"Tex {srcArr[i][0]}", 'ShaderNodeTexImage')
+		image = bpy.data.images.get(f"{mapName}_{srcArr[i][0]}", None)
+		if image and imgNode.image is not image:#type:ignore
+			imgNode.image = image#type:ignore
+		pbrInput = pbrNode.inputs.get(socket, None)
+		if not pbrInput:
+			raise Exception()
+		output = imgNode.outputs[0]
+		imgComp = srcArr[i][1]
+		if imgComp != -1:
+			nodeName = f"{imgNode.name}_break"
+			breakNode = utils.nodeGet(nodeTree, nodeName, 'ShaderNodeSeparateColor')
+			links.new(output, breakNode.inputs[0])
+			output = breakNode.outputs[imgComp]
+		if socket == "Normal":
+			imgNodeArr[i] = imgNode
+			normalNode = utils.nodeGet(nodeTree, "Normal Map", 'ShaderNodeNormalMap')
+			links.new(imgNode.outputs[0], normalNode.inputs[1])
+			output = normalNode.outputs[0]
+		if socket == "Base Color":
+			mulNode = utils.nodeGet(nodeTree, "Alpha Mul", 'ShaderNodeMath')
+			mulNode.operation = 'MULTIPLY'#type:ignore
+			mulNode.inputs[1].default_value = .0#type:ignore
+			links.new(imgNode.outputs[1], mulNode.inputs[0])#plug alpha into math node
+			alphaInput = pbrNode.inputs.get("Alpha", None)
+			if not alphaInput:
+				raise Exception()
+			links.new(mulNode.outputs[0], alphaInput)
+		links.new(output, pbrInput)
+	links.new(pbrNode.outputs[0], nodeOut.inputs[0])
+
+def matGraphSetupIfRelevant(
+	context: bpy.types.Context,
+	mat: bpy.types.Material,
+	mapName: str,
+	value: bool
+) -> None:
 	if not value and isMatReleventToStuc(context, mat):
 		return
 	mat.use_nodes = True
 	if mat.node_tree:
-		nodeOut = None
-		for node in mat.node_tree.nodes:
-			if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
-				nodeOut = node
-				break
-		if nodeOut:
-			emisNode = mat.node_tree.nodes.new('ShaderNodeBsdfTransparent')
-			emisNode.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0) #type:ignore
-			links = mat.node_tree.links
-			links.new(emisNode.outputs[0], nodeOut.inputs[0])
+		matGraphSetup(mat.node_tree, mapName)
 	mat.blend_method = 'BLEND' if value else 'OPAQUE'
 	mat.shadow_method = 'NONE' if value else 'OPAQUE' #type:ignore
 	if value:
@@ -96,11 +137,11 @@ def usgFlatCutoffPoll(self, obj: bpy.types.Object) -> bool | None:
 
 def stucMatUpdate(self, context: bpy.types.Context) -> None:
 	if self.matCpy and self.mat != self.matCpy:
-		matSetInvisible(context, self.matCpy, False)
+		matGraphSetupIfRelevant(context, self.matCpy, self.map, False)
 	self.matCpy = self.mat
 	if self.mat:
 		self.name = self.mat.name
-		matSetInvisible(context, self.mat, True)
+		matGraphSetupIfRelevant(context, self.mat, self.map, True)
 	else:
 		self.name = ""
 
@@ -129,6 +170,12 @@ def mapDepUpdate(self, context: bpy.types.Context) -> None:
 	if self.timestamp != "":
 		self.timestamp = ""
 		bpy.ops.stuc.reload_stuc_file()#type:ignore
+
+def dontDrawUpdate(self, context: bpy.types.Context) -> None:
+	for stucMat in context.scene.stucMats:#type:ignore
+		if stucMat.mat:
+			utils.matAlphaSet(stucMat.mat, float(self.dontDraw))
+			stucMat.mat.blend_method = 'CLIP' if self.dontDraw else 'BLEND'
 
 class StucAttribMirror(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()#type:ignore
@@ -183,7 +230,7 @@ class StucMat(bpy.types.PropertyGroup):
 	#(Map property needs to be a string it seems for the prop_search
 	#  to work on custom collections?)
 	matCpy : bpy.props.PointerProperty(type = bpy.types.Material)#type:ignore
-	map : bpy.props.StringProperty()#type:ignore
+	map : bpy.props.StringProperty(update = stucMatUpdate)#type:ignore
 
 class StucCommonAttrib(bpy.types.PropertyGroup):
 	domain : bpy.props.EnumProperty(items = [#type:ignore
@@ -227,7 +274,7 @@ class StucProperties(bpy.types.PropertyGroup):
 		default = drawCacheMaxVerts,
 		update = drawCacheSizeUpdate
 	)
-	dontDraw : bpy.props.BoolProperty(default = False)#type:ignore
+	dontDraw : bpy.props.BoolProperty(default = False, update = dontDrawUpdate)#type:ignore
 	logEnabled : bpy.props.BoolProperty(default = False, update = logEnabledUpdate)#type:ignore
 	#breakPoint : bpy.props.BoolProperty(default = False)
 	

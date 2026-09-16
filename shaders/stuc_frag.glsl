@@ -48,9 +48,6 @@ void main() {
 
 	bool selFace = args.isEditMode == 1.0f && i_select == 1;
 
-	bool textOuter = false;
-	bool textInner = false;
-	vec3 errCol = vec3(.0f);
 	vec3 crystal = vec3(.0f);
 	float sinTimeSlow = sin(time / 45.0f * PI);
 	{

@@ -123,7 +123,8 @@ void makeErrText(
 	vec2 vFakeViewUv = vec2(dot(pMat[2], viewMat[0]), dot(pMat[2], viewMat[1]));
 	vec2 textUv = viewUv + vFakeViewUv * .0625f;
 	textUv = (textUv + timeScroll) * 12.0f * vec2(aspect, 1.0f);
-	float text = texture(errTex, textUv).x;
+	float checker = float((int(textUv.x) + int(textUv.y)) % 2);
+	float text = texture(errTex, textUv).x * checker;
 	text *= selFace ? .0f : 1.0f;
 	float sinTime = sin(time / 60.0f * 3.0f * PI) * .5f + .5f;
 	float timeMask = invMul(sinTime, .05f);
@@ -146,7 +147,8 @@ vec3 makeErrMat(
 	vec2 triUv = triPlanarUv(pos, tbn[2], triUvSign);
 
 	mat3 pMat = fakePerpMat(viewUv, viewMat, 1.375f, true, tbn[2]);
-	vec3 sparkles = multipassSparkles(pMat, tbn, viewMat, v, viewUv, time);
+	vec3 sparkles = multipassSparkles(pMat, tbn, viewMat, v, viewUv, time * .25f);
+	sparkles *= .33f;
 
 	bool textInner;
 	bool textOuter;
@@ -166,7 +168,7 @@ vec3 makeErrMat(
 		textureLod(envTex, vFakeUv, 5.0f).xyz +
 		textureLod(envTex, vFakeUv, 6.0f).xyz;
 	blurEnv /= 3.0f;
-	vec3 col = sparkles + blurEnv * .01f;
+	vec3 col = clamp(sparkles * (1.0f - blurEnv * .1f), vec3(.0f), sparkles) + blurEnv * .01f;
 	col *= textOuter ? .0f : 1.0f;
 	col = mix(col, (v * .5f + .5f), textInner ? 1.0f : .0f);
 	col = col / (col + vec3(1.0f));

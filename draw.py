@@ -573,7 +573,6 @@ def drawMeshForMat(
 					texArr = getMatParams(mat.node_tree, matInfo)
 				if not texArr:
 					error = ShaderErr.INVALID_SHADER
-		args.error = float(error.value)
 		if not texArr:
 			missingTex = getMissingTex()
 			texArr = [missingTex, missingTex, missingTex, missingTex]
@@ -594,7 +593,8 @@ def drawMeshForMat(
 	meshShader.uniform_sampler("normalTex", texArr[1])
 	meshShader.uniform_sampler("metalTex", texArr[2])
 	meshShader.uniform_sampler("roughTex", texArr[3])
-	
+
+	args.error = float(error.value)
 	if error != ShaderErr.NONE:
 		errTex = getErrTex(error)
 		if errTex:

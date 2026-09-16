@@ -330,7 +330,10 @@ def waitForAndCopyOutMeshes(
 			if not done.value:
 				continue
 			if err != 1:
-				err = stucLib.stucBlenderTargetCacheClear(item.info.target.id)
+				err = stucLib.stucBlenderTargetCacheClear(
+					item.info.target.id,
+					stuc.MeshCacheType.MESH_CACHE_OUT.value
+				)
 				if err != 1:
 					raise Exception("error clearing target mesh cache")
 				print(f"Stuc python, map to mesh failed on obj {item.info.objEval.name}, skipping")
@@ -439,18 +442,18 @@ def cacheTarget(
 	idxAttribs: stuc.StucAttribIndexedArr | None = None
 ) -> None:
 	obj = objOverride if objOverride else target.obj
+	cacheType =\
+		stuc.MeshCacheType.MESH_CACHE_IN_EDIT if edit\
+		else stuc.MeshCacheType.MESH_CACHE_OUT if stucMesh\
+		else stuc.MeshCacheType.MESH_CACHE_IN
 	if stucMesh and not stucMesh.faceCount or\
 	   not obj or type(obj.data) != bpy.types.Mesh or not len(obj.data.polygons):
-		err = stucLib.stucBlenderTargetCacheClear(target.id)
+		err = stucLib.stucBlenderTargetCacheClear(target.id, cacheType.value)
 		if err != 1:
 			raise Exception()
 		return
 	if not edit and bool(stucMesh) != bool(idxAttribs):
 		raise Exception()
-	cacheType =\
-		stuc.MeshCacheType.MESH_CACHE_IN_EDIT if edit\
-		else stuc.MeshCacheType.MESH_CACHE_OUT if stucMesh\
-		else stuc.MeshCacheType.MESH_CACHE_IN
 	meshRender = None
 	if not stucMesh:
 		stucObj = meshUtils.formatAsStucObj(
@@ -515,7 +518,10 @@ def mapToTarget(
 			#it's just laggy
 			obj = getTargetObj(target, requireSelInEdit = False)
 			if not obj:
-				err = stucLib.stucBlenderTargetCacheClear(target.id)
+				err = stucLib.stucBlenderTargetCacheClear(
+					target.id,
+					stuc.MeshCacheType.MESH_CACHE_IN_EDIT.value
+				)
 				if err != 1:
 					raise Exception()
 			cacheTarget(target, crc, objOverride = obj, edit = True)

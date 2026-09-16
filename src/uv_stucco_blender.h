@@ -205,7 +205,7 @@ PixErr stucBlenderTargetCacheGet(
 	TargetCacheType *pType
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderTargetCacheClear(int32_t id);
+PixErr stucBlenderTargetCacheClear(int32_t id, TargetCacheType type);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderCornersForMat(StucMesh *pMesh, I32 mat, PixtyI32Arr *pCorners);
 STUC_BLENDER_EXPORT

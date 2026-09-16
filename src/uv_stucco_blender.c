@@ -1057,10 +1057,10 @@ PixErr stucBlenderTargetCacheGet(
 	return err;
 }
 
-PixErr stucBlenderTargetCacheClear(I32 id) {
+PixErr stucBlenderTargetCacheClear(I32 id, TargetCacheType type) {
 	PixErr err = PIX_ERR_SUCCESS;
 	TargetEntry *pEntry = NULL;
-	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, MESH_CACHE_NONE, 0u);
+	err = targetEntryGet(id, NULL, &pEntry, NULL, NULL, type, 0u);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (pEntry && pEntry->mesh.faceCount) {
 		err = stucMeshDestroy(&stucCtx, &pEntry->mesh);

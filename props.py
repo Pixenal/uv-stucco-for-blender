@@ -102,7 +102,10 @@ def targetObjUpdate(self, context: bpy.types.Context) -> None:
 			else:
 				self.name = ""
 			if self.lastObj:
-				err = stucLib.stucBlenderTargetCacheClear(self.id)
+				cacheType = stuc.MeshCacheType.MESH_CACHE_NONE
+				err = stucLib.stucBlenderTargetCacheClear(self.id, cacheType.value)
+				cacheType = stuc.MeshCacheType.MESH_CACHE_IN_EDIT
+				err = stucLib.stucBlenderTargetCacheClear(self.id, cacheType.value)
 				if err != 1:
 					raise Exception("error clearing target mesh cache")
 			self.lastObj = self.obj

@@ -475,6 +475,10 @@ class BatchCache():
 			entry = self.Entry(key, timestamp, frame)
 			self.table[key] = entry
 		return entry
+	
+	def __remove(self, entry: Entry) -> None:
+		self.vertCount -= entry.vertCount
+		self.table.pop(entry.key)
 
 	def get(self, key: str, timestamp: float, frame: int) -> Entry | None:
 		self.__checkEntryHasSetVertCount()
@@ -489,14 +493,18 @@ class BatchCache():
 		entry.vertCount = vertCount
 		self.vertCount += vertCount
 		self.entryHasSetVertCount = True
+
+	def remove(self, key: str) -> None:
+		entry = self.table.get(key, None)
+		if entry:
+			self.__remove(entry)
 	
 	def clean(self, frame: int) -> None:
 		self.__checkEntryHasSetVertCount()
 		arr: list[BatchCache.Entry] = [self.table[i] for i in self.table.keys()]
 		for item in arr:
 			if abs(frame - item.lastAccess) > 0:
-				self.vertCount -= item.vertCount
-				self.table.pop(item.key)
+				self.__remove(item)
 
 batchCache = BatchCache()
 
@@ -738,11 +746,13 @@ def prevSinglePass(
 	idxAttribs: stuc.StucAttribIndexedArr,
 	matParam: int,
 	offscreen: PreviewOffScreenArr.Item.Buf,
-	zBounds: stuc.StucVec2 | None
+	zBounds: stuc.StucVec2 | None,
+	forceUpdate: bool
 ) -> bpy.types.Image:
 	name = f"{key}_{offscreen.name}"
 	image = bpy.data.images.get(name, None)
-	if image and\
+	if not forceUpdate and\
+	   image and\
 	   image.size[0] == offscreen.buf.width and\
 	   image.size[1] == offscreen.buf.height:
 		return image
@@ -776,7 +786,8 @@ def prevSinglePass(
 			envFileName = "forest.exr",
 			viewPos = viewPos,
 			idxAttribs = idxAttribs,
-			zBounds = zBounds
+			zBounds = zBounds,
+			forceUpdate = forceUpdate
 		)
 		#now update preview texture in blender data
 		width = offscreen.buf.width
@@ -784,12 +795,13 @@ def prevSinglePass(
 		buf = framebuf.read_color(0, 0, width, height, 4, 0, 'FLOAT')
 		if image:
 			bpy.data.images.remove(image)
-		image = bpy.data.images.new(name, width, height)
+		image = bpy.data.images.new(name, width, height, alpha = True)
+		image.file_format = 'PNG'
+		image.filepath = f"{bpy.path.abspath(dir)}/.preview_cache/{name}.png"
 		buf.dimensions = width * height * 4
 		image.colorspace_settings.name = offscreen.colorSpace#type:ignore
 		image.pixels.foreach_set(buf)#type:ignore
-		path = f"{bpy.path.abspath(dir)}/.preview_cache/{name}.png"
-		image.save(filepath = path)
+		image.save(filepath = image.filepath)
 		return image
 
 def drawStucPreview(
@@ -800,7 +812,8 @@ def drawStucPreview(
 	matCache: dict[str, MatCacheEntry],
 	mesh: stuc.StucMesh,
 	idxAttribs: stuc.StucAttribIndexedArr,
-	zBounds: stuc.StucVec2
+	zBounds: stuc.StucVec2,
+	forceUpdate: bool
 ) -> list[bpy.types.Image]:
 	offscreen = previewArr.get(-1)
 	albedo = prevSinglePass(
@@ -813,7 +826,8 @@ def drawStucPreview(
 		idxAttribs,
 		0,
 		offscreen.albedo,
-		zBounds
+		zBounds,
+		forceUpdate
 	)
 	normal = prevSinglePass(
 		name,
@@ -825,7 +839,8 @@ def drawStucPreview(
 		idxAttribs,
 		1,
 		offscreen.normal,
-		None
+		None,
+		forceUpdate
 	)
 	hrm = prevSinglePass(
 		name,
@@ -837,7 +852,8 @@ def drawStucPreview(
 		idxAttribs,
 		2, 
 		offscreen.hrm,
-		None
+		None,
+		forceUpdate
 	)
 	return [albedo, normal, hrm]
 
@@ -845,7 +861,8 @@ def getMatForPrev(
 	map: props.StucMap,
 	mapHandle: ctypes.c_void_p,
 	frame: int,
-	matCache: dict[str, MatCacheEntry]
+	matCache: dict[str, MatCacheEntry],
+	forceUpdate: bool = False
 ) -> TexOverride | None:
 	mapName = ctypes.c_char_p()
 	err = stucLib.stucBlenderMapNameGet(
@@ -870,7 +887,8 @@ def getMatForPrev(
 		matCache,
 		result[0],
 		result[1],
-		zBounds
+		zBounds,
+		forceUpdate
 	)
 	return TexOverride(
 		map.name,
@@ -882,6 +900,7 @@ def getMatForPrev(
    		]
 	)
 
+#TODO reduce param list, this is silly
 def callDrawForMat(
 	idx: int,
 	key: str | None,
@@ -900,7 +919,8 @@ def callDrawForMat(
 	envFileName: str = "",
 	viewPos: mathutils.Vector = mathutils.Vector((.0, .0, .0)),
 	zBounds: stuc.StucVec2 | None = None,
-	backfaceCull: bool = True
+	backfaceCull: bool = True,
+	forceUpdate: bool = False
 ) -> None:
 	texOverride = None
 	error = ShaderErr.NONE
@@ -947,6 +967,8 @@ def callDrawForMat(
 		if not timestamp:
 			raise Exception("timestamp is required if key is passed")
 		keyWithMat = f"{key}_{mat.name if mat else 'None'}"
+		if forceUpdate:
+			batchCache.remove(keyWithMat)
 		cacheEntry = batchCache.get(keyWithMat, timestamp, frame)
 		if not cacheEntry:
 			return
@@ -993,7 +1015,8 @@ def drawMesh(
 	mats: list[bpy.types.Material | None] | None = None,
 	idxAttribs: stuc.StucAttribIndexedArr | None = None,
 	zBounds: stuc.StucVec2 | None = None,
-	backfaceCull: bool = True
+	backfaceCull: bool = True,
+	forceUpdate: bool = False
 ) -> None:
 	area = utils.getArea()
 	if not area:
@@ -1043,7 +1066,8 @@ def drawMesh(
 			envFileName = envFileName,
 			viewPos = viewPos,
 			zBounds = zBounds,
-			backfaceCull = backfaceCull
+			backfaceCull = backfaceCull,
+			forceUpdate = forceUpdate
 		)
 	stucLib.stucBlenderCallFree(corners.pArr)
 

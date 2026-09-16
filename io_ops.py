@@ -405,7 +405,7 @@ def addOrUpdateMap(
 		mapHandle = ctypes.c_void_p(stucLib.stucBlenderMapHandleGet(name.encode('utf-8')))
 		if not mapHandle:
 			raise Exception("unable to retrieve map handle")
-		draw.getMatForPrev(map, mapHandle, draw.frame, matCache)
+		draw.getMatForPrev(map, mapHandle, draw.frame, matCache, True)
 		for mat in context.scene.stucMats:#type:ignore
 			if mat.map == map.name:
 				#update mats to use preview textures if not already

@@ -1147,6 +1147,13 @@ def drawEditOverlay(
 		)
 		if type(edgesSel) == types.NoneType:
 			return
+		preserve = numpyFromStucAttrib(
+			mesh,
+			stuc.StucAttribUse.PRESERVE_EDGE,
+			1,
+			stuc.StucDomain.EDGE,
+			ctypes.c_int8
+		)
 		posSplit = (ctypes.c_float * 3 * vertCount)()
 		edgesSplit = (ctypes.c_int32 * 2 * mesh.edgeCount)()
 		err = stucLib.stucBlenderEditOverlayColEdge(
@@ -1154,6 +1161,7 @@ def drawEditOverlay(
 			numpy.ctypeslib.as_ctypes(edges), #type:ignore
 			edgesSplit,
 			numpy.ctypeslib.as_ctypes(edgesSel), #type:ignore
+			ctypes.c_void_p(0) if preserve is None else numpy.ctypeslib.as_ctypes(preserve),
 			mesh.vertCount,
 			numpy.ctypeslib.as_ctypes(pos),
 			posSplit,

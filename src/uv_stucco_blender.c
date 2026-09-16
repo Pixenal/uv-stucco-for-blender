@@ -1142,6 +1142,7 @@ PixErr stucBlenderEditOverlayColEdge(
 	const PixtyV2_I32 *pEdges,
 	PixtyV2_I32 *pEdgesSplit,
 	const I8 *pSelect,
+	const I8 *pPreserve,
 	I32 vertCount,
 	const PixtyV3_F32 *pPos,
 	PixtyV3_F32 *pPosSplit,
@@ -1151,15 +1152,24 @@ PixErr stucBlenderEditOverlayColEdge(
 	PIX_ERR_RETURN_IFNOT_COND(err, pCol && pEdges && pSelect, "");
 	PIX_ERR_RETURN_IFNOT_COND(err, edgeCount > 0 && vertCount >= 2, "");
 	const PixtyV4_F32 col =
-		pixmV4F32DivideScalar((PixtyV4_F32){.d = {.0f, .0f, .0f, 255.0f}}, 255.0f);
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {82.0f, 2.0f, 63.0f, 255.0f}}, 255.0f);
 	const PixtyV4_F32 colSelect =
-		pixmV4F32DivideScalar((PixtyV4_F32){.d = {227.0f, 62.0f, 191.0f, 255.0f}}, 255.0f);
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {233.0f, 50.0f, 137.0f, 255.0f}}, 255.0f);
+	const PixtyV4_F32 colPreserve =
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {.0f, 77.0f, 68.0f, 255.0f}}, 255.0f);
+	const PixtyV4_F32 colPreserveSel =
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {41.0f, 213.0f, 192.0f, 255.0f}}, 255.0f);
 	I32 splitVertCount = 0;
 	for (I32 i = 0; i < edgeCount; ++i) {
 		for (I32 j = 0; j < 2; ++j) {
 			I32 vert = pEdges[i].d[j];
 			PIX_ERR_ASSERT("", vert < vertCount);
-			pCol[splitVertCount] = pSelect[i] ? colSelect : col;
+			if (pPreserve && pPreserve[i]) {
+				pCol[splitVertCount] = pSelect[i] ? colPreserveSel: colPreserve;
+			}
+			else {
+				pCol[splitVertCount] = pSelect[i] ? colSelect : col;
+			}
 			pPosSplit[splitVertCount] = pPos[vert];
 			pEdgesSplit[i].d[j] = splitVertCount;
 			++splitVertCount;

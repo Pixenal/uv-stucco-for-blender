@@ -222,6 +222,7 @@ PixErr stucBlenderEditOverlayColEdge(
 	const PixtyV2_I32 *pEdges,
 	PixtyV2_I32 *pEdgesSplit,
 	const I8 *pSelect,
+	const I8 *pPreserve,
 	I32 vertCount,
 	const PixtyV3_F32 *pPos,
 	PixtyV3_F32 *pPosSplit,

@@ -56,7 +56,7 @@ void main() {
 		crystal = normalize(cross(crystal, crystalRefl));
 	}
 	vec3 sparkles = vec3(.0f);
-	vec3 selCol = vec3(227.0f, 62.0f, 191.0f) / vec3(255.0f);
+	vec3 selCol = vec3(233.0f, 50.0f, 137.0f) / vec3(255.0f);
 	if (args.error != .0f) {
 		sparkles = makeErrMat(v_pos, m_tbn, m_viewMat, v, viewUvw.xy, aspect, time, selFace);
 		albedo = vec3(.0f);
@@ -88,6 +88,6 @@ void main() {
 	}
 	col *= f_gradient; //no effect unless rendering to preview textures
 	float luminance = .2126f * sparkles.x + .7152 * sparkles.y + .0722 * sparkles.z;
-	col = mix(mix(selCol * .5f, selCol, pow(luminance, .25f)), col, selFace ? .5f : 1.0f);
+	col = mix(mix(selCol * .5f, selCol, pow(luminance, .25f)), col, selFace ? .75f : 1.0f);
 	FragColor = vec4(col, 1.0f);
 }

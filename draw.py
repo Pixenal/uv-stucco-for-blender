@@ -1007,10 +1007,6 @@ def drawMesh(
 		return
 	if not perpMatrix:
 		perpMatrix = bpy.context.region_data.perspective_matrix
-	shadingType = area.spaces.active.shading.type #type:ignore
-	isCycles = bpy.context.scene.render.engine == 'CYCLES'
-	if shadingType != 'MATERIAL' and (shadingType != 'RENDERED' or isCycles):
-		return
 	editMode = cacheType == stuc.MeshCacheType.MESH_CACHE_IN_EDIT
 
 	if not mats:

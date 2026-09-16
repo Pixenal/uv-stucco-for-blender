@@ -34,9 +34,8 @@ void main() {
 	i_matParam = matParam;
 	i_select = select;
 
-	if (matParam == -1) {
-		vec3 v = normalize(viewPos - v_pos);
-		v_pos -= v * .004f;
-	}
 	gl_Position = viewProjectionMatrix * vec4(v_pos, 1.0f);
+	if (matParam == -1) {
+		gl_Position.z += .00000001f;//push back so edit overlay can render on top
+	}
 }

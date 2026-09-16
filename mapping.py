@@ -22,7 +22,7 @@ from . import attrib_utils as attribUtils
 from . import mesh_utils as meshUtils
 from . import props
 from . import stuc
-from . import draw
+from . import scene_cache as sceneCache
 
 class MappingInfo:
 	def __init__(
@@ -508,7 +508,7 @@ def mapToTarget(
 			if cacheInMesh and cache:
 				cacheTarget(target, crc)
 		case 'EDIT':
-			area = draw.getArea()
+			area = utils.getArea()
 			if not area:
 				return
 			shadingType = area.spaces.active.shading.type #type:ignore
@@ -529,6 +529,19 @@ def mapToTarget(
 			if cache:
 				cacheTarget(target, crc)
 
+def setCacheObjVisibility(
+	context: bpy.types.Context,
+	col: bpy.types.Collection | None,
+	target: props.StucTarget,
+	hide: bool
+) -> None:
+	if not col or context.scene.stuc.allowCacheSel:#type:ignore
+		return
+	cacheObj = sceneCache.getTargetInCache(col, target, False)
+	if cacheObj:
+		cacheObj.hide_set(hide)
+		cacheObj.select_set(False)
+
 def mapToTargetsInScene(
 	context: bpy.types.Context,
 	selOnly: bool = True,
@@ -538,8 +551,11 @@ def mapToTargetsInScene(
 	try:
 		depsgraph = context.evaluated_depsgraph_get()
 		jobs = []
+		cacheCol = sceneCache.getCacheIfVisible(context)
 		for target in context.scene.stucTargets: #type:ignore
-			if selOnly and target.obj not in context.selected_objects:
+			isSel = target.obj in context.selected_objects
+			setCacheObjVisibility(context, cacheCol, target, isSel)
+			if selOnly and not isSel:
 				continue
 			if len(jobs) >= 32:
 				waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx, tillRemain = 16)

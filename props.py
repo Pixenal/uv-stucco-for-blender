@@ -272,14 +272,15 @@ class StucProperties(bpy.types.PropertyGroup):
 	])
 	commonAttribIdx : bpy.props.IntProperty(default = 0)#type:ignore
 	wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)#type:ignore
-	relPaths : bpy.props.BoolProperty(default = True, update = relPathsUpdate)#type:ignore
 	drawCacheMaxVerts : bpy.props.IntProperty(#type:ignore
 		default = drawCacheMaxVerts,
 		update = drawCacheSizeUpdate
 	)
+	shadingType : bpy.props.StringProperty()#type:ignore
+	relPaths : bpy.props.BoolProperty(default = True, update = relPathsUpdate)#type:ignore
 	dontDraw : bpy.props.BoolProperty(default = False, update = dontDrawUpdate)#type:ignore
 	logEnabled : bpy.props.BoolProperty(default = False, update = logEnabledUpdate)#type:ignore
-	shadingType : bpy.props.StringProperty()#type:ignore
+	allowCacheSel : bpy.props.BoolProperty(default = False)#type:ignore
 	#breakPoint : bpy.props.BoolProperty(default = False)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):

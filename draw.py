@@ -106,12 +106,6 @@ def numpyFromStucAttrib(
     	shape = (count, size)
 	)
 
-def getArea() -> bpy.types.Area | None:
-	for area in bpy.context.window.screen.areas:
-		if area.type == 'VIEW_3D':
-			return area
-	return None
-
 parentDir = os.path.dirname(__file__)
 
 def insertIncludes(text: str) -> str:
@@ -682,7 +676,7 @@ def drawMeshStart(
 	viewPos: mathutils.Vector = mathutils.Vector((.0, .0, .0))
 ) -> DrawMeshState | None:
 	
-	area = getArea()
+	area = utils.getArea()
 	if not area:
 		return None
 	envTex = getEnvTex(area, envFileName)
@@ -1001,7 +995,7 @@ def drawMesh(
 	zBounds: stuc.StucVec2 | None = None,
 	backfaceCull: bool = True
 ) -> None:
-	area = getArea()
+	area = utils.getArea()
 	if not area:
 		return
 	if not perpMatrix:

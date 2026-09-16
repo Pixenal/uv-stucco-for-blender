@@ -21,8 +21,8 @@ from . import mapping
 from . import props
 from . import attrib_utils as attribUtils
 from . import scene_cache as sceneCache
-from . import client
-from . import draw
+if not bpy.app.background:
+	from . import draw
 
 mapIdNext: int = 0
 
@@ -395,20 +395,21 @@ def addOrUpdateMap(
 	attribUtils.attribArrToCol(map.attribs, mesh.edgeAttribs, map) #type:ignore
 	attribUtils.attribArrToCol(map.attribs, mesh.vertAttribs, map) #type:ignore
 
-	#cache render-mesh & update preview textures
-	#TODO render mesh can probably be deleted after preview is updated here,
-	#it isn't used directly in draw.py anymore right? (outside of this specific call)
-	stucLib.stucBlenderMapMeshRenderUpdate(name.encode('utf-8'))
-	matCache = dict[str, draw.MatCacheEntry]()
-	stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
-	mapHandle = ctypes.c_void_p(stucLib.stucBlenderMapHandleGet(name.encode('utf-8')))
-	if not mapHandle:
-		raise Exception("unable to retrieve map handle")
-	draw.getMatForPrev(map, mapHandle, draw.frame, matCache)
-	for mat in context.scene.stucMats:#type:ignore
-		if mat.map == map.name:
-			#update mats to use preview textures if not already
-			props.stucMatUpdate(mat, context)
+	if not bpy.app.background:
+		#cache render-mesh & update preview textures
+		#TODO render mesh can probably be deleted after preview is updated here,
+		#it isn't used directly in draw.py anymore right? (outside of this specific call)
+		stucLib.stucBlenderMapMeshRenderUpdate(name.encode('utf-8'))
+		matCache = dict[str, draw.MatCacheEntry]()
+		stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
+		mapHandle = ctypes.c_void_p(stucLib.stucBlenderMapHandleGet(name.encode('utf-8')))
+		if not mapHandle:
+			raise Exception("unable to retrieve map handle")
+		draw.getMatForPrev(map, mapHandle, draw.frame, matCache)
+		for mat in context.scene.stucMats:#type:ignore
+			if mat.map == map.name:
+				#update mats to use preview textures if not already
+				props.stucMatUpdate(mat, context)
 
 	return map
 

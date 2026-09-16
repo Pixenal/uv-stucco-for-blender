@@ -116,3 +116,9 @@ def matAlphaSet(mat: bpy.types.Material, mul: float) -> None:
 			raise Exception()
 		if alphaMulNode.inputs[1].default_value != mul:#type:ignore
 			alphaMulNode.inputs[1].default_value = mul#type:ignore
+
+def getArea() -> bpy.types.Area | None:
+	for area in bpy.context.window.screen.areas:
+		if area.type == 'VIEW_3D':
+			return area
+	return None

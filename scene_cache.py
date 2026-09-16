@@ -143,12 +143,13 @@ def getCacheIfVisible(context: bpy.types.Context) -> bpy.types.Collection | None
 		return None
 	return stucCol
 
-def getTargetInCacheIfVisible(
+def getTargetInCache(
 	col: bpy.types.Collection,
-	target: props.StucTarget
+	target: props.StucTarget,
+	checkIfVisible: bool = True
 ) -> bpy.types.Object | None:
 	obj = col.objects.get(target.obj.name + ".Stuc", None)
-	if obj and not obj.hide_viewport and not obj.hide_get():
+	if obj and (not obj.hide_viewport and not obj.hide_get() or not checkIfVisible):
 		return obj
 	return None
 

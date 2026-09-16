@@ -71,6 +71,23 @@ def stucLoadPreHandler(dummy) -> None:
 	if err != 1:
 		raise Exception("failed to destroy uv-stucco context")
 
+def convertCacheSelToTarget(context: bpy.types.Context) -> None:
+	col = sceneCache.getCacheIfVisible(bpy.context)
+	if not col or context.scene.stuc.allowCacheSel:#type:ignore
+		return
+	for obj in context.selected_objects:
+		if obj.hide_viewport or obj.hide_get() or obj.name not in col.objects:
+			continue
+		targetName = obj.name.replace(".Stuc", "")
+		target = context.scene.stucTargets.get(targetName, None)#type:ignore
+		if not target or not target.obj:
+			continue
+		target.obj.select_set(True)
+		if obj is context.view_layer.objects.active:
+			context.view_layer.objects.active = target.obj
+		obj.select_set(False)
+		obj.hide_set(True)
+
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:
 	#update mat-map pair names (if blend mat name has changed)
@@ -81,6 +98,7 @@ def stucDepsgraphUpdatePostHandler(dummy) -> None:
 		elif len(stucMat.name):
 			raise Exception("'mat' in mat-map pair empty but entry name wasn't updated?")
 
+	convertCacheSelToTarget(bpy.context)
 	utils.updateUiTargetIdx(bpy.context)
 	mapping.mapToTargetsInScene(bpy.context)
 
@@ -184,7 +202,7 @@ if not bpy.app.background:
 		try :
 			if bpy.context.scene.stuc.dontDraw:#type:ignore
 				return
-			area = draw.getArea()
+			area = utils.getArea()
 			if not area:
 				return
 			shadingType = area.spaces.active.shading.type #type:ignore
@@ -203,7 +221,7 @@ if not bpy.app.background:
 				if not target.obj or\
 				   not bpy.context.view_layer.objects.get(target.obj.name, None):
 					continue
-				if col and sceneCache.getTargetInCacheIfVisible(col, target):
+				if col and sceneCache.getTargetInCache(col, target):
 					continue
 				#cProfile.runctx('drawTarget(target)', globals(), locals())
 				drawTarget(bpy.context, target, draw.frame, matCache)

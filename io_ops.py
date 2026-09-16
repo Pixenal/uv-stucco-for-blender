@@ -568,6 +568,7 @@ class STUC_OT_StucSceneExport(bpy.types.Operator):
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
+			bpy.ops.stuc.reload_stuc_file()#type:ignore
 			shmCtx = stuc.PixioShmCtx()
 			shmCtxPtr = ctypes.cast(ctypes.pointer(shmCtx), ctypes.c_void_p)
 			bShmName = (ctypes.c_byte * (stucLib.stucBlenderShmNameMaxLen() + 1))()

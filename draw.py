@@ -542,8 +542,14 @@ def drawMeshForMat(
 	error: ShaderErr = ShaderErr.NONE,
 	zBounds: stuc.StucVec2 | None = None
 ) -> None:
+	area = utils.getArea()
+	if not area:
+		raise Exception()
 	args = Args()
-	args.isEditMode = float(cacheType == stuc.MeshCacheType.MESH_CACHE_IN_EDIT)
+	if area.spaces.active.overlay.show_overlays:#type:ignore
+		args.isEditMode = float(cacheType == stuc.MeshCacheType.MESH_CACHE_IN_EDIT)
+	else:
+		args.isEditMode = False
 	if zBounds:
 		args.mapZBounds[0] = zBounds.x
 		args.mapZBounds[1] = zBounds.y

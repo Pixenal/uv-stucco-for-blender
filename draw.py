@@ -475,7 +475,6 @@ class BatchCache():
 				entry.data = None
 		else:
 			if self.vertCount < 0:
-				pdb.set_trace()
 				raise Exception("draw cache state is invalid")
 			if self.__isCacheFull():
 				return None
@@ -1086,7 +1085,6 @@ def drawEditOverlay(
 	obj: bpy.types.Object
 ) -> None:
 	pos = numpyFromStucAttrib(mesh, stuc.StucAttribUse.POS, 3)
-	edgeSel = numpyFromStucAttrib(mesh, stuc.StucAttribUse.MASK, 1, stuc.StucDomain.EDGE)
 	edges = numpyFromStucAttrib(
 		mesh,
 		stuc.StucAttribUse.EDGE_CORNERS,
@@ -1094,22 +1092,54 @@ def drawEditOverlay(
 		stuc.StucDomain.EDGE,
 		ctypes.c_int32
 	)
-	if type(pos) == types.NoneType or\
-	   type(edgeSel) == types.NoneType or\
-	   type(edges) == types.NoneType:
+	if type(pos) == types.NoneType or type(edges) == types.NoneType:
 		raise Exception("unable to get mesh attribs")
 
-	color = (ctypes.c_float * 4 * mesh.vertCount)()
-	err = stucLib.stucBlenderEditOverlayCol(
-		mesh.edgeCount,
-		numpy.ctypeslib.as_ctypes(edges), #type:ignore
-		numpy.ctypeslib.as_ctypes(edgeSel), #type:ignore
-		mesh.vertCount,
-		color
-	)
+	vertMode = bpy.context.tool_settings.mesh_select_mode[0]
+	vertCount = mesh.vertCount if vertMode else mesh.edgeCount * 2
+	color = (ctypes.c_float * 4 * vertCount)()
+	if vertMode:
+		vertsSel = numpyFromStucAttrib(
+			mesh,
+			stuc.StucAttribUse.MASK,
+			1,
+			stuc.StucDomain.VERT,
+			ctypes.c_int8
+		)
+		if type(vertsSel) == types.NoneType:
+			return
+		err = stucLib.stucBlenderEditOverlayColVert(
+			mesh.vertCount,
+			numpy.ctypeslib.as_ctypes(vertsSel), #type:ignore
+			color
+		)
+	else:
+		edgesSel = numpyFromStucAttrib(
+			mesh,
+			stuc.StucAttribUse.MASK,
+			1,
+			stuc.StucDomain.EDGE,
+			ctypes.c_int8
+		)
+		if type(edgesSel) == types.NoneType:
+			return
+		posSplit = (ctypes.c_float * 3 * vertCount)()
+		edgesSplit = (ctypes.c_int32 * 2 * mesh.edgeCount)()
+		err = stucLib.stucBlenderEditOverlayColEdge(
+			mesh.edgeCount,
+			numpy.ctypeslib.as_ctypes(edges), #type:ignore
+			edgesSplit,
+			numpy.ctypeslib.as_ctypes(edgesSel), #type:ignore
+			mesh.vertCount,
+			numpy.ctypeslib.as_ctypes(pos),
+			posSplit,
+			color
+		)
+		pos = numpy.ctypeslib.as_array(posSplit, shape = (vertCount, 3))
+		edges = numpy.ctypeslib.as_array(edgesSplit, shape = (mesh.edgeCount, 2))
 	if err != 1:
 		raise Exception("error while making colors for edit overlay")
-	colorNumpy = numpy.ctypeslib.as_array(color, shape = (mesh.vertCount, 4))
+	colorNumpy = numpy.ctypeslib.as_array(color, shape = (vertCount, 4))
 	editBatch = gpu_extras.batch.batch_for_shader(
 		editShader,
 		'LINES',

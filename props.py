@@ -276,6 +276,7 @@ class StucProperties(bpy.types.PropertyGroup):
 	)
 	dontDraw : bpy.props.BoolProperty(default = False, update = dontDrawUpdate)#type:ignore
 	logEnabled : bpy.props.BoolProperty(default = False, update = logEnabledUpdate)#type:ignore
+	shadingType : bpy.props.StringProperty()#type:ignore
 	#breakPoint : bpy.props.BoolProperty(default = False)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):

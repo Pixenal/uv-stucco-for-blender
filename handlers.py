@@ -188,6 +188,11 @@ if not bpy.app.background:
 			if not area:
 				return
 			shadingType = area.spaces.active.shading.type #type:ignore
+			if bpy.context.scene.stuc.shadingType != shadingType:#type:ignore
+				bpy.context.scene.stuc.shadingType = shadingType#type:ignore
+				#target edit caches are not updated if in solid shading.
+				#so call depsgraph handler on shading change, to ensure outdated mesh isn't drawn
+				stucDepsgraphUpdatePostHandler(None)
 			isCycles = bpy.context.scene.render.engine == 'CYCLES'
 			if shadingType != 'MATERIAL' and (shadingType != 'RENDERED' or isCycles):
 				return

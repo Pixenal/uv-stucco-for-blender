@@ -735,7 +735,7 @@ PixErr stucBlenderMapMeshGet(
 	return err;
 }
 
-PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate) {
+PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate, bool splitAll) {
 	PixErr err = PIX_ERR_SUCCESS;
 	if (triangulate) {
 		err = stucMeshTriangulate(&stucCtx, pMesh);
@@ -753,7 +753,7 @@ PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate) {
 		err = stucMeshBuildTangentsForTris(&stucCtx, pMesh);
 		PIX_ERR_RETURN_IFNOT(err, "");
 	}
-	err = stucMeshAttribsCornerToVert(&stucCtx, pMesh);
+	err = stucMeshAttribsCornerToVert(&stucCtx, pMesh, splitAll);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }
@@ -796,7 +796,7 @@ PixErr stucBlenderMapMeshRenderUpdate(const char *pMap) {
 	PIX_ERR_RETURN_IFNOT_COND(err, pMesh, "");
 	err = stucBlenderMeshCpy(&pEntry->meshRender, pMesh);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
-	err = stucBlenderMeshPrepForRender(&pEntry->meshRender, true);
+	err = stucBlenderMeshPrepForRender(&pEntry->meshRender, true, false);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	PIX_ERR_CATCH(0, err,
 		stucMeshDestroy(&stucCtx, &pEntry->meshRender);
@@ -1117,11 +1117,34 @@ PixErr stucBlenderCornersForMat(StucMesh *pMesh, I32 mat, PixtyI32Arr *pCorners)
 	return err;
 }
 
-PixErr stucBlenderEditOverlayCol(
+PixErr stucBlenderEditOverlayColVert(
+	I32 vertCount,
+	const I8 *pSelect,
+	PixtyV4_F32 *pCol
+) {
+	PixErr err = PIX_ERR_SUCCESS;
+	PIX_ERR_RETURN_IFNOT_COND(err, pCol && pSelect, "");
+	PIX_ERR_RETURN_IFNOT_COND(err, vertCount >= 2, "");
+	const PixtyV4_F32 col =
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {.0f, .0f, .0f, 255.0f}}, 255.0f);
+	const PixtyV4_F32 colSelect =
+		pixmV4F32DivideScalar((PixtyV4_F32){.d = {227.0f, 62.0f, 191.0f, 255.0f}}, 255.0f);
+	for (I32 i = 0; i < vertCount; ++i) {
+		if (pCol[i].d[0] != colSelect.d[0]) {
+			pCol[i] = pSelect[i] ? colSelect : col;
+		}
+	}
+	return err;
+}
+
+PixErr stucBlenderEditOverlayColEdge(
 	I32 edgeCount,
 	const PixtyV2_I32 *pEdges,
-	const float *pSelect,
+	PixtyV2_I32 *pEdgesSplit,
+	const I8 *pSelect,
 	I32 vertCount,
+	const PixtyV3_F32 *pPos,
+	PixtyV3_F32 *pPosSplit,
 	PixtyV4_F32 *pCol
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
@@ -1131,13 +1154,15 @@ PixErr stucBlenderEditOverlayCol(
 		pixmV4F32DivideScalar((PixtyV4_F32){.d = {.0f, .0f, .0f, 255.0f}}, 255.0f);
 	const PixtyV4_F32 colSelect =
 		pixmV4F32DivideScalar((PixtyV4_F32){.d = {227.0f, 62.0f, 191.0f, 255.0f}}, 255.0f);
+	I32 splitVertCount = 0;
 	for (I32 i = 0; i < edgeCount; ++i) {
 		for (I32 j = 0; j < 2; ++j) {
 			I32 vert = pEdges[i].d[j];
 			PIX_ERR_ASSERT("", vert < vertCount);
-			if (pCol[vert].d[0] != colSelect.d[0]) {
-				pCol[vert] = pSelect[i] ? colSelect : col;
-			}
+			pCol[splitVertCount] = pSelect[i] ? colSelect : col;
+			pPosSplit[splitVertCount] = pPos[vert];
+			pEdgesSplit[i].d[j] = splitVertCount;
+			++splitVertCount;
 		}
 	}
 	return err;
@@ -1146,14 +1171,12 @@ PixErr stucBlenderEditOverlayCol(
 PixErr stucBlenderMeshCastSel(
 	const StucMesh *pMesh,
 	F32 *pSelCorners,
-	const I8 *pSelFaces,
-	F32 *pfSelEdges,
-	const I8 *piSelEdges
+	const I8 *pSelFaces
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(
 		err,
-		pMesh && pSelCorners && pSelFaces && pfSelEdges && piSelEdges,
+		pMesh && pSelCorners && pSelFaces,
 		""
 	);
 	for (I32 i = 0; i < pMesh->faceCount; ++i) {
@@ -1164,9 +1187,6 @@ PixErr stucBlenderMeshCastSel(
 		for (I32 j = 0; j < faceSize; ++j) {
 			pSelCorners[faceStart + j] = (F32)pSelFaces[i];
 		}
-	}
-	for (I32 i = 0; i < pMesh->edgeCount; ++i) {
-		pfSelEdges[i] = (F32)piSelEdges[i];
 	}
 	return err;
 }

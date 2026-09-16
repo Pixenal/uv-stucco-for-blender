@@ -321,7 +321,8 @@ def getMapMesh(
 def prepStucMeshForRender(
 	src: stuc.StucMesh,
 	cpy: bool,
-	triangulate: bool
+	triangulate: bool = True,
+	splitAll: bool = False
 ) -> stuc.StucMesh:
 	if not src.faceCount:
 		raise Exception("src mesh is empty")
@@ -336,7 +337,8 @@ def prepStucMeshForRender(
 		
 	err = stucLib.stucBlenderMeshPrepForRender(
 		ctypes.pointer(meshRender),
-		ctypes.c_bool(triangulate)
+		ctypes.c_bool(triangulate),
+		ctypes.c_bool(splitAll)
 	)
 	if err != 1:
 		raise Exception("unable to make render mesh")

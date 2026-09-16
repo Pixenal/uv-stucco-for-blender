@@ -22,6 +22,7 @@ from . import attrib_utils as attribUtils
 from . import mesh_utils as meshUtils
 from . import props
 from . import stuc
+from . import draw
 
 class MappingInfo:
 	def __init__(
@@ -370,7 +371,6 @@ def waitForAndCopyOutMeshes(
 
 def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 	selFaces = (ctypes.c_float * mesh.cornerCount)()
-	selEdges = (ctypes.c_float * mesh.edgeCount)()
 	size = mesh.edgeCount * 2#type:ignore
 	edges = (ctypes.c_int32 * size)()#type:ignore
 	attribUtils.appendAttrib(
@@ -382,15 +382,33 @@ def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 		activeAttribs = mesh.activeAttribs,
 		domain = stuc.StucDomain.CORNER
 	)
-	attribUtils.appendAttrib(
-		mesh.edgeAttribs,
-		"selEdges",
-		stuc.StucAttribType.F32.value,
-		stuc.StucAttribUse.MASK.value,
-		ctypes.cast(selEdges, ctypes.c_void_p),
-		activeAttribs = mesh.activeAttribs,
-		domain = stuc.StucDomain.EDGE
-	)
+	if bpy.context.tool_settings.mesh_select_mode[0]:#if vert selection mode
+		selVerts = (ctypes.c_int8 * mesh.vertCount)()
+		attribUtils.appendAttrib(
+			mesh.vertAttribs,
+			"selVerts",
+			stuc.StucAttribType.I8.value,
+			stuc.StucAttribUse.MASK.value,
+			ctypes.cast(selVerts, ctypes.c_void_p),
+			activeAttribs = mesh.activeAttribs,
+			domain = stuc.StucDomain.VERT
+		)
+		selVertsNumpy = numpy.ctypeslib.as_array(selVerts, shape = (mesh.vertCount, 1))
+		obj.data.vertices.foreach_get("select", selVertsNumpy) #type:ignore
+	else:
+		selEdges = (ctypes.c_int8 * mesh.edgeCount)()
+		attribUtils.appendAttrib(
+			mesh.edgeAttribs,
+			"selEdges",
+			stuc.StucAttribType.I8.value,
+			stuc.StucAttribUse.MASK.value,
+			ctypes.cast(selEdges, ctypes.c_void_p),
+			activeAttribs = mesh.activeAttribs,
+			domain = stuc.StucDomain.EDGE
+		)
+		selEdgesNumpy = numpy.ctypeslib.as_array(selEdges, shape = (mesh.edgeCount, 1))
+		obj.data.edges.foreach_get("select", selEdgesNumpy) #type:ignore
+	
 	attribUtils.appendAttrib(
 		mesh.edgeAttribs,
 		"edgeCorners",
@@ -403,15 +421,12 @@ def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
 
 	selFacesNumpy = numpy.empty(mesh.faceCount, dtype = numpy.int8)
 	obj.data.polygons.foreach_get("select", selFacesNumpy) #type:ignore
-	selEdgesNumpy = numpy.empty(mesh.edgeCount, dtype = numpy.int8)
-	obj.data.edges.foreach_get("select", selEdgesNumpy) #type:ignore
 	stucLib.stucBlenderMeshCastSel(
 		ctypes.pointer(mesh),
 		selFaces,
-		numpy.ctypeslib.as_ctypes(selFacesNumpy),
-		selEdges,
-		numpy.ctypeslib.as_ctypes(selEdgesNumpy)
+		numpy.ctypeslib.as_ctypes(selFacesNumpy)
 	)
+
 	edgesNumpy = numpy.ctypeslib.as_array(edges, shape = (size, 1))#type:ignore
 	obj.data.edges.foreach_get("vertices", edgesNumpy) #type:ignore
 
@@ -450,8 +465,6 @@ def cacheTarget(
 		)
 		stucMesh = stucObj.meshData.mesh
 	if edit:
-		if len(obj.data.edges) != stucMesh.edgeCount:
-			pdb.set_trace()
 		appendSelAttrib(obj, stucMesh) #type:ignore
 	cpyAndTris = cacheType != stuc.MeshCacheType.MESH_CACHE_OUT
 	meshRender = meshUtils.prepStucMeshForRender(stucMesh, cpyAndTris, cpyAndTris)
@@ -492,7 +505,11 @@ def mapToTarget(
 			if cacheInMesh and cache:
 				cacheTarget(target, crc)
 		case 'EDIT':
-			if not cache or context.scene.stuc.dontDraw:#type:ignore
+			area = draw.getArea()
+			if not area:
+				return
+			shadingType = area.spaces.active.shading.type #type:ignore
+			if not cache or context.scene.stuc.dontDraw or shadingType == 'SOLID':#type:ignore
 				return
 			#TODO add a ui option to enable mapping in edit mode
 			#it's just laggy

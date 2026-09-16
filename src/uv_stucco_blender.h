@@ -46,6 +46,8 @@ typedef struct StrWithLen {
 	int32_t len;
 } StrWithLen;
 
+typedef int8_t I8;
+
 STUC_BLENDER_EXPORT
 PixErr stucBlenderInit(const char *pLogPath);
 STUC_BLENDER_EXPORT
@@ -113,7 +115,7 @@ PixErr stucBlenderMapMeshGet(
 	bool forRender
 );
 STUC_BLENDER_EXPORT
-PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate);
+PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate, bool splitAll);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMeshCpy(StucMesh *pDest, const StucMesh *pSrc);
 STUC_BLENDER_EXPORT
@@ -209,20 +211,27 @@ PixErr stucBlenderCornersForMat(StucMesh *pMesh, I32 mat, PixtyI32Arr *pCorners)
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMapNameGet(struct StucMap *pMap, const char **ppName);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderEditOverlayCol(
+PixErr stucBlenderEditOverlayColVert(
+	I32 vertCount,
+	const I8 *pSelect,
+	PixtyV4_F32 *pCol
+);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderEditOverlayColEdge(
 	I32 edgeCount,
 	const PixtyV2_I32 *pEdges,
-	const float *pSelect,
+	PixtyV2_I32 *pEdgesSplit,
+	const I8 *pSelect,
 	I32 vertCount,
+	const PixtyV3_F32 *pPos,
+	PixtyV3_F32 *pPosSplit,
 	PixtyV4_F32 *pCol
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderMeshCastSel(
 	const StucMesh *pMesh,
 	float *pSelCorners,
-	const int8_t *pSelFaces,
-	float *pfSelEdges,
-	const int8_t *piSelEdges
+	const int8_t *pSelFaces
 );
 STUC_BLENDER_EXPORT
 void stucBlenderArrayCast(

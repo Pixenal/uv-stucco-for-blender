@@ -90,7 +90,7 @@ class STUC_PT_Stuc(StucParentPanel, bpy.types.Panel):
 
 	def draw(self, context: bpy.types.Context) -> None:
 		col0 = self.layout.column()
-		col0.operator("stuc.scene_export", text = "Export Scene", icon = 'EXPORT')
+		col0.operator("stuc.scene_cache", icon = 'EXPORT')
 		col0.label(text = "")
 
 class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):

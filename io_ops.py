@@ -554,9 +554,9 @@ class STUC_OT_StucExtraDepDirRemove(bpy.types.Operator):
 			raise e
 		return {'FINISHED'}
 	
-class STUC_OT_StucSceneExport(bpy.types.Operator):
-	bl_idname = "stuc.scene_export"
-	bl_label = "Scene Export"
+class STUC_OT_StucSceneCache(bpy.types.Operator):
+	bl_idname = "stuc.scene_cache"
+	bl_label = "Cache Scene"
 	bl_options = {'REGISTER'}
 
 	@classmethod
@@ -651,7 +651,7 @@ classes = [
 	STUC_OT_StucReloadStucFile,
 	STUC_OT_StucExtraDepDirAdd,
 	STUC_OT_StucExtraDepDirRemove,
-	STUC_OT_StucSceneExport,
+	STUC_OT_StucSceneCache,
 	STUC_OT_StucSceneImport,
 	#STUC_OT_StucThreadPoolLogDump
 ]

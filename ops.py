@@ -17,6 +17,7 @@ from . import mesh_utils as meshUtils
 if not bpy.app.background:
 	from . import draw
 from . import mapping
+from . import props
 
 class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 	bl_idname = "stuc.set_as_usg"
@@ -24,7 +25,7 @@ class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	@classmethod
-	def poll(cls, context) -> bool:
+	def poll(cls, context: bpy.types.Context) -> bool:
 		return meshUtils.getUsgCountInSelObjs(context) < len(context.selected_objects)
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
@@ -46,7 +47,7 @@ class STUC_OT_StucUnsetUsg(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	@classmethod
-	def poll(cls, context) -> bool:
+	def poll(cls, context: bpy.types.Context) -> bool:
 		return meshUtils.getUsgCountInSelObjs(context) > 0
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
@@ -68,7 +69,7 @@ class STUC_OT_StucSetFlatCutoff(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	@classmethod
-	def poll(cls, context) -> bool:
+	def poll(cls, context: bpy.types.Context) -> bool:
 		return meshUtils.getUsgCountInSelObjs(context) > 0
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
@@ -91,7 +92,7 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 	bl_options = {'REGISTER'}
 
 	@classmethod
-	def poll(cls, context) -> bool:
+	def poll(cls, context: bpy.types.Context) -> bool:
 		return len(context.selected_objects)#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
@@ -139,7 +140,7 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 	bl_options = {"REGISTER"}
 
 	@classmethod
-	def poll(cls, context) -> bool:
+	def poll(cls, context: bpy.types.Context) -> bool:
 		return context.scene.stucTargetsIdx < len(context.scene.stucTargets)#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
@@ -181,7 +182,7 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 	itemIdx : bpy.props.IntProperty() #type:ignore
 
 	@classmethod
-	def poll(cls, context) -> bool:
+	def poll(cls, context: bpy.types.Context) -> bool:
 		return context.scene.stucMatsIdx < len(context.scene.stucMats)#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
@@ -200,7 +201,7 @@ class STUC_OT_StucMapRemove(bpy.types.Operator):
 	itemIdx : bpy.props.IntProperty() #type:ignore
 
 	@classmethod
-	def poll(cls, context) -> bool:
+	def poll(cls, context: bpy.types.Context) -> bool:
 		return context.scene.stucMapsIdx < len(context.scene.stucMaps)#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
@@ -236,6 +237,30 @@ class STUC_OT_StucForceUpdateTargets(bpy.types.Operator):
 		mapping.mapToTargetsInScene(context, selOnly = True, force = True)
 		return {'FINISHED'}
 
+def mapPreviewImgGet(map: props.StucMap) -> bpy.types.Image | None:
+	return bpy.data.images.get(f"{map.name}_albedo", None)
+
+class STUC_OT_StucMapViewPreview(bpy.types.Operator):
+	bl_idname = "stuc.stuc_map_view_preview"
+	bl_label = "View Map Preview"
+
+	@classmethod
+	def poll(cls, context: bpy.types.Context) -> bool:
+		if context.scene.stucMapsIdx >= len(context.scene.stucMaps):#type:ignore
+			return False
+		map = context.scene.stucMaps[context.scene.stucMapsIdx]#type:ignore
+		return bool(mapPreviewImgGet(map) and utils.getArea('IMAGE_EDITOR'))
+
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		map = context.scene.stucMaps[context.scene.stucMapsIdx]#type:ignore
+		image = mapPreviewImgGet(map)
+		if not image:
+			return {'CANCELLED'}
+		for area in bpy.context.window.screen.areas:
+			if area.type == 'IMAGE_EDITOR':
+				area.spaces.active.image = image#type:ignore
+		return {'FINISHED'}
+
 classes = [
 	STUC_OT_StucSetAsUsg,
 	STUC_OT_StucUnsetUsg,
@@ -246,7 +271,8 @@ classes = [
 	STUC_OT_StucMatRemove,
 	STUC_OT_StucMapRemove,
 	STUC_OT_StucReloadTextures,
-	STUC_OT_StucForceUpdateTargets
+	STUC_OT_StucForceUpdateTargets,
+	STUC_OT_StucMapViewPreview
 ]
 
 def register() -> None:

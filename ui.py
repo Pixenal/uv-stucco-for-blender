@@ -102,6 +102,7 @@ class STUC_PT_StucMaps(StucParentPanel, bpy.types.Panel):
 		col0 = self.layout.column()
 		col0.operator("stuc.load_stuc_file", text = "Load Map", icon = "MESH_PLANE")
 		col0.operator("stuc.reload_stuc_file", text = "Refresh Maps", icon = 'FILE_REFRESH')
+		col0.operator("stuc.stuc_map_view_preview", text = "View Preview", icon = 'UV')
 		col0.template_list(
 			"STUC_UL_StucMaps",
 			"",

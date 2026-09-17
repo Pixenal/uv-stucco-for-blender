@@ -183,15 +183,11 @@ if not bpy.app.background:
 			raise Exception()
 		#if isOutMesh and selected:
 		#	setAlphaForTarget(context, target, .0)
+		drawGeo = draw.DrawGeo(cache[1], target.obj.matrix_world, cache[3], idxAttribs)
 		draw.drawMeshInViewport(
-			f"{target.id}_{target.obj.name}",
-			cache[0],
-			frame,
+			draw.DrawInfo(f"{target.id}_{target.obj.name}", cache[0], frame),
+			drawGeo,
 			matCache,
-			cache[1],
-			target.obj.matrix_world,
-			cache[3],
-			idxAttribs = idxAttribs,
 			mats = None if idxAttribs else [mat for mat in target.obj.data.materials]
 		)
 		if cache[3] == stuc.MeshCacheType.MESH_CACHE_IN_EDIT and target.obj.mode == 'EDIT':

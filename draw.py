@@ -842,7 +842,7 @@ def prevSinglePass(
 			bpy.data.images.remove(image)
 		image = bpy.data.images.new(name, width, height, alpha = True)
 		image.file_format = 'PNG'
-		image.filepath = f"{bpy.path.abspath(dir)}/.preview_cache/{name}.png"
+		image.filepath = f"{bpy.path.abspath(dir)}/.stuc_preview_cache/{name}.png"
 		buf.dimensions = width * height * 4
 		image.colorspace_settings.name = offscreen.colorSpace#type:ignore
 		image.pixels.foreach_set(buf)#type:ignore

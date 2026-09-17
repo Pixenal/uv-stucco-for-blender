@@ -111,7 +111,7 @@ def sceneImportToFile(shmName: str, shmServer: str) -> None:
 
 def linkCache(context: bpy.types.Context, filepath: str) -> None:
 	cachePath = bpy.path.relpath(client.createCachePath(filepath))
-	stucCol = bpy.data.collections.get("_STUC_CACHE", None)
+	stucCol = bpy.data.collections.get(client.cacheFolder, None)
 	#reload existing linked objects if present
 	cacheLib = bpy.data.libraries.get(bpy.path.basename(cachePath), None)
 	if cacheLib:
@@ -128,17 +128,17 @@ def linkCache(context: bpy.types.Context, filepath: str) -> None:
 			".Stuc" in name and (not stucCol or not name in stucCol.objects)
 		]
 	if not stucCol:
-		stucCol = bpy.data.collections.new(name = "_STUC_CACHE")
+		stucCol = bpy.data.collections.new(name = client.cacheFolder)
 	if not context.scene.collection.children.get(stucCol.name, None):
 		context.scene.collection.children.link(stucCol)
 	for obj in dataDest.objects:
 		stucCol.objects.link(obj)
 
 def getCacheIfVisible(context: bpy.types.Context) -> bpy.types.Collection | None:
-	stucLayCol = context.view_layer.layer_collection.children.get("_STUC_CACHE", None)
+	stucLayCol = context.view_layer.layer_collection.children.get(client.cacheFolder, None)
 	if not stucLayCol or not stucLayCol.is_visible:
 		return None
-	stucCol = bpy.data.collections.get("_STUC_CACHE", None)
+	stucCol = bpy.data.collections.get(client.cacheFolder, None)
 	if not stucCol or stucCol.hide_viewport or not context.scene.user_of_id(stucCol): #type:ignore
 		return None
 	return stucCol
@@ -155,7 +155,7 @@ def getTargetInCache(
 
 def correctCacheLib() -> None:
 	for lib in bpy.data.libraries:
-		if "_STUC_CACHE" in lib.name:
+		if client.cacheFolder in lib.name:
 			newPath = os.path.abspath(client.createCachePath(bpy.data.filepath))
 			oldPath = os.path.abspath(lib.filepath)
 			if newPath == oldPath:

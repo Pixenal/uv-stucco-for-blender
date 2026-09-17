@@ -9,6 +9,8 @@ import os
 
 import bpy
 
+cacheFolder = ".stuc_scene_cache"
+
 def checkForShmArg() -> list[str] | None:
 	shmName = ""
 	serverPath = ""
@@ -32,9 +34,9 @@ def checkForShmArg() -> list[str] | None:
 	return None
 
 def createCachePath(shmServer: str)-> str:
-	cacheDir = f"{os.path.dirname(shmServer)}/_STUC_CACHE"
+	cacheDir = f"{os.path.dirname(shmServer)}/{cacheFolder}"
 	os.makedirs(cacheDir, exist_ok = True)
-	return f"{cacheDir}/_STUC_CACHE_{bpy.path.basename(shmServer)}"
+	return f"{cacheDir}/{cacheFolder}_{bpy.path.basename(shmServer)}"
 
 if __name__ == "__main__":
 	try:

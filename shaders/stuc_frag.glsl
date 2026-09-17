@@ -21,9 +21,9 @@ void main() {
 	}
 #endif
 
-	vec3 v = normalize(v_viewPos - v_pos);
-	vec3 viewUvw = vec3(gl_FragCoord.xy / v_viewRes, 1.0f);
-	float aspect = v_viewRes.x / v_viewRes.y;
+	vec3 v = normalize(args.viewPos - v_pos);
+	vec3 viewUvw = vec3(gl_FragCoord.xy / args.viewRes, 1.0f);
+	float aspect = args.viewRes.x / args.viewRes.y;
 	
 	vec2 uvWrap = mod(v_uv, vec2(1.0f));
 	uvWrap.x = uvWrap.x < .0f ? 1.0f - uvWrap.x * -1.0f : uvWrap.x;
@@ -63,7 +63,7 @@ void main() {
 		metal = 1.0f;
 		rough = .0f;
 	}
-	switch (i_matParam) {
+	switch (args.matParam) {
 		case 0:
 			col += albedo;
 			break;

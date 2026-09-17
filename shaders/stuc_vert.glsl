@@ -12,11 +12,11 @@ void main() {
 		f_gradient = (position.z - args.mapZBounds.x) / boundsSize;
 		f_gradient = 1.0 - (1.0 - clamp(f_gradient, .0, 1.0)) * .5;
 	}
-	v_pos = vec3(modelMatrix * vec4(position, 1.0f));
+	v_pos = vec3(args.modelMat * vec4(position, 1.0f));
 	mat3 normalMatrix = mat3(
-		normalize(modelMatrix[0].xyz),
-		normalize(modelMatrix[1].xyz),
-		normalize(modelMatrix[2].xyz)
+		normalize(args.modelMat[0].xyz),
+		normalize(args.modelMat[1].xyz),
+		normalize(args.modelMat[2].xyz)
 	);
 	normalMatrix = transpose(inverse(normalMatrix));
 	m_tbn = mat3(
@@ -28,14 +28,11 @@ void main() {
 	m_tbn = normalMatrix * m_tbn;
 
 	v_uv = uv;
-	v_viewPos = viewPos;
-	v_viewRes = viewRes;
-	m_viewMat = viewMat;
-	i_matParam = matParam;
 	i_select = select;
+	m_viewMat = viewMat;
 
-	gl_Position = viewProjectionMatrix * vec4(v_pos, 1.0f);
-	if (matParam == -1) {
+	gl_Position = args.viewProjMat * vec4(v_pos, 1.0f);
+	if (args.matParam == -1) {
 		gl_Position.z += .00000001f;//push back so edit overlay can render on top
 	}
 }

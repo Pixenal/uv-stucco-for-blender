@@ -19,14 +19,18 @@ def copyString(dest: bytes, src: str, maxLen: int) -> None:
 		cast(Any, dest)[i] = srcUtf8[i]
 		i += 1
 
-def setStucMatrix(dest: ctypes.Array[ctypes.c_float], src: mathutils.Matrix) -> None:
+def setStucMatrix(
+		dest: ctypes.Array[ctypes.c_float],
+		src: mathutils.Matrix,
+		size: int = 4
+	) -> None:
 	matWorld = src.copy()
 	matWorld.transpose()
 	j = 0
-	while j < 4:
+	while j < size:
 		k = 0
-		while k < 4:
-			linearIdx = k + j * 4
+		while k < size:
+			linearIdx = k + j * size
 			dest[linearIdx] = matWorld[j][k]
 			k += 1
 		j += 1

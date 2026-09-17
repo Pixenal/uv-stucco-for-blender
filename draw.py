@@ -169,18 +169,10 @@ vertOut = gpu.types.GPUStageInterfaceInfo("my_interface") #type:ignore
 vertOut.smooth('VEC3', "v_pos")
 vertOut.smooth('VEC2', "v_uv")
 vertOut.smooth('MAT3', "m_tbn")
-vertOut.flat('FLOAT', "i_select")
-vertOut.flat('VEC3', "v_viewPos")
-vertOut.flat('INT', "i_matParam")
-vertOut.flat('VEC2', "v_viewRes")
 vertOut.flat('MAT3', "m_viewMat")
+vertOut.flat('FLOAT', "i_select")
 vertOut.smooth('FLOAT', "f_gradient")
 info = gpu.types.GPUShaderCreateInfo()
-info.push_constant('MAT4', "viewProjectionMatrix")
-info.push_constant('MAT4', "modelMatrix")
-info.push_constant('VEC3', "viewPos")
-info.push_constant('INT', "matParam")
-info.push_constant('VEC2', "viewRes")
 info.push_constant('MAT3', "viewMat")
 info.typedef_source("\
 	struct MatInfo { \
@@ -196,12 +188,16 @@ info.typedef_source("\
 		float roughChannel;\
 	};\
 	struct Args {\
-		vec2 mapZBounds;\
-		vec2 padding;\
+		mat4 viewProjMat;\
+		mat4 modelMat;\
+		vec3 viewPos;\
 		float isEditMode;\
+		vec2 mapZBounds;\
+		vec2 viewRes;\
 		float error;\
 		float time;\
 		float flipY;\
+		int matParam;\
 	};\
 ")
 info.uniform_buf(0, "MatInfo", "matInfo")
@@ -352,12 +348,16 @@ class MatInfo(ctypes.Structure):
 
 class Args(ctypes.Structure):
 	_fields_ = [
-		("mapZBounds", ctypes.c_float * 2),
-		("padding", ctypes.c_float * 2),
+		("viewProjMat", ctypes.c_float * 16),
+		("modelMat", ctypes.c_float * 16),
+		("viewPos", ctypes.c_float * 3),
 		("isEditMode", ctypes.c_float),
+		("mapZBounds", ctypes.c_float * 2),
+		("viewRes", ctypes.c_float * 2),
 		("error", ctypes.c_float),
 		("time", ctypes.c_float),
-		("flipY", ctypes.c_float)
+		("flipY", ctypes.c_float),
+		("matParam", ctypes.c_int)
 	]
 
 def getMissingTex() -> gpu.types.GPUTexture:
@@ -568,6 +568,7 @@ def drawMeshForMat(
 	mat: DrawMat,
 	bufs: Bufs,
 	cacheType: stuc.MeshCacheType,
+	args: Args,
 	texOverride: TexOverride | None = None,
 	error: ShaderErr = ShaderErr.NONE,
 	zBounds: stuc.StucVec2 | None = None
@@ -575,7 +576,6 @@ def drawMeshForMat(
 	area = utils.getArea()
 	if not area:
 		raise Exception()
-	args = Args()
 	if area.spaces.active.overlay.show_overlays:#type:ignore
 		args.isEditMode = float(cacheType == stuc.MeshCacheType.MESH_CACHE_IN_EDIT)
 	else:
@@ -727,10 +727,10 @@ def drawMeshStart(
 	backfaceCull: bool,
 	camera: Camera,
 	modelMatrix: mathutils.Matrix,
+	args: Args,
 	matParam: int = -1,
 	envFileName: str = "",
 ) -> DrawMeshState | None:
-	
 	area = utils.getArea()
 	if not area:
 		return None
@@ -738,20 +738,19 @@ def drawMeshStart(
 	if not envTex:
 		return None
 	
-	frameBuf: gpu.types.GPUFrameBuffer = gpu.state.active_framebuffer_get()  #type:ignore
+	frameBuf: gpu.types.GPUFrameBuffer = gpu.state.active_framebuffer_get()#type:ignore
 	viewRes = frameBuf.viewport_get()
-	meshShader.uniform_float("viewRes", (viewRes[2], viewRes[3]))
-	meshShader.uniform_float("modelMatrix", modelMatrix) #type:ignore
-	meshShader.uniform_float("viewProjectionMatrix", camera.perpMatrix) #type:ignore
-
+	args.viewRes = (viewRes[2], viewRes[3])
+	utils.setStucMatrix(args.modelMat, modelMatrix)
+	utils.setStucMatrix(args.viewProjMat, camera.perpMatrix)
 	viewMat = gpu.matrix.get_model_view_matrix()
 	if not camera.viewPos[0] and not camera.viewPos[1] and not camera.viewPos[2]:
 		camera.viewPos = viewMat.inverted().translation
-	meshShader.uniform_float("viewPos", camera.viewPos) #type:ignore
-	meshShader.uniform_float("viewMat", viewMat.inverted().to_3x3()) #type:ignore
+	args.viewPos = (camera.viewPos[0], camera.viewPos[1], camera.viewPos[2])
+	meshShader.uniform_float("viewMat", viewMat.inverted().to_3x3())#type:ignore
+	args.matParam = matParam
 
 	meshShader.uniform_sampler("envTex", envTex)
-	meshShader.uniform_int("matParam", matParam) #type:ignore
 
 	depthTestMode = gpu.state.depth_test_get()
 	gpu.state.depth_test_set('LESS_EQUAL')
@@ -1011,10 +1010,12 @@ def callDrawForMat(
 				frame,
 				mat.cache
 			)
+	args = Args()
 	drawState = drawMeshStart(
 		opts.backfaceCull,
 		camera,
-		geo.modelMatrix, 
+		geo.modelMatrix,
+		args,
 		matParam = mat.param,
 		envFileName = opts.envFileName,
 	)
@@ -1051,6 +1052,7 @@ def callDrawForMat(
 		mat,
 		bufs,
 		geo.cacheType,
+		args,
 		texOverride = texOverride,
 		error = error,
 		zBounds = geo.zBounds

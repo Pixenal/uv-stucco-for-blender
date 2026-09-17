@@ -130,6 +130,7 @@ PixErr stucBlenderMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucWMode wMode,
 	float wScale,
 	float receiveLen,
 	int32_t *pPushedJobs,

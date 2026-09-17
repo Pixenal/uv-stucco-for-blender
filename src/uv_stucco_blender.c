@@ -824,6 +824,7 @@ PixErr stucBlenderMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
+	StucWMode wMode,
 	float wScale,
 	float receiveLen,
 	I32 *pPushedJobs,
@@ -836,6 +837,7 @@ PixErr stucBlenderMapToMesh(
 		pMapArr,
 		pMesh, pInIndexedAttribs,
 		pOutMesh, pOutIndexedAttribs,
+		wMode,
 		wScale,
 		receiveLen,
 		triangulate

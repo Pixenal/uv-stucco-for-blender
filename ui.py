@@ -207,6 +207,7 @@ class STUC_PT_StucTargets(StucParentPanel, bpy.types.Panel):
 		
 		if (len(context.scene.stucTargets)): #type:ignore
 			target = context.scene.stucTargets[context.scene.stucTargetsIdx] #type:ignore
+			col0.prop(target, "wMode", text = "W Mode")
 			col0.template_list(
 				"STUC_UL_StucActiveAttribs",
 				"",

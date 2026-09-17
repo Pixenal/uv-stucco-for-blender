@@ -75,12 +75,13 @@ class StucAttribUse(enum.Enum):
 	EDGE_FACES = 16
 	EDGE_CORNERS = 17
 	NORMALS_VERT = 18
-	SP_ENUM_COUNT = 19
-	COLOR = 20
-	MASK = 21
-	SCALAR = 22
-	MISC = 23
-	ENUM_COUNT = 24
+	TBMAG = 19
+	SP_ENUM_COUNT = 20
+	COLOR = 21
+	MASK = 22
+	SCALAR = 23
+	MISC = 24
+	ENUM_COUNT = 25
 
 class StucBlendMode(enum.Enum):
 	REPLACE = 0
@@ -114,6 +115,16 @@ class DepStatus(enum.Enum):
 	DIRTY_DEP = 2
 	CLEAN = 3
 	FILE_NOT_FOUND = 4
+
+class StucWMode(enum.Enum):
+	STUC_W_NONE = 0
+	STUC_W_AVERAGE = 1
+	STUC_W_TANGENT = 2
+	STUC_W_BITANGENT = 3
+	STUC_W_AVERAGE_UNIFORM = 4
+	STUC_W_TANGENT_UNIFORM = 5
+	STUC_W_BITANGENT_UNIFORM = 6
+	STUC_W_ENUM_COUNT = 7
 
 class StucVec2(ctypes.Structure):
 	_fields_ = [

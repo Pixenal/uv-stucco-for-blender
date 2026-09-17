@@ -216,6 +216,15 @@ class StucTarget(bpy.types.PropertyGroup):
 	activeAttribIdx : bpy.props.IntProperty()#type:ignore
 	id : bpy.props.IntProperty()#type:ignore
 	dirty : bpy.props.BoolProperty()#type:ignore
+	wMode : bpy.props.EnumProperty(default = '1', items = [#type:ignore
+		('0', "None", ""),
+		('1', "Average", ""),
+		('2', "Tangent", ""),
+		('3', "Bitangent", ""),
+		('4', "Average Uniform", ""),
+		('5', "Tangent Uniform", ""),
+		('6', "Bitangent Uniform", "")
+	])
 
 class StucMapActiveAttrib(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty(update = mapActiveAttribUpdate)#type:ignore

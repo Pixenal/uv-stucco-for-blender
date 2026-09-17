@@ -33,6 +33,7 @@ class MappingInfo:
 		objEval : bpy.types.Object,
 		stucObj : meshUtils.StucObjData,
 		inIndexedArr : stuc.StucAttribIndexedArr,
+		wMode: int,
 		wScale : float,
 		receiveLen : float,
 		editMode : bool
@@ -43,6 +44,7 @@ class MappingInfo:
 		self.objEval = objEval
 		self.stucObj = stucObj
 		self.inIndexedArr = inIndexedArr
+		self.wMode = wMode
 		self.wScale = wScale
 		self.receiveLen = receiveLen
 		self.editMode = editMode
@@ -175,6 +177,7 @@ def prepTargetForMapping(
 		objEval,
 		stucObj,
 		inIndexedArr,
+		int(target.wMode),
 		wScale,
 		receiveLen,
 		target.obj.mode == 'EDIT'
@@ -245,6 +248,7 @@ def pushMappingJobToQueue(
 		ctypes.pointer(info.inIndexedArr),
 		ctypes.pointer(workMesh),
 		ctypes.pointer(outIndexedAttribs),
+		ctypes.c_int32(info.wMode),
 		ctypes.c_float(info.wScale),
 		ctypes.c_float(info.receiveLen),
 		ctypes.pointer(pushedJobs),

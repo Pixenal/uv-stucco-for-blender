@@ -188,6 +188,9 @@ PixErr stucBlenderCrcFromTarget(
 	const StucMesh *pMesh,
 	const StucAttribIndexedArr *pIdxAttribArr,
 	const StucMapArr *pMapArr,
+	StucWMode wMode,
+	float wScale,
+	float receiveLen,
 	uint64_t *pCrc
 );
 STUC_BLENDER_EXPORT

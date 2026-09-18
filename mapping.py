@@ -201,6 +201,9 @@ def isTargetCrcEqual(
 			ctypes.cast(info.stucObj.obj.pData, ctypes.c_void_p),
 			ctypes.pointer(info.inIndexedArr),
 			ctypes.pointer(info.mapArr),
+			int(target.wMode),
+			ctypes.c_float(target.wScale),
+			ctypes.c_float(target.receiveLen),
 			ctypes.pointer(newCrc)
 		)
 		if err != 1:

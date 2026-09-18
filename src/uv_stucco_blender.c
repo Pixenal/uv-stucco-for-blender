@@ -286,6 +286,9 @@ PixErr stucBlenderCrcFromTarget(
 	const StucMesh *pMesh,
 	const StucAttribIndexedArr *pIdxAttribArr,
 	const StucMapArr *pMapArr,
+	StucWMode wMode,
+	F32 wScale,
+	F32 receiveLen,
 	U64 *pCrc
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
@@ -295,6 +298,10 @@ PixErr stucBlenderCrcFromTarget(
 		""
 	);
 	*pCrc = crc64Init();
+
+	crc64Contrib(pCrc, sizeof(wMode), &wMode);
+	crc64Contrib(pCrc, sizeof(wScale), &wScale);
+	crc64Contrib(pCrc, sizeof(receiveLen), &receiveLen);
 
 	crc64Contrib(pCrc, sizeof(pIdxAttribArr->count), &pIdxAttribArr->count);
 	for (I32 i = 0; i < pIdxAttribArr->count; ++i) {

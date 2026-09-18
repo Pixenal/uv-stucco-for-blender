@@ -96,7 +96,7 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
-		return len(context.selected_objects)#type:ignore
+		return len(context.selected_objects) > 0
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
@@ -143,14 +143,17 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
-		return context.scene.stucTargetsIdx < len(context.scene.stucTargets)#type:ignore
+		return len(context.scene.stucTargets) and len(context.selected_objects)#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			scene = context.scene
-			target: props.StucTarget = scene.stucTargets[scene.stucTargetsIdx] #type:ignore
-			stucLib.stucBlenderTargetCacheRemove(target.id)
-			scene.stucTargets.remove(scene.stucTargetsIdx) #type:ignore
+			for obj in context.selected_objects:
+				targetIdx = context.scene.stucTargets.find(obj.name)#type:ignore
+				if targetIdx == -1:
+					continue
+				target = context.scene.stucTargets[targetIdx]#type:ignore
+				stucLib.stucBlenderTargetCacheRemove(target.id)
+				context.scene.stucTargets.remove(targetIdx)#type:ignore
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to remove target")
 			raise e

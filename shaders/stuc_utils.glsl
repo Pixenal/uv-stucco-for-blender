@@ -13,6 +13,12 @@ vec2 dirToUv(vec3 dir) {
 	return vec2(-atan(dir.y, dir.x), asin(dir.z)) / vec2(2.0f * PI, PI) + .5f;
 }
 
+vec3 uvToDir(vec2 uv) {
+	vec2 rot = (uv - .5f) * vec2(2.0f * PI, PI);
+	float cosTheta = cos(rot.y);
+	return vec3(cos(-rot.x) * cosTheta, sin(-rot.x) * cosTheta, sin(rot.y));
+}
+
 float fakeEquirectMask(vec3 a, vec3 b, float sharp, out float planeSign) {
 	float aob = dot(a, b);
 	planeSign = aob > .0f ? 1.0f : .0f;

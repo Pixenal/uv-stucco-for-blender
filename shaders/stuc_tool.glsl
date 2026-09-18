@@ -73,7 +73,7 @@ vec3 multipassSparkles(mat3 pMat, mat3 tbn, mat3 viewMat, vec3 v, vec2 viewUv, f
 		vec3 flowOut = vec3(.0f);
 		vec3 passCol = makeSparkles(pMat, viewMat, viewUv, tbn, time, pow(float(i) * 4.0f, 1.25f), flowOut);
 		float luminance = .2126f * passCol.x + .7152 * passCol.y + .0722 * passCol.z;
-		passCol = mix(passCol, (-v * .5f + .5f), .75f) * luminance;
+		passCol = mix(passCol, (-uvToDir(dirToUv(v) * 2.0f) * .5f + .5f), .75f) * luminance;
 
 		passCol *= 255.0f;
 		vec3 ypbpr = rgbToYpbpr * passCol;
@@ -170,7 +170,8 @@ vec3 makeErrMat(
 	blurEnv /= 3.0f;
 	vec3 col = clamp(sparkles * (1.0f - blurEnv * .1f), vec3(.0f), sparkles) + blurEnv * .01f;
 	col *= textOuter ? .0f : 1.0f;
-	col = mix(col, (v * .5f + .5f), textInner ? 1.0f : .0f);
+	vec3 textCol = normalize(uvToDir(dirToUv(v) * 3.0f)) * .5f + .5f;
+	col = mix(col, textCol, textInner ? 1.0f : .0f);
 	col = col / (col + vec3(1.0f));
 	return clamp(col, .0, 1.0f);
 }

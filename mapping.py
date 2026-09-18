@@ -33,9 +33,6 @@ class MappingInfo:
 		objEval : bpy.types.Object,
 		stucObj : meshUtils.StucObjData,
 		inIndexedArr : stuc.StucAttribIndexedArr,
-		wMode: int,
-		wScale : float,
-		receiveLen : float,
 		editMode : bool
 	) -> None:
 		self.target = target
@@ -44,9 +41,6 @@ class MappingInfo:
 		self.objEval = objEval
 		self.stucObj = stucObj
 		self.inIndexedArr = inIndexedArr
-		self.wMode = wMode
-		self.wScale = wScale
-		self.receiveLen = receiveLen
 		self.editMode = editMode
 
 class TargetJob: 
@@ -88,7 +82,10 @@ def createMapArr(
 	context : bpy.types.Context,
 	objEval : bpy.types.Object,
 	meshEval : bpy.types.Mesh,
-	commonAttribs : ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]]
+	commonAttribs : ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]],
+	wMode: int,
+	wScale: float,
+	receiveLen: float
 ) -> stuc.StucMapArr | None:
 	targetMats = utils.getMatsInStucMats(context, meshEval)
 	targetMatCount = len(targetMats)
@@ -106,6 +103,9 @@ def createMapArr(
 		mapArr.pArr[i].map.ptr = pMap
 		mapArr.pArr[i].blendOptArr = commonAttribs[i]
 		mapArr.pArr[i].matIdx = objEval.material_slots.find(mat.mat.name)
+		mapArr.pArr[i].wMode = wMode
+		mapArr.pArr[i].wScale = wScale
+		mapArr.pArr[i].receiveLen = receiveLen
 		i += 1
 	return mapArr
 
@@ -150,17 +150,27 @@ def prepTargetForMapping(
 	else:
 		objEval = obj
 	meshEval = objEval.data
+	if type(meshEval) != bpy.types.Mesh:
+		raise Exception()
 	
-	mapArr = createMapArr(context, objEval, meshEval, commonAttribs) #type:ignore
+	mapArr = createMapArr(
+		context,
+		objEval,
+		meshEval,
+		commonAttribs,
+		int(target.wMode),
+		target.wScale,
+		target.receiveLen
+	)
 	if not mapArr:
 		return None
-	inIndexedArr = createMatIdxAttrib(meshEval) #type:ignore
+	inIndexedArr = createMatIdxAttrib(meshEval)
 	stucObj = meshUtils.formatAsStucObj(
 		objEval,
 		True,
 		depsgraph,
 		True,
-		target.activeAttribs #type:ignore
+		target.activeAttribs#type:ignore
 	)
 	info = MappingInfo(
 		target,
@@ -169,9 +179,6 @@ def prepTargetForMapping(
 		objEval,
 		stucObj,
 		inIndexedArr,
-		int(target.wMode),
-		target.wScale,
-		target.receiveLen,
 		target.obj.mode == 'EDIT'
 	)
 	return info
@@ -240,9 +247,6 @@ def pushMappingJobToQueue(
 		ctypes.pointer(info.inIndexedArr),
 		ctypes.pointer(workMesh),
 		ctypes.pointer(outIndexedAttribs),
-		ctypes.c_int32(info.wMode),
-		ctypes.c_float(info.wScale),
-		ctypes.c_float(info.receiveLen),
 		ctypes.pointer(pushedJobs),
 		ctypes.c_bool(triangulate)
 	)

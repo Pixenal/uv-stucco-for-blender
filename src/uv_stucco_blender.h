@@ -63,9 +63,7 @@ StucErr stucBlenderMapExportTargetAdd(
 	void *pHandle,
 	StucMapArr *pMapArr,
 	const StucObject *pObj,
-	const StucAttribIndexedArr *pIndexedAttribs,
-	float wScale,
-	float receiveLen
+	const StucAttribIndexedArr *pIndexedAttribs
 );
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportObjAdd(
@@ -130,9 +128,6 @@ PixErr stucBlenderMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucWMode wMode,
-	float wScale,
-	float receiveLen,
 	int32_t *pPushedJobs,
 	bool triangulate
 );

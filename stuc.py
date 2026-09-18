@@ -252,6 +252,7 @@ class StucMapArrEntry(ctypes.Structure):
 	_fields_ = [
 		("map", StucMapOrIdx),
 		("blendOptArr", StucBlendOptDomainArrs),
+		("wMode", ctypes.c_int),
 		("wScale", ctypes.c_float),
 		("receiveLen", ctypes.c_float),
 		("matIdx", ctypes.c_byte)

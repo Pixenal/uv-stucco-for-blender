@@ -460,18 +460,14 @@ StucErr stucBlenderMapExportTargetAdd(
 	void *pHandle,
 	StucMapArr *pMapArr,
 	const StucObject *pObj,
-	const StucAttribIndexedArr *pIndexedAttribs,
-	float wScale,
-	float receiveLen
+	const StucAttribIndexedArr *pIndexedAttribs
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
 	err = stucMapExportTargetAdd(
 		pHandle,
 		pMapArr,
 		pObj,
-		pIndexedAttribs,
-		wScale,
-		receiveLen
+		pIndexedAttribs
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
@@ -824,9 +820,6 @@ PixErr stucBlenderMapToMesh(
 	StucAttribIndexedArr *pInIndexedAttribs,
 	StucMesh *pOutMesh,
 	StucAttribIndexedArr *pOutIndexedAttribs,
-	StucWMode wMode,
-	float wScale,
-	float receiveLen,
 	I32 *pPushedJobs,
 	bool triangulate
 ) {
@@ -837,9 +830,6 @@ PixErr stucBlenderMapToMesh(
 		pMapArr,
 		pMesh, pInIndexedAttribs,
 		pOutMesh, pOutIndexedAttribs,
-		wMode,
-		wScale,
-		receiveLen,
 		triangulate
 	);
 	PIX_ERR_RETURN_IFNOT(err, "");

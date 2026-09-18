@@ -92,17 +92,13 @@ def addObjToMapExport(
 				ctypes.c_void_p,
 				ctypes.POINTER(stuc.StucMapArr),
 				ctypes.POINTER(stuc.StucObject),
-				ctypes.POINTER(stuc.StucAttribIndexedArr),
-				ctypes.c_float,
-				ctypes.c_float
+				ctypes.POINTER(stuc.StucAttribIndexedArr)
 			)
 			err = stucLib.stucBlenderMapExportTargetAdd(
 				ctypes.pointer(handle),
 				ctypes.pointer(info.mapArr),
 				ctypes.pointer(info.stucObj.obj),
-				ctypes.pointer(info.inIndexedArr),
-				info.wScale,
-				info.receiveLen
+				ctypes.pointer(info.inIndexedArr)
 			)
 			if err != 1:
 				raise Exception("stuc map export target add failed")

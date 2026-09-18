@@ -130,7 +130,6 @@ def addToMapExport(context : bpy.types.Context, handle : stuc.StucMapExport) -> 
 class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 	bl_idname = "stuc.export_stuc_file"
 	bl_label = "STUC Export"
-	bl_options = {'REGISTER'}
 
 	filename_ext = ".stuc"
 	filter_glob :\
@@ -172,7 +171,7 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 class STUC_OT_StucLoadStucFileForEdit(bpy.types.Operator, ImportHelper):
 	bl_idname = "stuc.load_stuc_file_for_edit"
 	bl_label = "Load STUC File For Edit"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	filename_ext = ".stuc"
 	filter_glob :\
@@ -511,11 +510,36 @@ class STUC_OT_StucReloadStucFile(bpy.types.Operator):
 			self.report({'ERROR'}, "Reload failed")
 			raise e
 		return {'FINISHED'}
+
+class STUC_OT_StucMapRemove(bpy.types.Operator):
+	bl_idname = "stuc.stuc_map_unload"
+	bl_label = "Unload Map"
+	bl_options = {'REGISTER'}
+
+	itemIdx : bpy.props.IntProperty() #type:ignore
+
+	@classmethod
+	def poll(cls, context: bpy.types.Context) -> bool:
+		return context.scene.stucMapsIdx < len(context.scene.stucMaps)#type:ignore
+
+	def execute(self, context: bpy.types.Context) -> set[str]:
+		try:
+			if self.itemIdx >= len(context.scene.stucMaps): #type:ignore
+				raise Exception("specificed index out of range")
+			map = context.scene.stucMaps[self.itemIdx] #type:ignore
+			name = map.name.encode('utf-8')
+			context.scene.stucMaps.remove(self.itemIdx) #type:ignore
+			if stucLib.stucBlenderMapUnload(name) != 1:
+				raise Exception()
+		except Exception as e:
+			self.report({'ERROR'}, "Failed to unload map")
+			raise e
+		return {'FINISHED'}
 	
 class STUC_OT_StucExtraDepDirAdd(bpy.types.Operator, ImportHelper):
 	bl_idname = "stuc.extra_dep_dir_add"
 	bl_label = "Add Dep Dir"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	directory : bpy.props.StringProperty(subtype = 'DIR_PATH') #type:ignore
 	filter_glob : bpy.props.StringProperty(default = "", options = {'HIDDEN'}) #type:ignore
@@ -534,7 +558,7 @@ class STUC_OT_StucExtraDepDirAdd(bpy.types.Operator, ImportHelper):
 class STUC_OT_StucExtraDepDirRemove(bpy.types.Operator):
 	bl_idname = "stuc.extra_dep_dir_remove"
 	bl_label = "Remove Dep Dir"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	itemIdx : bpy.props.IntProperty() #type:ignore
 
@@ -549,11 +573,21 @@ class STUC_OT_StucExtraDepDirRemove(bpy.types.Operator):
 			self.report({'ERROR'}, "Failed to add dependency dir")
 			raise e
 		return {'FINISHED'}
+
+class STUC_OT_StucReloadTextures(bpy.types.Operator):
+	bl_idname = "stuc.stuc_reload_textures"
+	bl_label = "Stuc Reload Textures"
+	bl_options = {'REGISTER'}
+
+	def execute(self, context) -> set[str]:
+		if not bpy.app.background:
+			draw.reloadCoreTextures()
+		return {'FINISHED'}
 	
 class STUC_OT_StucSceneCache(bpy.types.Operator):
 	bl_idname = "stuc.scene_cache"
 	bl_label = "Cache Scene"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
@@ -619,7 +653,6 @@ class STUC_OT_StucSceneImport(bpy.types.Operator):
 class STUC_OT_StucThreadPoolLogDump(bpy.types.Operator, ExportHelper):
 	bl_idname = "stuc.thread_pool_log_dump"
 	bl_label = "Dump Thread Log"
-	bl_options = {'REGISTER'}
 
 	filename_ext = ".log"
 	filter_glob :\
@@ -645,8 +678,10 @@ classes = [
 	STUC_OT_StucLoadStucFileForEdit,
 	STUC_OT_StucLoadStucFile,
 	STUC_OT_StucReloadStucFile,
+	STUC_OT_StucMapRemove,
 	STUC_OT_StucExtraDepDirAdd,
 	STUC_OT_StucExtraDepDirRemove,
+	STUC_OT_StucReloadTextures,
 	STUC_OT_StucSceneCache,
 	STUC_OT_StucSceneImport,
 	#STUC_OT_StucThreadPoolLogDump

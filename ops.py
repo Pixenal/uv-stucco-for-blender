@@ -19,10 +19,12 @@ if not bpy.app.background:
 from . import mapping
 from . import props
 
+#TODO uncomment when usg are reimplemented
+'''
 class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 	bl_idname = "stuc.set_as_usg"
 	bl_label = "Set As USG"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
@@ -44,7 +46,7 @@ class STUC_OT_StucSetAsUsg(bpy.types.Operator):
 class STUC_OT_StucUnsetUsg(bpy.types.Operator):
 	bl_idname = "stuc.unset_usg"
 	bl_label = "Unset USG"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
@@ -66,7 +68,7 @@ class STUC_OT_StucUnsetUsg(bpy.types.Operator):
 class STUC_OT_StucSetFlatCutoff(bpy.types.Operator):
 	bl_idname = "stuc.set_flat_cutoff"
 	bl_label = "Set Flatten Cut-Off"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
@@ -85,11 +87,12 @@ class STUC_OT_StucSetFlatCutoff(bpy.types.Operator):
 			self.report({'ERROR'}, "Failed to set USG flat cutoff")
 			raise e
 		return {'FINISHED'}
+'''
 
 class STUC_OT_StucAssign(bpy.types.Operator):
 	bl_idname = "stuc.stuc_assign"
 	bl_label = "STUC Assign"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
@@ -136,7 +139,7 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 class STUC_OT_StucRemove(bpy.types.Operator):
 	bl_idname = "stuc.stuc_remove"
 	bl_label = "STUC Remove"
-	bl_options = {"REGISTER"}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
@@ -156,11 +159,11 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 class STUC_OT_StucMatAssign(bpy.types.Operator):
 	bl_idname = "stuc.stuc_mat_assign"
 	bl_label = "STUC Mat Assign"
-	bl_options = {'REGISTER'}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			item = context.scene.stucMats.add() #type:ignore
+			context.scene.stucMats.add()#type:ignore
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to add material target")
 			raise e
@@ -169,7 +172,7 @@ class STUC_OT_StucMatAssign(bpy.types.Operator):
 class STUC_OT_StucMatRemove(bpy.types.Operator):
 	bl_idname = "stuc.stuc_mat_remove"
 	bl_label = "STUC Mat Remove"
-	bl_options = {"REGISTER"}
+	bl_options = {'REGISTER', 'UNDO'}
 
 	itemIdx : bpy.props.IntProperty() #type:ignore
 
@@ -183,41 +186,6 @@ class STUC_OT_StucMatRemove(bpy.types.Operator):
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to remove mat")
 			raise e
-		return {'FINISHED'}
-	
-class STUC_OT_StucMapRemove(bpy.types.Operator):
-	bl_idname = "stuc.stuc_map_unload"
-	bl_label = "Unload Map"
-	bl_options = {'REGISTER'}
-
-	itemIdx : bpy.props.IntProperty() #type:ignore
-
-	@classmethod
-	def poll(cls, context: bpy.types.Context) -> bool:
-		return context.scene.stucMapsIdx < len(context.scene.stucMaps)#type:ignore
-
-	def execute(self, context: bpy.types.Context) -> set[str]:
-		try:
-			if self.itemIdx >= len(context.scene.stucMaps): #type:ignore
-				raise Exception("specificed index out of range")
-			map = context.scene.stucMaps[self.itemIdx] #type:ignore
-			name = map.name.encode('utf-8')
-			context.scene.stucMaps.remove(self.itemIdx) #type:ignore
-			if stucLib.stucBlenderMapUnload(name) != 1:
-				raise Exception()
-		except Exception as e:
-			self.report({'ERROR'}, "Failed to unload map")
-			raise e
-		return {'FINISHED'}
-
-class STUC_OT_StucReloadTextures(bpy.types.Operator):
-	bl_idname = "stuc.stuc_reload_textures"
-	bl_label = "Stuc Reload Textures"
-	bl_options = {'REGISTER'}
-
-	def execute(self, context) -> set[str]:
-		if not bpy.app.background:
-			draw.reloadCoreTextures()
 		return {'FINISHED'}
 
 class STUC_OT_StucForceUpdateTargets(bpy.types.Operator):
@@ -235,6 +203,7 @@ def mapPreviewImgGet(map: props.StucMap) -> bpy.types.Image | None:
 class STUC_OT_StucMapViewPreview(bpy.types.Operator):
 	bl_idname = "stuc.stuc_map_view_preview"
 	bl_label = "View Map Preview"
+	bl_options = {'REGISTER'}
 
 	@classmethod
 	def poll(cls, context: bpy.types.Context) -> bool:
@@ -254,15 +223,13 @@ class STUC_OT_StucMapViewPreview(bpy.types.Operator):
 		return {'FINISHED'}
 
 classes = [
-	STUC_OT_StucSetAsUsg,
-	STUC_OT_StucUnsetUsg,
-	STUC_OT_StucSetFlatCutoff,
+	#STUC_OT_StucSetAsUsg,
+	#STUC_OT_StucUnsetUsg,
+	#STUC_OT_StucSetFlatCutoff,
 	STUC_OT_StucAssign,
 	STUC_OT_StucRemove,
 	STUC_OT_StucMatAssign,
 	STUC_OT_StucMatRemove,
-	STUC_OT_StucMapRemove,
-	STUC_OT_StucReloadTextures,
 	STUC_OT_StucForceUpdateTargets,
 	STUC_OT_StucMapViewPreview
 ]

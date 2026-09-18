@@ -172,7 +172,7 @@ def mapDepNameUpdate(self, context: bpy.types.Context) -> None:
 def mapDepUpdate(self, context: bpy.types.Context) -> None:
 	if self.timestamp != "":
 		self.timestamp = ""
-		bpy.ops.stuc.reload_stuc_file()#type:ignore
+		bpy.ops.stuc.stuc_refresh_maps()#type:ignore
 
 def dontDrawUpdate(self, context: bpy.types.Context) -> None:
 	for stucMat in context.scene.stucMats:#type:ignore

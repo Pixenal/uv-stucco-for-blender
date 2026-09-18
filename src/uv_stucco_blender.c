@@ -463,6 +463,10 @@ StucErr stucBlenderMapExportEnd(StucMapExport *pHandle) {
 	return stucMapExportEnd(pHandle);
 }
 
+void stucBlenderMapExportDestroy(StucMapExport *pHandle) {
+	stucMapExportDestroy(pHandle);
+}
+
 StucErr stucBlenderMapExportTargetAdd(
 	void *pHandle,
 	StucMapArr *pMapArr,

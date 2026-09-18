@@ -93,13 +93,12 @@ def createMapArr(
 		return None
 	mapArr = stuc.StucMapArr()
 	mapArr.pArr = (stuc.StucMapArrEntry * targetMatCount)()
-	mapArr.count = targetMatCount
 	i = 0
 	for mat in targetMats:
 		stucLib.stucBlenderMapHandleGet.restype = ctypes.c_void_p
 		pMap = stucLib.stucBlenderMapHandleGet(mat.map.encode('utf-8'))
 		if not pMap:
-			return None #map for this material isn't loaded
+			return None#map for this material isn't loaded
 		mapArr.pArr[i].map.ptr = pMap
 		mapArr.pArr[i].blendOptArr = commonAttribs[i]
 		mapArr.pArr[i].matIdx = objEval.material_slots.find(mat.mat.name)
@@ -107,6 +106,7 @@ def createMapArr(
 		mapArr.pArr[i].wScale = wScale
 		mapArr.pArr[i].receiveLen = receiveLen
 		i += 1
+	mapArr.count = targetMatCount
 	return mapArr
 
 def getTargetObj(
@@ -232,9 +232,9 @@ def pushMappingJobToQueue(
 	if not obj:
 		return False
 	info = prepTargetForMapping(context, depsgraph, target, obj)
-	crc = ctypes.c_uint64(0)
 	if not info:
 		return True
+	crc = ctypes.c_uint64(0)
 	if checkCrc and isTargetCrcEqual(target, info, crc) and not force:
 		return False
 	

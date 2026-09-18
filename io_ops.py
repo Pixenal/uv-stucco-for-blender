@@ -76,33 +76,30 @@ def addObjToMapExport(
 	depsgraph : bpy.types.Depsgraph,
 	obj : bpy.types.Object
 ) -> None:
-	target = None
-	for item in context.scene.stucTargets: #type:ignore
-		if (item.obj.name == obj.name):
-			target = item
-			break
+	target = context.scene.stucTargets.get(obj.name, None)#type:ignore
 	if target:
 		#TODO is it ok if this runs while in edit mode?
 		targetObj = mapping.getTargetObj(target, requireSelInEdit = False)
 		if not targetObj:
 			raise Exception("failed to get target obj")
 		info = mapping.prepTargetForMapping(context, depsgraph, target, targetObj)
-		if info:
-			stucLib.stucBlenderMapExportTargetAdd.argtypes = (
-				ctypes.c_void_p,
-				ctypes.POINTER(stuc.StucMapArr),
-				ctypes.POINTER(stuc.StucObject),
-				ctypes.POINTER(stuc.StucAttribIndexedArr)
-			)
-			err = stucLib.stucBlenderMapExportTargetAdd(
-				ctypes.pointer(handle),
-				ctypes.pointer(info.mapArr),
-				ctypes.pointer(info.stucObj.obj),
-				ctypes.pointer(info.inIndexedArr)
-			)
-			if err != 1:
-				raise Exception("stuc map export target add failed")
-			return
+		if not info:
+			raise Exception("unable to export target")
+		stucLib.stucBlenderMapExportTargetAdd.argtypes = (
+			ctypes.c_void_p,
+			ctypes.POINTER(stuc.StucMapArr),
+			ctypes.POINTER(stuc.StucObject),
+			ctypes.POINTER(stuc.StucAttribIndexedArr)
+		)
+		err = stucLib.stucBlenderMapExportTargetAdd(
+			ctypes.pointer(handle),
+			ctypes.pointer(info.mapArr),#type:ignore
+			ctypes.pointer(info.stucObj.obj),#type:ignore
+			ctypes.pointer(info.inIndexedArr)#type:ignore
+		)
+		if err != 1:
+			raise Exception("stuc map export target add failed")
+		return
 	idxAttribs = mapping.createMatIdxAttrib(obj.data) #type:ignore
 	stucObj = meshUtils.formatAsStucObj(obj, True, depsgraph, True)
 	err = stucLib.stucBlenderMapExportObjAdd(
@@ -142,15 +139,17 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 		return len(context.selected_objects)#type:ignore
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
+		handle = stuc.StucMapExport()
 		try:
+			if bpy.ops.stuc.stuc_refresh_maps.poll():#type:ignore
+				bpy.ops.stuc.stuc_refresh_maps()#type:ignore
+
 			if (len(context.selected_objects) == 0):
 				self.report({'WARNING'}, "Nothing was exported, no objects selected")
 				return {'CANCELLED'}
 			
 			filepath = self.filepath #type:ignore
 			filePathUtf8 = filepath.encode('utf-8')
-
-			handle = stuc.StucMapExport()
 
 			err = stucLib.stucBlenderMapExportInit(
 				ctypes.pointer(handle),
@@ -163,7 +162,9 @@ class STUC_OT_StucExportStucFile(bpy.types.Operator, ExportHelper):
 			err = stucLib.stucBlenderMapExportEnd(ctypes.pointer(handle))
 			if err != 1:
 				raise Exception("stuc map file export end failed")
+			stucLib.stucBlenderMapExportDestroy(ctypes.pointer(handle))
 		except Exception as e:
+			stucLib.stucBlenderMapExportDestroy(ctypes.pointer(handle))
 			self.report({'ERROR'}, "Export failed")
 			raise e
 		return {'FINISHED'}
@@ -482,15 +483,15 @@ class STUC_OT_StucLoadStucFile(bpy.types.Operator, ImportHelper):
 			if err != 1:
 				raise Exception("error loading map")
 			context.scene.stucMapsIdx = context.scene.stucMaps.find(name) #type:ignore
-			bpy.ops.stuc.reload_stuc_file()#type:ignore
+			bpy.ops.stuc.stuc_refresh_maps()#type:ignore
 		except Exception as e:
 			self.report({'ERROR'}, "Load failed")
 			raise e
 		return {'FINISHED'}
 
-class STUC_OT_StucReloadStucFile(bpy.types.Operator):
-	bl_idname = "stuc.reload_stuc_file"
-	bl_label = "Reload STUC File"
+class STUC_OT_StucRefreshMaps(bpy.types.Operator):
+	bl_idname = "stuc.stuc_refresh_maps"
+	bl_label = "STUC Refresh Maps"
 	bl_options = {'REGISTER'}
 
 	@classmethod
@@ -598,7 +599,9 @@ class STUC_OT_StucSceneCache(bpy.types.Operator):
 
 	def execute(self, context: bpy.types.Context) -> set[str]:
 		try:
-			bpy.ops.stuc.reload_stuc_file()#type:ignore
+			if not bpy.ops.stuc.stuc_refresh_maps.poll():#type:ignore
+				raise Exception("calling cache scene without any maps loaded")
+			bpy.ops.stuc.stuc_refresh_maps()#type:ignore
 			shmCtx = stuc.PixioShmCtx()
 			shmCtxPtr = ctypes.cast(ctypes.pointer(shmCtx), ctypes.c_void_p)
 			bShmName = (ctypes.c_byte * (stucLib.stucBlenderShmNameMaxLen() + 1))()
@@ -677,7 +680,7 @@ classes = [
 	STUC_OT_StucExportStucFile,
 	STUC_OT_StucLoadStucFileForEdit,
 	STUC_OT_StucLoadStucFile,
-	STUC_OT_StucReloadStucFile,
+	STUC_OT_StucRefreshMaps,
 	STUC_OT_StucMapRemove,
 	STUC_OT_StucExtraDepDirAdd,
 	STUC_OT_StucExtraDepDirRemove,

@@ -59,6 +59,8 @@ StucErr stucBlenderMapExportInit(
 STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportEnd(StucMapExport *pHandle);
 STUC_BLENDER_EXPORT
+void stucBlenderMapExportDestroy(StucMapExport *pHandle);
+STUC_BLENDER_EXPORT
 StucErr stucBlenderMapExportTargetAdd(
 	void *pHandle,
 	StucMapArr *pMapArr,

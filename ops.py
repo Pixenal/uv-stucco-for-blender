@@ -111,8 +111,7 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 				newTarget.id = context.scene.stucTargetIdNext #type:ignore
 				context.scene.stucTargetIdNext += 1 #type:ignore
 				newTarget.obj = obj.id_data
-				obj["stucWScale"] = context.scene.stuc.wScale #type:ignore
-				obj["stucReceiveLen"] = -1.0
+				newTarget.wScale = context.scene.stuc.wScale#type:ignore
 
 				utils.initActiveAttrib(newTarget, "position", "position")
 				utils.initActiveAttrib(newTarget, "normal", "")
@@ -148,13 +147,6 @@ class STUC_OT_StucRemove(bpy.types.Operator):
 			scene = context.scene
 			target: props.StucTarget = scene.stucTargets[scene.stucTargetsIdx] #type:ignore
 			stucLib.stucBlenderTargetCacheRemove(target.id)
-			if target.obj:
-				objProp = target.obj.get("stucWScale", None)
-				if objProp:
-					del objProp
-				objProp = target.obj.get("stucReceiveLen", None)
-				if objProp:
-					del objProp
 			scene.stucTargets.remove(scene.stucTargetsIdx) #type:ignore
 		except Exception as e:
 			self.report({'ERROR'}, "Failed to remove target")

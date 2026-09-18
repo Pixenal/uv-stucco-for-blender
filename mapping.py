@@ -144,14 +144,6 @@ def prepTargetForMapping(
 	#hide_viewport is the moniter icon, and hide_get is the eye
 	if not commonAttribs or obj.hide_viewport or obj.hide_get():
 		return None
-	wScale = obj.get("stucWScale", None)
-	if wScale == None:
-		wScale = context.scene.stuc.wScale #type:ignore
-		obj["stucWScale"] = wScale
-
-	receiveLen = obj.get("stucReceiveLen", None)
-	if receiveLen == None:
-		receiveLen = -1.0
 	
 	if depsgraph:
 		objEval = obj.evaluated_get(depsgraph)
@@ -178,8 +170,8 @@ def prepTargetForMapping(
 		stucObj,
 		inIndexedArr,
 		int(target.wMode),
-		wScale,
-		receiveLen,
+		target.wScale,
+		target.receiveLen,
 		target.obj.mode == 'EDIT'
 	)
 	return info

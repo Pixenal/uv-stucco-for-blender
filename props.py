@@ -208,6 +208,7 @@ class StucDep(bpy.types.PropertyGroup):
 	id : bpy.props.IntProperty()#type:ignore
 
 class StucTarget(bpy.types.PropertyGroup):
+	name : bpy.props.StringProperty()#type:ignore
 	obj : bpy.props.PointerProperty(#type:ignore
 		type = bpy.types.Object,#type:ignore
 		update = targetObjUpdate
@@ -225,6 +226,8 @@ class StucTarget(bpy.types.PropertyGroup):
 		('5', "Tangent Uniform", ""),
 		('6', "Bitangent Uniform", "")
 	])
+	wScale : bpy.props.FloatProperty(default = 1.0)#type:ignore
+	receiveLen : bpy.props.FloatProperty(default = -1.0)#type:ignore
 
 class StucMapActiveAttrib(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty(update = mapActiveAttribUpdate)#type:ignore

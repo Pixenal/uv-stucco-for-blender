@@ -37,66 +37,108 @@ def sceneImportDestroy(shmCtx: ctypes.c_void_p) -> None:
 		raise Exception()
 	shmCtx = ctypes.c_void_p()
 
-def sceneImport(shmCtx: ctypes.c_void_p) -> None:
+def crcCmpWithCache(name: str, crc: ctypes.c_uint64) -> bool:
+	objName = name + ".Stuc"
+	obj = bpy.data.objects.get(objName, None)
+	if not obj:
+		return False
+	return int(obj.stucCrc) == crc.value#type:ignore
+
+class Query():
+	def __init__(
+			self,
+			close: bool,
+			size: ctypes.c_int32 = ctypes.c_int32(),
+			desc: ctypes.c_int32 = ctypes.c_int32()
+		) -> None:
+		self.close = close
+		self.size = size
+		self.desc = desc
+
+def importQuery(shmCtx: ctypes.c_void_p, expectDesc: stuc.ShmDesc) -> Query:
 	size = ctypes.c_int32()
 	desc = ctypes.c_int32()
 	close = ctypes.c_bool()
+	err = stucLib.stucBlenderSceneImportQuery(
+		shmCtx,
+		ctypes.pointer(size),
+		ctypes.pointer(desc),
+		ctypes.pointer(close)
+	)
+	if err != 1:
+		raise Exception()
+	if close.value:
+		return Query(True)
+	if desc.value != expectDesc.value:
+		raise Exception()
+	return Query(False, size = size, desc = desc)
+
+def sceneImport(shmCtx: ctypes.c_void_p) -> None:
 	while True:
-		err = stucLib.stucBlenderSceneImportQuery(
+		query = importQuery(shmCtx, stuc.ShmDesc.OBJ)
+		if query.close:
+			break
+		nameUtf8 = (ctypes.c_byte * query.size.value)()
+		err = stucLib.stucBlenderSceneImportStr(shmCtx, nameUtf8)
+		if err != 1:
+			raise Exception()
+		name = ctypes.cast(nameUtf8, ctypes.c_char_p).value.decode('utf-8')#type:ignore
+		query = importQuery(shmCtx, stuc.ShmDesc.CRC)
+		if query.close:
+			break
+		crc = ctypes.c_uint64()
+		err = stucLib.stucBlenderSceneImportCrc(shmCtx, ctypes.pointer(crc))
+		if err != 1:
+			raise Exception()
+		query = importQuery(shmCtx, stuc.ShmDesc.BOOL)
+		if query.close:
+			break
+		crcOnly = ctypes.c_bool()
+		err = stucLib.stucBlenderSceneImportBool(shmCtx, ctypes.pointer(crcOnly))
+		if err != 1:
+			raise Exception()
+		print(f"import - crcOnly is {crcOnly.value}")
+		if crcOnly.value:
+			upToDate = crcCmpWithCache(name, crc)
+			print(f"import - upToDate is {upToDate}")
+			err = stucLib.stucBlenderSceneExportBool(
+				shmCtx,
+				stuc.ShmDesc.BOOL.value,
+				ctypes.c_bool(upToDate)
+			)
+			if err != 1:
+				raise Exception()
+			continue
+
+		query = importQuery(shmCtx, stuc.ShmDesc.XFORM)
+		if query.close:
+			raise Exception()
+		stucObj = stuc.StucObject()
+		stucMesh = stuc.StucMesh()
+		stucObj.pData = ctypes.cast(
+			ctypes.cast(ctypes.pointer(stucMesh), ctypes.c_void_p),
+			ctypes.POINTER(stuc.StucObjectData)
+		)
+		err = stucLib.stucBlenderSceneImportObj(shmCtx, ctypes.pointer(stucObj))
+		if err != 1:
+			raise Exception()
+		query = importQuery(shmCtx, stuc.ShmDesc.IDX_ATTRIB_ARR)
+		if query.close:
+			raise Exception()
+		idxAttribs = stuc.StucAttribIndexedArr()
+		err = stucLib.stucBlenderSceneImportIdxAttribs(
 			shmCtx,
-			ctypes.pointer(size),
-			ctypes.pointer(desc),
-			ctypes.pointer(close)
+			ctypes.pointer(idxAttribs)
 		)
 		if err != 1:
 			raise Exception()
-		if close.value:
-			break
-		if desc.value == stuc.ShmDesc.STUCB_SHM_OBJ.value:
-			name = (ctypes.c_byte * size.value)()
-			err = stucLib.stucBlenderSceneImportStr(shmCtx, name)
-			if err != 1:
-				raise Exception()
-			err = stucLib.stucBlenderSceneImportQuery(
-				shmCtx,
-				ctypes.pointer(size),
-				ctypes.pointer(desc),
-				None
-			)
-			if err != 1 or desc.value != stuc.ShmDesc.STUCB_SHM_XFORM.value:
-				raise Exception()
-			stucObj = stuc.StucObject()
-			stucMesh = stuc.StucMesh()
-			stucObj.pData = ctypes.cast(
-				ctypes.cast(ctypes.pointer(stucMesh), ctypes.c_void_p),
-				ctypes.POINTER(stuc.StucObjectData)
-			)
-			err = stucLib.stucBlenderSceneImportObj(shmCtx, ctypes.pointer(stucObj))
-			if err != 1:
-				raise Exception()
-			err = stucLib.stucBlenderSceneImportQuery(
-				shmCtx,
-				ctypes.pointer(size),
-				ctypes.pointer(desc),
-				None
-			)
-			if err != 1 or desc.value != stuc.ShmDesc.STUCB_SHM_IDX_ATTRIB_ARR.value:
-				raise Exception()
-			idxAttribs = stuc.StucAttribIndexedArr()
-			err = stucLib.stucBlenderSceneImportIdxAttribs(
-				shmCtx,
-				ctypes.pointer(idxAttribs)
-			)
-			if err != 1:
-				raise Exception()
-			mapping.addOrUpdateBlendMesh(
-				bpy.context,
-				stucObj,
-				idxAttribs,
-				ctypes.cast(name, ctypes.c_char_p).value.decode('utf-8') #type:ignore
-			)
-		else: 
-			raise Exception()
+		mapping.addOrUpdateBlendMesh(
+			bpy.context,
+			stucObj,
+			idxAttribs,
+			name,
+			crc
+		)
 
 def sceneImportToFile(shmName: str, shmServer: str) -> None:
 	try:

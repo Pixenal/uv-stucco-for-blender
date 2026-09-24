@@ -322,6 +322,7 @@ def register() -> None:
 		name = "Stuc USG Flatten Cut-Off",
 		poll = usgFlatCutoffPoll#type:ignore
 	)
+	bpy.types.Object.stucCrc = bpy.props.StringProperty()#type:ignore
 	bpy.types.Scene.stuc = bpy.props.PointerProperty(type = StucProperties)#type:ignore
 	bpy.types.Scene.stucTargets = bpy.props.CollectionProperty(name = "Targets", type = StucTarget)#type:ignore
 	bpy.types.Scene.stucTargetsIdx = bpy.props.IntProperty(name = "Targets Index")#type:ignore

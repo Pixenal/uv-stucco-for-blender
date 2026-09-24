@@ -753,7 +753,7 @@ PixErr stucBlenderMeshPrepForRender(StucMesh *pMesh, bool triangulate, bool spli
 		"tangent and tsign attribs must be present",
 		!(
 			pMesh->activeAttribs[STUC_ATTRIB_USE_TANGENT].active ^
-			pMesh->activeAttribs[STUC_ATTRIB_USE_TSIGN].active
+			pMesh->activeAttribs[STUC_ATTRIB_USE_BITANGENT].active
 		)
 	);
 	if (!pMesh->activeAttribs[STUC_ATTRIB_USE_TANGENT].active) {
@@ -1252,6 +1252,20 @@ PixErr stucBlenderSceneExportStr(PixioShmCtx *pShmCtx, ShmDesc desc, const char 
 	return err;
 }
 
+PixErr stucBlenderSceneExportCrc(PixioShmCtx *pShmCtx, U64 crc) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmSend(pShmCtx, sizeof(crc), STUCB_SHM_CRC, &crc);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneExportBool(PixioShmCtx *pShmCtx, ShmDesc desc, bool val) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmSend(pShmCtx, sizeof(val), desc, &val);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
 PixErr stucBlenderSceneExportMesh(PixioShmCtx *pShmCtx, const StucMesh *pMesh) {
 	PixErr err = PIX_ERR_SUCCESS;
 	StucMesh buf = *pMesh;
@@ -1310,14 +1324,28 @@ PixErr stucBlenderSceneExportMesh(PixioShmCtx *pShmCtx, const StucMesh *pMesh) {
 PixErr stucBlenderSceneExportObj(
 	PixioShmCtx *pShmCtx,
 	const char *pName,
+	U64 crc,
 	const StucObject *pObj
 ) {
 	PixErr err = PIX_ERR_SUCCESS;
-	PIX_ERR_RETURN_IFNOT_COND(err, pObj->pData->type == STUC_OBJECT_DATA_MESH, "");
+	PIX_ERR_RETURN_IFNOT_COND(
+		err,
+		!pObj || pObj->pData->type == STUC_OBJECT_DATA_MESH,
+		""
+	);
 	//max len of blend obj name is 64 as of writing (afaik
 	I32 nameLen = (I32)strnlen(pName, 64);
 	err = pixioShmSend(pShmCtx, nameLen, STUCB_SHM_OBJ, pName);
 	PIX_ERR_RETURN_IFNOT(err, "");
+	err = stucBlenderSceneExportCrc(pShmCtx, crc);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	bool crcOnly = !pObj;
+	printf("export-mesh crcOnly is %d\n", crcOnly);
+	err = stucBlenderSceneExportBool(pShmCtx, STUCB_SHM_BOOL, crcOnly);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	if (crcOnly) {
+		return err;
+	}
 	err = pixioShmSend(pShmCtx, sizeof(PixtyM4x4), STUCB_SHM_XFORM, pObj->transform.d);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = stucBlenderSceneExportMesh(pShmCtx, (StucMesh *)pObj->pData);
@@ -1359,6 +1387,21 @@ PixErr stucBlenderSceneImportStr(PixioShmCtx *pShmCtx, char *pStr) {
 	PixErr err = PIX_ERR_SUCCESS;
 	err = pixioShmReceive(pShmCtx, pStr);
 	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneImportCrc(PixioShmCtx *pShmCtx, U64 *pCrc) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmReceive(pShmCtx, pCrc);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	return err;
+}
+
+PixErr stucBlenderSceneImportBool(PixioShmCtx *pShmCtx, bool *pVal) {
+	PixErr err = PIX_ERR_SUCCESS;
+	err = pixioShmReceive(pShmCtx, pVal);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	printf("bool import is %d\n", *pVal);
 	return err;
 }
 

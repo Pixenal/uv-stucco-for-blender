@@ -252,6 +252,7 @@ typedef enum ShmDesc {
 	STUCB_SHM_NONE,
 	STUCB_SHM_DIR,
 	STUCB_SHM_NAME,
+	STUCB_SHM_CRC,
 	STUCB_SHM_OBJ,
 	STUCB_SHM_XFORM,
 	STUCB_SHM_MESH,
@@ -262,7 +263,8 @@ typedef enum ShmDesc {
 	STUCB_SHM_ATTRIB_DATA,
 	STUCB_SHM_IDX_ATTRIB_ARR,
 	STUCB_SHM_IDX_ATTRIB,
-	STUCB_SHM_IDX_ATTRIB_DATA 
+	STUCB_SHM_IDX_ATTRIB_DATA,
+	STUCB_SHM_BOOL
 } ShmDesc;
 
 STUC_BLENDER_EXPORT
@@ -274,11 +276,16 @@ PixErr stucBlenderSceneImportInit(PixioShmCtx *pShmCtx, char *pName);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneExportStr(PixioShmCtx *pShmCtx, ShmDesc desc, const char *pName);
 STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneExportCrc(PixioShmCtx *pShmCtx, U64 crc);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneExportBool(PixioShmCtx *pShmCtx, ShmDesc desc, bool val);
+STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneExportMesh(PixioShmCtx *pShmCtx, const StucMesh *pMesh);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneExportObj(
 	PixioShmCtx *pShmCtx,
 	const char *pName,
+	U64 crc,
 	const StucObject *pObj
 );
 STUC_BLENDER_EXPORT
@@ -288,6 +295,10 @@ PixErr stucBlenderSceneExportIdxAttribs(
 );
 STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneImportStr(PixioShmCtx *pShmCtx, char *pStr);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportCrc(PixioShmCtx *pShmCtx, U64 *pCrc);
+STUC_BLENDER_EXPORT
+PixErr stucBlenderSceneImportBool(PixioShmCtx *pShmCtx, bool *pVal);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneImportMesh(PixioShmCtx *pShmCtx, StucMesh *pMesh);
 STUC_BLENDER_EXPORT

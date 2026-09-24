@@ -186,7 +186,7 @@ def prepTargetForMapping(
 def isTargetCrcEqual(
 	target: props.StucTarget,
 	info: MappingInfo,
-	crcOut: ctypes.c_uint64
+	newCrc: ctypes.c_uint64
 ) -> bool:
 	crc = ctypes.c_uint64(0)
 	type =\
@@ -196,26 +196,12 @@ def isTargetCrcEqual(
 	if err != 3:#doesn't equal PIX_ERR_QUIET (QUIET is returned if target isn't in cache)
 		if err != 1:
 			raise Exception("error getting cached target crc")
-		newCrc = ctypes.c_uint64(0)
-		err = stucLib.stucBlenderCrcFromTarget(
-			ctypes.cast(info.stucObj.obj.pData, ctypes.c_void_p),
-			ctypes.pointer(info.inIndexedArr),
-			ctypes.pointer(info.mapArr),
-			int(target.wMode),
-			ctypes.c_float(target.wScale),
-			ctypes.c_float(target.receiveLen),
-			ctypes.pointer(newCrc)
-		)
-		if err != 1:
-			raise Exception("error generating target crc")
 		if target.dirty:
 			target.dirty = False
 		elif newCrc.value == crc.value:
 			#print(f"skipping target {target.obj.name}")
-			crcOut.value = crc.value
 			return True #assume mesh is unchanged, cancel mapping this target
 		crc = newCrc
-	crcOut.value = crc.value
 	return False
 
 #returns true if target should be cached
@@ -224,8 +210,7 @@ def pushMappingJobToQueue(
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget,
 	targetCache: list[TargetJob],
-	triangulate: bool,
-	checkCrc: bool,
+	exportCtx: ctypes.c_void_p | None,
 	force: bool = False
 ) -> bool:
 	obj = getTargetObj(target)
@@ -234,8 +219,39 @@ def pushMappingJobToQueue(
 	info = prepTargetForMapping(context, depsgraph, target, obj)
 	if not info:
 		return True
-	crc = ctypes.c_uint64(0)
-	if checkCrc and isTargetCrcEqual(target, info, crc) and not force:
+	crc = ctypes.c_uint64()
+	err = stucLib.stucBlenderCrcFromTarget(
+		ctypes.cast(info.stucObj.obj.pData, ctypes.c_void_p),
+		ctypes.pointer(info.inIndexedArr),
+		ctypes.pointer(info.mapArr),
+		int(target.wMode),
+		ctypes.c_float(target.wScale),
+		ctypes.c_float(target.receiveLen),
+		ctypes.pointer(crc)
+	)
+	if err != 1:
+		raise Exception("error generating target crc")
+	print(f"export - crc is {crc}")
+	if exportCtx:
+		err = stucLib.stucBlenderSceneExportObj(
+			exportCtx,
+			target.obj.name.encode('utf-8'),
+			crc,
+			ctypes.c_void_p()
+		)
+		if err != 1:
+			raise Exception()
+		query = sceneCache.importQuery(exportCtx, stuc.ShmDesc.BOOL)
+		if query.close:
+			raise Exception()
+		cacheUpToDate = ctypes.c_bool()
+		err = stucLib.stucBlenderSceneImportBool(exportCtx, ctypes.pointer(cacheUpToDate))
+		if err != 1:
+			raise Exception()
+		print(f"export - cacheUpToDate is {cacheUpToDate.value}")
+		if cacheUpToDate.value:
+			return False
+	elif isTargetCrcEqual(target, info, crc) and not force:
 		return False
 	
 	#print(f"mapping target {target.obj.name}")
@@ -251,7 +267,7 @@ def pushMappingJobToQueue(
 		ctypes.pointer(workMesh),
 		ctypes.pointer(outIndexedAttribs),
 		ctypes.pointer(pushedJobs),
-		ctypes.c_bool(triangulate)
+		ctypes.c_bool(not exportCtx)
 	)
 	if not pushedJobs:
 		return True
@@ -278,7 +294,8 @@ def addOrUpdateBlendMesh(
 	context: bpy.types.Context,
 	stucObj: stuc.StucObject,
 	idxAttribs: stuc.StucAttribIndexedArr,
-	name: str
+	name: str,
+	crc: ctypes.c_uint64
 ) -> None:
 	objName = name + ".Stuc"
 	obj = bpy.data.objects.get(objName, None)
@@ -295,6 +312,7 @@ def addOrUpdateBlendMesh(
 		mesh = bpy.data.meshes.new(objName)
 		obj.data = mesh
 		bpy.data.meshes.remove(meshOld)
+	obj.stucCrc = str(crc.value)#type:ignore
 	utils.setBlenderMatrix(obj.matrix_world, stucObj.transform)
 	stucMeshPtr = ctypes.cast(stucObj.pData, ctypes.POINTER(stuc.StucMesh))
 	meshUtils.copyStucMeshToBlenderMesh(
@@ -354,6 +372,7 @@ def waitForAndCopyOutMeshes(
 				err = stucLib.stucBlenderSceneExportObj(
 					exportCtx,
 					item.info.objEval.name.encode('utf-8'),
+					item.crc,
 					ctypes.pointer(stucObj)
 				)
 				if err != 1:
@@ -491,9 +510,10 @@ def mapToTarget(
 	depsgraph: bpy.types.Depsgraph,
 	target: props.StucTarget,
 	jobs: list[TargetJob],
-	cache: bool,
+	exportCtx: ctypes.c_void_p | None,
 	force: bool = False
 ) -> None:
+	cache = not exportCtx
 	if type(target.obj.data) != bpy.types.Mesh:
 		return
 	crc = ctypes.c_uint64(0) #dummy
@@ -504,8 +524,7 @@ def mapToTarget(
 				depsgraph,
 				target,
 				jobs,
-				cache,
-				cache,
+				exportCtx,
 				force = force
 			)
 			if cacheInMesh and cache:
@@ -562,7 +581,7 @@ def mapToTargetsInScene(
 				continue
 			if len(jobs) >= 32:
 				waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx, tillRemain = 16)
-			mapToTarget(context, depsgraph, target, jobs, not exportCtx, force = force)
+			mapToTarget(context, depsgraph, target, jobs, exportCtx, force = force)
 		waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx)
 	except Exception as e:
 		raise e

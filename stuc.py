@@ -65,7 +65,7 @@ class StucAttribUse(enum.Enum):
 	PRESERVE_VERT = 6
 	USG = 7
 	TANGENT = 8
-	TSIGN = 9
+	BITANGENT = 9
 	WSCALE = 10
 	IDX = 11
 	EDGE_LEN = 12
@@ -75,13 +75,12 @@ class StucAttribUse(enum.Enum):
 	EDGE_FACES = 16
 	EDGE_CORNERS = 17
 	NORMALS_VERT = 18
-	TBMAG = 19
-	SP_ENUM_COUNT = 20
-	COLOR = 21
-	MASK = 22
-	SCALAR = 23
-	MISC = 24
-	ENUM_COUNT = 25
+	SP_ENUM_COUNT = 19
+	COLOR = 20
+	MASK = 21
+	SCALAR = 22
+	MISC = 23
+	ENUM_COUNT = 24
 
 class StucBlendMode(enum.Enum):
 	REPLACE = 0
@@ -343,20 +342,22 @@ class StucMapDepPtrArr(ctypes.Structure):
 	]
 
 class ShmDesc(enum.Enum):
-	STUCB_SHM_NONE = 0
-	STUCB_SHM_DIR = 1
-	STUCB_SHM_NAME = 2
-	STUCB_SHM_OBJ = 3
-	STUCB_SHM_XFORM = 4
-	STUCB_SHM_MESH = 5
-	STUCB_SHM_FACES = 6
-	STUCB_SHM_CORNERS = 7
-	STUCB_SHM_EDGES = 8
-	STUCB_SHM_ATTRIB = 9
-	STUCB_SHM_ATTRIB_DATA = 10
-	STUCB_SHM_IDX_ATTRIB_ARR = 11
-	STUCB_SHM_IDX_ATTRIB = 12
-	STUCB_SHM_IDX_ATTRIB_DATA = 13
+	NONE = 0
+	DIR = 1
+	NAME = 2
+	CRC = 3
+	OBJ = 4
+	XFORM = 5
+	MESH = 6
+	FACES = 7
+	CORNERS = 8
+	EDGES = 9
+	ATTRIB = 10
+	ATTRIB_DATA = 11
+	IDX_ATTRIB_ARR = 12
+	IDX_ATTRIB = 13
+	IDX_ATTRIB_DATA = 14
+	BOOL = 15
 
 class PixthJobInfo(ctypes.Structure):
 	_fields_ = [

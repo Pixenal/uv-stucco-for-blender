@@ -21,10 +21,9 @@ void main() {
 	normalMatrix = transpose(inverse(normalMatrix));
 	m_tbn = mat3(
 		normalize(tangent),
-		vec3(.0f),
+		normalize(bitangent),
 		normalize(normal)
 	);
-	m_tbn[1] = normalize(cross(m_tbn[0], m_tbn[2]) * tSign);
 	m_tbn = normalMatrix * m_tbn;
 
 	v_uv = uv;

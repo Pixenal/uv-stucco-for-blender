@@ -216,7 +216,7 @@ info.vertex_in(0, 'VEC3', "position")
 info.vertex_in(1, 'VEC2', "uv")
 info.vertex_in(2, 'VEC3', "normal")
 info.vertex_in(3, 'VEC3', "tangent")
-info.vertex_in(4, 'FLOAT', "tSign")
+info.vertex_in(4, 'VEC3', "bitangent")
 info.vertex_in(5, 'FLOAT', "select")
 info.vertex_out(vertOut)
 info.fragment_out(0, 'VEC4', "FragColor")
@@ -528,7 +528,7 @@ class VertBufs():
 		self.uv: numpy.ndarray | None = None
 		self.normal: numpy.ndarray | None = None
 		self.tangent: numpy.ndarray | None = None
-		self.tSign: numpy.ndarray | None = None
+		self.bitangent: numpy.ndarray | None = None
 		self.faceSel: numpy.ndarray | None = None
 
 class IdxBuf():
@@ -678,8 +678,8 @@ def drawMeshForMat(
 				"uv" : bufs.vert.uv,
 				"normal" : bufs.vert.normal,
 				"tangent" : bufs.vert.tangent,
-				"tSign" : bufs.vert.tSign,
-				"select" : bufs.vert.faceSel if args.isEditMode else bufs.vert.tSign
+				"bitangent" : bufs.vert.bitangent,
+				"select" : bufs.vert.faceSel if args.isEditMode else bufs.vert.pos
 			},
 			indices = bufs.idx.forMat
 		)
@@ -1044,7 +1044,7 @@ def callDrawForMat(
 		bufs.vert.uv = numpyFromStucAttrib(geo.mesh, stuc.StucAttribUse.UV, 2)
 		bufs.vert.normal = numpyFromStucAttrib(geo.mesh, stuc.StucAttribUse.NORMAL, 3)
 		bufs.vert.tangent = numpyFromStucAttrib(geo.mesh, stuc.StucAttribUse.TANGENT, 3)
-		bufs.vert.tSign = numpyFromStucAttrib(geo.mesh, stuc.StucAttribUse.TSIGN, 1)
+		bufs.vert.bitangent = numpyFromStucAttrib(geo.mesh, stuc.StucAttribUse.BITANGENT, 3)
 		if editMode:
 			bufs.vert.faceSel = numpyFromStucAttrib(geo.mesh, stuc.StucAttribUse.MISC, 1)
 	drawMeshForMat(

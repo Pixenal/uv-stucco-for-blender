@@ -83,26 +83,31 @@ def addObjToMapExport(
 		if not targetObj:
 			raise Exception("failed to get target obj")
 		info = mapping.prepTargetForMapping(context, depsgraph, target, targetObj)
-		if not info:
-			raise Exception("unable to export target")
-		stucLib.stucBlenderMapExportTargetAdd.argtypes = (
-			ctypes.c_void_p,
-			ctypes.POINTER(stuc.StucMapArr),
-			ctypes.POINTER(stuc.StucObject),
-			ctypes.POINTER(stuc.StucAttribIndexedArr)
-		)
-		err = stucLib.stucBlenderMapExportTargetAdd(
-			ctypes.pointer(handle),
-			ctypes.pointer(info.mapArr),#type:ignore
-			ctypes.pointer(info.stucObj.obj),#type:ignore
-			ctypes.pointer(info.inIndexedArr)#type:ignore
-		)
-		mapping.cleanTargetObj(target, targetObj)
-		if err != 1:
-			raise Exception("stuc map export target add failed")
-		return
+		if info:
+			stucLib.stucBlenderMapExportTargetAdd.argtypes = (
+				ctypes.c_void_p,
+				ctypes.POINTER(stuc.StucMapArr),
+				ctypes.POINTER(stuc.StucObject),
+				ctypes.POINTER(stuc.StucAttribIndexedArr)
+			)
+			err = stucLib.stucBlenderMapExportTargetAdd(
+				ctypes.pointer(handle),
+				ctypes.pointer(info.mapArr),#type:ignore
+				ctypes.pointer(info.stucObj.obj),#type:ignore
+				ctypes.pointer(info.inIndexedArr)#type:ignore
+			)
+			mapping.cleanTargetObj(target, targetObj)
+			if err != 1:
+				raise Exception("stuc map export target add failed")
+			return
 	idxAttribs = mapping.createMatIdxAttrib(obj.data) #type:ignore
-	stucObj = meshUtils.formatAsStucObj(obj, True, depsgraph, True)
+	stucObj = meshUtils.formatAsStucObj(
+		obj,
+		True,
+		depsgraph,
+		True,
+		activeNames = target.activeAttribs if target else None#type:ignore
+	)
 	err = stucLib.stucBlenderMapExportObjAdd(
 		ctypes.pointer(handle),
 		ctypes.pointer(stucObj.obj),

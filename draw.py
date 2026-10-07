@@ -745,7 +745,11 @@ def drawMeshStart(
 	utils.setStucMatrix(args.viewProjMat, camera.perpMatrix)
 	viewMat = gpu.matrix.get_model_view_matrix()
 	if not camera.viewPos[0] and not camera.viewPos[1] and not camera.viewPos[2]:
-		camera.viewPos = viewMat.inverted().translation
+		if area.spaces.active.region_3d.view_perspective == 'PERSP':#type:ignore
+			camera.viewPos = viewMat.inverted().translation
+		else:
+			viewDirInv = viewMat.to_3x3().inverted().col[2].normalized()
+			camera.viewPos = viewDirInv * 1000000000000.0
 	args.viewPos = (camera.viewPos[0], camera.viewPos[1], camera.viewPos[2])
 	meshShader.uniform_float("viewMat", viewMat.inverted().to_3x3())#type:ignore
 	args.matParam = matParam

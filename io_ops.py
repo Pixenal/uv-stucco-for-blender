@@ -97,6 +97,7 @@ def addObjToMapExport(
 			ctypes.pointer(info.stucObj.obj),#type:ignore
 			ctypes.pointer(info.inIndexedArr)#type:ignore
 		)
+		mapping.cleanTargetObj(target, targetObj)
 		if err != 1:
 			raise Exception("stuc map export target add failed")
 		return

@@ -30,6 +30,7 @@ class MappingInfo:
 		target : props.StucTarget,
 		mapArr : stuc.StucMapArr,
 		commonAttribs : ctypes.Array[ctypes.Array[stuc.StucBlendOptArr]],
+		obj : bpy.types.Object,
 		objEval : bpy.types.Object,
 		stucObj : meshUtils.StucObjData,
 		inIndexedArr : stuc.StucAttribIndexedArr,
@@ -38,6 +39,7 @@ class MappingInfo:
 		self.target = target
 		self.mapArr = mapArr
 		self.commonAttribs = commonAttribs
+		self.obj = obj
 		self.objEval = objEval
 		self.stucObj = stucObj
 		self.inIndexedArr = inIndexedArr
@@ -125,6 +127,13 @@ def getTargetObj(
 		return None
 	return obj
 
+def cleanTargetObj(target: props.StucTarget, obj: bpy.types.Object) -> None:
+	if target.obj.mode == 'EDIT':
+		mesh = obj.data
+		bpy.data.objects.remove(obj)
+		if type(mesh) == bpy.types.Mesh:
+			bpy.data.meshes.remove(mesh)
+
 #returns None if aborted
 def prepTargetForMapping(
 	context: bpy.types.Context,
@@ -176,6 +185,7 @@ def prepTargetForMapping(
 		target,
 		mapArr,
 		commonAttribs,
+		obj,
 		objEval,
 		stucObj,
 		inIndexedArr,
@@ -395,6 +405,7 @@ def waitForAndCopyOutMeshes(
 				)
 			item.done = True
 			doneCount += 1
+			cleanTargetObj(item.info.target, item.info.obj)
 			jobs.remove(item)
 
 def appendSelAttrib(obj: bpy.types.Object, mesh: stuc.StucMesh) -> None:
@@ -550,6 +561,8 @@ def mapToTarget(
 				if err != 1:
 					raise Exception()
 			cacheTarget(target, crc, objOverride = obj, edit = True)
+			if obj:
+				cleanTargetObj(target, obj)
 		case _:
 			if cache:
 				cacheTarget(target, crc)

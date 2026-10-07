@@ -298,7 +298,7 @@ def addOrUpdateBlendMesh(
 	idxAttribs: stuc.StucAttribIndexedArr,
 	name: str,
 	crc: ctypes.c_uint64
-) -> None:
+) -> bpy.types.Object:
 	objName = f"{name}.Stuc"
 	obj = bpy.data.objects.get(objName, None)
 	stucCol = getStucCol(context)
@@ -330,6 +330,7 @@ def addOrUpdateBlendMesh(
 	matBlendAttrib = mesh.attributes.get("materials", None)
 	if (matBlendAttrib):
 		mesh.attributes.remove(matBlendAttrib)
+	return obj
 
 def waitForAndCopyOutMeshes(
 	context: bpy.types.Context,

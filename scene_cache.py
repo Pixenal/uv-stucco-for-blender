@@ -74,6 +74,7 @@ def importQuery(shmCtx: ctypes.c_void_p, expectDesc: stuc.ShmDesc) -> Query:
 	return Query(False, size = size, desc = desc)
 
 def sceneImport(shmCtx: ctypes.c_void_p) -> None:
+	relevant: list[bpy.types.Object] = []
 	while True:
 		query = importQuery(shmCtx, stuc.ShmDesc.OBJ)
 		if query.close:
@@ -116,6 +117,7 @@ def sceneImport(shmCtx: ctypes.c_void_p) -> None:
 				if not obj:
 					raise Exception()
 				utils.setBlenderMatrix(obj.matrix_world, stucObj.transform)
+				relevant.append(obj)
 			err = stucLib.stucBlenderSceneExportBool(
 				shmCtx,
 				stuc.ShmDesc.BOOL.value,
@@ -146,13 +148,18 @@ def sceneImport(shmCtx: ctypes.c_void_p) -> None:
 		)
 		if err != 1:
 			raise Exception()
-		mapping.addOrUpdateBlendMesh(
+		obj = mapping.addOrUpdateBlendMesh(
 			bpy.context,
 			stucObj,
 			idxAttribs,
 			name,
 			crc
 		)
+		relevant.append(obj)
+	stucCol = mapping.getStucCol(bpy.context)
+	for obj in stucCol.objects:
+		if obj not in relevant:
+			bpy.data.objects.remove(obj)
 
 def sceneImportToFile(shmName: str, shmServer: str) -> None:
 	try:

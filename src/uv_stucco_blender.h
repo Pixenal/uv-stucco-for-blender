@@ -302,7 +302,7 @@ PixErr stucBlenderSceneImportBool(PixioShmCtx *pShmCtx, bool *pVal);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneImportMesh(PixioShmCtx *pShmCtx, StucMesh *pMesh);
 STUC_BLENDER_EXPORT
-PixErr stucBlenderSceneImportObj(PixioShmCtx *pShmCtx, StucObject *pObj);
+PixErr stucBlenderSceneImportXform(PixioShmCtx *pShmCtx, PixtyM4x4 *pXform);
 STUC_BLENDER_EXPORT
 PixErr stucBlenderSceneImportIdxAttribs(PixioShmCtx *pShmCtx, StucAttribIndexedArr *pArr);
 STUC_BLENDER_EXPORT

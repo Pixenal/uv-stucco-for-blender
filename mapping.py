@@ -233,11 +233,13 @@ def pushMappingJobToQueue(
 		raise Exception("error generating target crc")
 	print(f"export - crc is {crc}")
 	if exportCtx:
+		stucObj = stuc.StucObject()
+		utils.setStucMatrix(stucObj.transform, info.objEval.matrix_world)
 		err = stucLib.stucBlenderSceneExportObj(
 			exportCtx,
 			target.obj.name.encode('utf-8'),
 			crc,
-			ctypes.c_void_p()
+			ctypes.pointer(stucObj)
 		)
 		if err != 1:
 			raise Exception()
@@ -297,7 +299,7 @@ def addOrUpdateBlendMesh(
 	name: str,
 	crc: ctypes.c_uint64
 ) -> None:
-	objName = name + ".Stuc"
+	objName = f"{name}.Stuc"
 	obj = bpy.data.objects.get(objName, None)
 	stucCol = getStucCol(context)
 	if not(obj):

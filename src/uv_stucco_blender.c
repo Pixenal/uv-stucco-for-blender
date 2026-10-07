@@ -1330,7 +1330,7 @@ PixErr stucBlenderSceneExportObj(
 	PixErr err = PIX_ERR_SUCCESS;
 	PIX_ERR_RETURN_IFNOT_COND(
 		err,
-		!pObj || pObj->pData->type == STUC_OBJECT_DATA_MESH,
+		!pObj->pData || pObj->pData->type == STUC_OBJECT_DATA_MESH,
 		""
 	);
 	//max len of blend obj name is 64 as of writing (afaik
@@ -1339,15 +1339,15 @@ PixErr stucBlenderSceneExportObj(
 	PIX_ERR_RETURN_IFNOT(err, "");
 	err = stucBlenderSceneExportCrc(pShmCtx, crc);
 	PIX_ERR_RETURN_IFNOT(err, "");
-	bool crcOnly = !pObj;
+	bool crcOnly = !pObj->pData;
 	printf("export-mesh crcOnly is %d\n", crcOnly);
 	err = stucBlenderSceneExportBool(pShmCtx, STUCB_SHM_BOOL, crcOnly);
+	PIX_ERR_RETURN_IFNOT(err, "");
+	err = pixioShmSend(pShmCtx, sizeof(PixtyM4x4), STUCB_SHM_XFORM, pObj->transform.d);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	if (crcOnly) {
 		return err;
 	}
-	err = pixioShmSend(pShmCtx, sizeof(PixtyM4x4), STUCB_SHM_XFORM, pObj->transform.d);
-	PIX_ERR_RETURN_IFNOT(err, "");
 	err = stucBlenderSceneExportMesh(pShmCtx, (StucMesh *)pObj->pData);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
@@ -1427,8 +1427,6 @@ PixErr stucBlenderSceneImportMesh(PixioShmCtx *pShmCtx, StucMesh *pMesh) {
 	PixErr err = PIX_ERR_SUCCESS;
 	I32 size = 0;
 	ShmDesc desc = STUCB_SHM_NONE;
-	err = pixioShmReceiveInit(pShmCtx, &size, (I32 *)&desc, NULL);
-	PIX_ERR_RETURN_IFNOT_COND(err, desc == STUCB_SHM_MESH && size == sizeof(StucMesh), "");
 	err = pixioShmReceive(pShmCtx, pMesh);
 	PIX_ERR_THROW_IFNOT(err, "", 0);
 	err =
@@ -1466,11 +1464,9 @@ PixErr stucBlenderSceneImportMesh(PixioShmCtx *pShmCtx, StucMesh *pMesh) {
 	return err;
 }
 
-PixErr stucBlenderSceneImportObj(PixioShmCtx *pShmCtx, StucObject *pObj) {
+PixErr stucBlenderSceneImportXform(PixioShmCtx *pShmCtx, PixtyM4x4 *pXform) {
 	PixErr err = PIX_ERR_SUCCESS;
-	err = pixioShmReceive(pShmCtx, pObj->transform.d);
-	PIX_ERR_RETURN_IFNOT(err, "");
-	err = stucBlenderSceneImportMesh(pShmCtx, (StucMesh *)pObj->pData);
+	err = pixioShmReceive(pShmCtx, pXform->d);
 	PIX_ERR_RETURN_IFNOT(err, "");
 	return err;
 }

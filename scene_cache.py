@@ -20,6 +20,7 @@ from . import stuc
 from . import mapping
 from . import client
 from . import props
+from . import utils
 
 def sceneImportInit(shmName: str) -> stuc.PixioShmCtx:
 	shmCtx = stuc.PixioShmCtx()
@@ -38,8 +39,7 @@ def sceneImportDestroy(shmCtx: ctypes.c_void_p) -> None:
 	shmCtx = ctypes.c_void_p()
 
 def crcCmpWithCache(name: str, crc: ctypes.c_uint64) -> bool:
-	objName = name + ".Stuc"
-	obj = bpy.data.objects.get(objName, None)
+	obj = bpy.data.objects.get(f"{name}.Stuc", None)
 	if not obj:
 		return False
 	return int(obj.stucCrc) == crc.value#type:ignore
@@ -98,9 +98,24 @@ def sceneImport(shmCtx: ctypes.c_void_p) -> None:
 		if err != 1:
 			raise Exception()
 		print(f"import - crcOnly is {crcOnly.value}")
+		stucObj = stuc.StucObject()
+		query = importQuery(shmCtx, stuc.ShmDesc.XFORM)
+		if query.close:
+			break
+		err = stucLib.stucBlenderSceneImportXform(
+			shmCtx,
+			ctypes.pointer(stucObj.transform)
+		)
+		if err != 1:
+			raise Exception()
 		if crcOnly.value:
 			upToDate = crcCmpWithCache(name, crc)
 			print(f"import - upToDate is {upToDate}")
+			if upToDate:
+				obj = bpy.data.objects.get(f"{name}.Stuc", None)
+				if not obj:
+					raise Exception()
+				utils.setBlenderMatrix(obj.matrix_world, stucObj.transform)
 			err = stucLib.stucBlenderSceneExportBool(
 				shmCtx,
 				stuc.ShmDesc.BOOL.value,
@@ -110,16 +125,15 @@ def sceneImport(shmCtx: ctypes.c_void_p) -> None:
 				raise Exception()
 			continue
 
-		query = importQuery(shmCtx, stuc.ShmDesc.XFORM)
-		if query.close:
-			raise Exception()
-		stucObj = stuc.StucObject()
 		stucMesh = stuc.StucMesh()
 		stucObj.pData = ctypes.cast(
 			ctypes.cast(ctypes.pointer(stucMesh), ctypes.c_void_p),
 			ctypes.POINTER(stuc.StucObjectData)
 		)
-		err = stucLib.stucBlenderSceneImportObj(shmCtx, ctypes.pointer(stucObj))
+		query = importQuery(shmCtx, stuc.ShmDesc.MESH)
+		if query.close:
+			break
+		err = stucLib.stucBlenderSceneImportMesh(shmCtx, ctypes.pointer(stucMesh))
 		if err != 1:
 			raise Exception()
 		query = importQuery(shmCtx, stuc.ShmDesc.IDX_ATTRIB_ARR)

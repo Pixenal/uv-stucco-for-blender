@@ -380,7 +380,7 @@ def stucStructVerify():
 			if issubclass(item[1], enum.Enum) or item[0] == "StucBlendOptDomainArrs":
 				continue
 			verifyFunc = f"stucBlenderVerify{item[0]}"
-			if not eval(f"stucLib.{verifyFunc}({ctypes.sizeof(item[1])})"):
+			if not eval(f"stucLib.{verifyFunc}({ctypes.sizeof(item[1])})"):#type:ignore
 				errStr = f"mirrored c-struct {item[0]} does not match library's"
 				raise Exception(errStr)
 	except Exception as e:

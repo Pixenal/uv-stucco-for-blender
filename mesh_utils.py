@@ -27,7 +27,7 @@ class StucMeshData:
 		matIdx : ctypes.c_void_p | None,
 		vertNormals : ctypes.c_void_p | None,
 		tangents : ctypes.c_void_p | None,
-		tSign : ctypes.c_void_p | None
+		bitangents : ctypes.c_void_p | None
 	) -> None:
 		self.mesh = mesh
 		self.edges = edges
@@ -35,7 +35,7 @@ class StucMeshData:
 		self.matIdx = matIdx
 		self.vertNormals = vertNormals
 		self.tangents = tangents
-		self.tSign = tSign
+		self.bitangents = bitangents
 
 class StucObjData:
 	def __init__(self, obj : stuc.StucObject, meshData : StucMeshData) -> None:
@@ -146,7 +146,7 @@ def formatAsStucMesh(
 			mesh.activeAttribs
 		)
 	tangents = None
-	tSign = None
+	bitangents = None
 	if getTangents:
 		target.calc_tangents()
 		tangents = (ctypes.c_float * 3 * mesh.cornerCount)()
@@ -154,17 +154,15 @@ def formatAsStucMesh(
 			ctypes.cast(tangents, ctypes.POINTER(ctypes.c_float)),
 			shape = (mesh.cornerCount * 3, 1)
 		)
-		target.loops.foreach_get(
-			"tangent",
-			tangentsNumpy #type:ignore
-		)
+		target.loops.foreach_get("tangent", tangentsNumpy)#type:ignore
 		tangents = ctypes.cast(tangents, ctypes.c_void_p)
-		tSign = (ctypes.c_float * mesh.cornerCount)()
-		target.loops.foreach_get(
-			"bitangent_sign",
-			numpy.ctypeslib.as_array(tSign, shape = (mesh.cornerCount, 1)) #type:ignore
+		bitangents = (ctypes.c_float * 3 * mesh.cornerCount)()
+		bitangentsNumpy = numpy.ctypeslib.as_array(
+			ctypes.cast(bitangents, ctypes.POINTER(ctypes.c_float)),
+			shape = (mesh.cornerCount * 3, 1)
 		)
-		tSign = ctypes.cast(tSign, ctypes.c_void_p)
+		target.loops.foreach_get("bitangent", bitangentsNumpy)#type:ignore
+		bitangents = ctypes.cast(bitangents, ctypes.c_void_p)
 		target.free_tangents()
 		attribUtils.appendAttrib(
 			mesh.cornerAttribs,
@@ -176,13 +174,13 @@ def formatAsStucMesh(
 		)
 		attribUtils.appendAttrib(
 			mesh.cornerAttribs,
-			"tSign",
-			stuc.StucAttribType.F32.value,
-			stuc.StucAttribUse.TSIGN.value,
-			tSign,
+			"bitangent",
+			stuc.StucAttribType.V3_F32.value,
+			stuc.StucAttribUse.BITANGENT.value,
+			bitangents,
 			mesh.activeAttribs
 		)
-	return StucMeshData(mesh, edges, normals, matIndices, vertNormals, tangents, tSign)
+	return StucMeshData(mesh, edges, normals, matIndices, vertNormals, tangents, bitangents)
 
 def copyStucMeshToBlenderMesh(
 		stucLib: ctypes.CDLL,

@@ -373,15 +373,20 @@ def bmEditToObj(
 ) -> bpy.types.Object | None:
 	if not targetObj.data or type(targetObj.data) != bpy.types.Mesh:
 		return None
-	bm = bmesh.from_edit_mesh(targetObj.data) #type:ignore
+	bm = bmesh.from_edit_mesh(targetObj.data)#type:ignore
 	bm = bm.copy()
 	if removeHiddenInEditMesh(bm, requireSel):
 		bm.clear()
 		return None
-	obj = targetObj.copy()
-	obj.name = "STUC_TEMP_WORK_OBJ"
-	obj.data = targetObj.data.copy()
-	obj.data.name = "STUC_TEMP_WORK_MESH"
-	bm.to_mesh(obj.data)
+	obj = bpy.data.objects.get("STUC_TEMP_WORK_OBJ", None)
+	if not obj:
+		mesh = bpy.data.meshes.get("STUC_TEMP_WORK_MESH", None)
+		if not mesh:
+			mesh = bpy.data.meshes.new("STUC_TEMP_WORK_MESH")
+		obj = bpy.data.objects.new("STUC_TEMP_WORK_OBJ", mesh)
+	if type(obj.data) != bpy.types.Mesh:
+		bpy.data.objects.remove(obj)
+		raise Exception()
+	bm.to_mesh(obj.data)#type:ignore
 	bm.clear()
 	return obj

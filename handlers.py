@@ -86,7 +86,19 @@ def convertCacheSelToTarget(context: bpy.types.Context) -> None:
 		if obj is context.view_layer.objects.active:
 			context.view_layer.objects.active = target.obj
 		obj.select_set(False)
-		obj.hide_set(True)
+
+def updateCacheSel(context: bpy.types.Context) -> None:
+	col = sceneCache.getCacheIfVisible(bpy.context)
+	if not col or context.scene.stuc.allowCacheSel:#type:ignore
+		return
+	for obj in col.objects:
+		if not obj.hide_get():
+			continue
+		targetName = obj.name.replace(".Stuc", "")
+		target = context.scene.stucTargets.get(targetName, None)#type:ignore
+		if not target or not target.obj or target.obj.select_get():
+			continue
+		obj.hide_set(False)
 
 @persistent
 def stucDepsgraphUpdatePostHandler(dummy) -> None:
@@ -101,6 +113,7 @@ def stucDepsgraphUpdatePostHandler(dummy) -> None:
 	convertCacheSelToTarget(bpy.context)
 	utils.updateUiTargetIdx(bpy.context)
 	mapping.mapToTargetsInScene(bpy.context)
+	updateCacheSel(bpy.context)
 
 @persistent
 def stucSavePreHandler(dummy) -> None:

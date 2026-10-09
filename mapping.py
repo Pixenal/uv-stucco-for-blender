@@ -561,8 +561,6 @@ def mapToTarget(
 				if err != 1:
 					raise Exception()
 			cacheTarget(target, crc, objOverride = obj, edit = True)
-			if obj:
-				cleanTargetObj(target, obj)
 		case _:
 			if cache:
 				cacheTarget(target, crc)
@@ -570,15 +568,13 @@ def mapToTarget(
 def setCacheObjVisibility(
 	context: bpy.types.Context,
 	col: bpy.types.Collection | None,
-	target: props.StucTarget,
-	hide: bool
+	target: props.StucTarget
 ) -> None:
 	if not col or context.scene.stuc.allowCacheSel:#type:ignore
 		return
-	cacheObj = sceneCache.getTargetInCache(col, target, False)
+	cacheObj = sceneCache.getTargetInCache(col, target, True)
 	if cacheObj:
-		cacheObj.hide_set(hide)
-		cacheObj.select_set(False)
+		cacheObj.hide_set(True)
 
 def mapToTargetsInScene(
 	context: bpy.types.Context,
@@ -591,10 +587,9 @@ def mapToTargetsInScene(
 		jobs = []
 		cacheCol = sceneCache.getCacheIfVisible(context)
 		for target in context.scene.stucTargets: #type:ignore
-			isSel = target.obj in context.selected_objects
-			setCacheObjVisibility(context, cacheCol, target, isSel)
-			if selOnly and not isSel:
+			if selOnly and not target.obj.select_get():
 				continue
+			setCacheObjVisibility(context, cacheCol, target)
 			if len(jobs) >= 32:
 				waitForAndCopyOutMeshes(context, jobs, exportCtx = exportCtx, tillRemain = 16)
 			mapToTarget(context, depsgraph, target, jobs, exportCtx, force = force)

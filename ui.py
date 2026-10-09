@@ -304,7 +304,8 @@ class STUC_PT_StucOpts(StucParentPanel, bpy.types.Panel):
 	def draw(self, context: bpy.types.Context) -> None:
 		col0 = self.layout.column()
 		col0.prop(context.scene.stuc, "wScale", text = "Default W Scale")#type:ignore
-		col0.prop(context.scene.stuc, "allowCacheSel", text = "Allow Cache Select")#type:ignore
+		col0.prop(context.scene.stuc, "wMode", text = "Default W Mode")#type:ignore
+		col0.prop(context.scene.stuc, "cachePassthrough", text = "Cache Passthrough")#type:ignore
 		col0.prop(context.scene.stuc, "relPaths", text = "Relative paths") #type:ignore
 		col0.prop(context.scene.stuc, "drawCacheMaxVerts", text = "Draw Cache Size")#type:ignore
 		#col0.prop(context.scene.stuc, "breakPoint", text = "Enable Break Points")#type:ignore

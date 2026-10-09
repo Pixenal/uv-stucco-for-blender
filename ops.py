@@ -115,6 +115,7 @@ class STUC_OT_StucAssign(bpy.types.Operator):
 				context.scene.stucTargetIdNext += 1 #type:ignore
 				newTarget.obj = obj.id_data
 				newTarget.wScale = context.scene.stuc.wScale#type:ignore
+				newTarget.wMode = context.scene.stuc.wMode#type:ignore
 
 				utils.initActiveAttrib(newTarget, "position", "position")
 				utils.initActiveAttrib(newTarget, "normal", "")

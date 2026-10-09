@@ -570,7 +570,7 @@ def setCacheObjVisibility(
 	col: bpy.types.Collection | None,
 	target: props.StucTarget
 ) -> None:
-	if not col or context.scene.stuc.allowCacheSel:#type:ignore
+	if not col or not context.scene.stuc.cachePassthrough:#type:ignore
 		return
 	cacheObj = sceneCache.getTargetInCache(col, target, True)
 	if cacheObj:

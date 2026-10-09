@@ -73,7 +73,7 @@ def stucLoadPreHandler(dummy) -> None:
 
 def convertCacheSelToTarget(context: bpy.types.Context) -> None:
 	col = sceneCache.getCacheIfVisible(bpy.context)
-	if not col or context.scene.stuc.allowCacheSel:#type:ignore
+	if not col or not context.scene.stuc.cachePassthrough:#type:ignore
 		return
 	for obj in context.selected_objects:
 		if obj.hide_viewport or obj.hide_get() or obj.name not in col.objects:
@@ -89,7 +89,7 @@ def convertCacheSelToTarget(context: bpy.types.Context) -> None:
 
 def updateCacheSel(context: bpy.types.Context) -> None:
 	col = sceneCache.getCacheIfVisible(bpy.context)
-	if not col or context.scene.stuc.allowCacheSel:#type:ignore
+	if not col or not context.scene.stuc.cachePassthrough:#type:ignore
 		return
 	for obj in col.objects:
 		if not obj.hide_get():

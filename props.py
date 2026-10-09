@@ -207,6 +207,16 @@ class StucDep(bpy.types.PropertyGroup):
 	timestamp : bpy.props.StringProperty()#type:ignore
 	id : bpy.props.IntProperty()#type:ignore
 
+wModeEnum = [
+	('0', "None", ""),
+	('1', "Average", ""),
+	('2', "Tangent", ""),
+	('3', "Bitangent", ""),
+	('4', "Average Uniform", ""),
+	('5', "Tangent Uniform", ""),
+	('6', "Bitangent Uniform", "")
+]
+
 class StucTarget(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty()#type:ignore
 	obj : bpy.props.PointerProperty(#type:ignore
@@ -217,15 +227,7 @@ class StucTarget(bpy.types.PropertyGroup):
 	activeAttribIdx : bpy.props.IntProperty()#type:ignore
 	id : bpy.props.IntProperty()#type:ignore
 	dirty : bpy.props.BoolProperty()#type:ignore
-	wMode : bpy.props.EnumProperty(default = '1', items = [#type:ignore
-		('0', "None", ""),
-		('1', "Average", ""),
-		('2', "Tangent", ""),
-		('3', "Bitangent", ""),
-		('4', "Average Uniform", ""),
-		('5', "Tangent Uniform", ""),
-		('6', "Bitangent Uniform", "")
-	])
+	wMode : bpy.props.EnumProperty(default = '1', items = wModeEnum)#type:ignore
 	wScale : bpy.props.FloatProperty(default = 1.0)#type:ignore
 	receiveLen : bpy.props.FloatProperty(default = -1.0)#type:ignore
 
@@ -284,6 +286,7 @@ class StucProperties(bpy.types.PropertyGroup):
 	])
 	commonAttribIdx : bpy.props.IntProperty(default = 0)#type:ignore
 	wScale : bpy.props.FloatProperty(name = "w Scale", default = 1.0)#type:ignore
+	wMode : bpy.props.EnumProperty(default = '1', items = wModeEnum)#type:ignore
 	drawCacheMaxVerts : bpy.props.IntProperty(#type:ignore
 		default = drawCacheMaxVerts,
 		update = drawCacheSizeUpdate
@@ -292,7 +295,7 @@ class StucProperties(bpy.types.PropertyGroup):
 	relPaths : bpy.props.BoolProperty(default = True, update = relPathsUpdate)#type:ignore
 	dontDraw : bpy.props.BoolProperty(default = False, update = dontDrawUpdate)#type:ignore
 	logEnabled : bpy.props.BoolProperty(default = False, update = logEnabledUpdate)#type:ignore
-	allowCacheSel : bpy.props.BoolProperty(default = False)#type:ignore
+	cachePassthrough : bpy.props.BoolProperty(default = True)#type:ignore
 	#breakPoint : bpy.props.BoolProperty(default = False)
 	
 class StucCommonAttribTableEntry(bpy.types.PropertyGroup):
